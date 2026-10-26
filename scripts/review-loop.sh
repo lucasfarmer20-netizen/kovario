@@ -9,7 +9,7 @@
 # Requires: gh (authed as the authoring account), claude (Claude Code CLI, logged in), jq.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-: "${REVIEWER_PAT:?set REVIEWER_PAT to the reviewer account's classic token (repo scope)}"
+: "${REVIEWER_PAT:?set REVIEWER_PAT to the reviewer-account classic token (repo scope)}"
 INTERVAL="${REVIEW_INTERVAL_SECS:-180}"
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 REVIEWER_LOGIN="$(GH_TOKEN="$REVIEWER_PAT" gh api user -q .login)"

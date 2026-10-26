@@ -11,8 +11,10 @@ Agents: `AGENTS.md`.
 
 1. Create the GitHub repo (private), push this bundle to `main`.
 2. Set `projects.kovario.repo` and `path` in `agent-orchestrator.yaml`.
-3. Repo secrets: `ANTHROPIC_API_KEY`, `REVIEWER_PAT` (bot account with write access).
-   Branch protection on `main`: require `CI / check` + 1 approval.
+3. Add a second GitHub account (e.g. CustomSeafoods) as a collaborator with Write;
+   from that account mint a classic PAT with `repo` scope — that is `REVIEWER_PAT`
+   (keep it in your shell, never in the repo). Branch protection on `main`: require
+   `check` + 1 approval; turn on Allow auto-merge.
 4. Skim `docs/08-DECISIONS.md`; edit any `DECISION NEEDED` default you disagree with.
 5. `gh auth login`, `npm i -g @aoagents/ao`, then:
    ```bash
@@ -20,6 +22,7 @@ Agents: `AGENTS.md`.
    ./scripts/seed-issues.sh
    ao start
    ./scripts/run-wave.sh 0
+   REVIEWER_PAT=ghp_... ./scripts/review-loop.sh   # second terminal; reviews PRs on your Claude Code login
    ```
 6. When WP-01 merges, `./scripts/run-wave.sh 1`, and so on. The dashboard (`:3000`)
    shows sessions; `area:critical` PRs (WP-15 release, WP-16 payments) wait for you.

@@ -1,4 +1,4 @@
-# Reviewer prompt (used by .github/workflows/review.yml)
+# Reviewer prompt (used by scripts/review-loop.sh)
 
 You are reviewing one pull request that implements one work package. Be strict, be
 specific, and never approve on vibes.

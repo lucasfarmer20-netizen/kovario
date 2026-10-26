@@ -32,10 +32,12 @@ Per-issue override: `ao spawn kovario <n> --agent codex`.
 ## Merge gates (hands-off mode)
 
 1. CI green (typecheck, lint, unit, migrations apply, SQL tests, build; e2e smoke once WP-23 lands).
-2. Reviewer pass: `.github/workflows/review.yml` runs Claude Code on every PR with
-   `scripts/review-prompt.md` (acceptance list + invariant tables + hard rules) and
-   approves or requests changes as a bot reviewer (`REVIEWER_PAT`). AO's
-   `changes-requested` reaction feeds findings back to the authoring agent.
+2. Reviewer pass: `scripts/review-loop.sh` runs on your machine next to `ao` and
+   drives Claude Code headless (`claude -p`, on your Max/Pro subscription — no API
+   key) over every open PR with `scripts/review-prompt.md`. It approves or requests
+   changes as the **reviewer account** (`REVIEWER_PAT`, a second GitHub identity such
+   as CustomSeafoods, because GitHub ignores self-approval). AO's `changes-requested`
+   reaction feeds the findings back to the authoring agent.
 3. `approved-and-green` → auto-merge, **except** `area:critical` (WP-15, WP-16), which
    notify and wait for Lucas.
 
@@ -48,6 +50,7 @@ npm i -g @aoagents/ao               # Agent Orchestrator
 export AO_CONFIG_PATH=$PWD/agent-orchestrator.yaml
 ./scripts/seed-issues.sh            # labels + milestones + 24 issues → issues/map.json
 ao start                            # dashboard on :3000
+REVIEWER_PAT=ghp_... ./scripts/review-loop.sh   # reviewer, in a second terminal
 
 # then, per wave
 ./scripts/run-wave.sh 0             # WP-01
@@ -55,10 +58,10 @@ ao start                            # dashboard on :3000
 # … ao status / dashboard; re-run run-wave.sh N as blockers merge
 ```
 
-Repo secrets to set once (Settings → Secrets → Actions): `ANTHROPIC_API_KEY` (review
-workflow), `REVIEWER_PAT` (a bot GitHub account with write access, so its approvals
-count), later `VERCEL_TOKEN` for previews. CI needs nothing else: payments and
-shipping tests use fakes; live keys are never needed in CI. Branch protection on
+No API keys and no repo secrets are needed for v1: builders and the reviewer run on
+your local Claude Code / Codex logins, and CI uses fakes for payments and shipping.
+`REVIEWER_PAT` lives only in your shell (or a `.env.reviewer` you source), never in the
+repo. Branch protection on
 `main`: require the `CI / check` status and 1 approving review. Enable GitHub secret
 scanning + push protection on the repo (that is the secret scan; CI has none).
 
