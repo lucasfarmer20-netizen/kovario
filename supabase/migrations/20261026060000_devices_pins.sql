@@ -118,25 +118,37 @@ begin
 end;
 $$;
 
+-- Admin mutations below are single atomic functions keyed by the client's
+-- `client_action_id` (see app.action_begin): a replay returns the stored result.
+
 -- Adds an existing auth user to the caller's org. Called by the `member-invite` Edge
 -- Function with the inviting manager's JWT, after it has created/invited the auth user.
 create or replace function public.admin_add_member(
-  p_user_id uuid, p_role public.org_member_role, p_display_name text
+  p_client_action_id text, p_user_id uuid, p_role public.org_member_role, p_display_name text
 )
-returns uuid
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
+  v_action jsonb;
   v_id uuid;
+  v_result jsonb;
 begin
   perform app.require_role('{owner,manager}');
+  v_action := app.action_begin(p_client_action_id, 'member.add',
+    jsonb_build_object('user_id', p_user_id, 'role', p_role));
+  if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+
   if p_role = 'owner' and app.role() <> 'owner' then
     raise exception 'only an owner can add an owner' using errcode = '42501';
   end if;
   if exists (select 1 from public.device where auth_user_id = p_user_id) then
     raise exception 'device users cannot be members' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.org_member where org_id = app.org_id() and user_id = p_user_id) then
+    raise exception 'already a member of this org' using errcode = '23505';
   end if;
   insert into public.org_member (org_id, user_id, role, display_name, is_default)
   values (
@@ -144,22 +156,31 @@ begin
     not exists (select 1 from public.org_member where user_id = p_user_id)
   )
   returning id into v_id;
-  return v_id;
-exception when unique_violation then
-  raise exception 'already a member of this org' using errcode = '23505';
+
+  v_result := jsonb_build_object('member_id', v_id);
+  perform app.action_complete(p_client_action_id, v_result);
+  return v_result;
 end;
 $$;
 
-create or replace function public.admin_set_member_role(p_member_id uuid, p_role public.org_member_role)
-returns void
+create or replace function public.admin_set_member_role(
+  p_client_action_id text, p_member_id uuid, p_role public.org_member_role
+)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
+  v_action jsonb;
   v_member public.org_member;
+  v_result jsonb;
 begin
   perform app.require_role('{owner,manager}');
+  v_action := app.action_begin(p_client_action_id, 'member.set_role',
+    jsonb_build_object('member_id', p_member_id, 'role', p_role));
+  if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+
   select * into v_member from public.org_member
   where id = p_member_id and org_id = app.org_id()
   for update;
@@ -176,22 +197,35 @@ begin
     raise exception 'an org needs at least one owner' using errcode = '23514';
   end if;
   update public.org_member set role = p_role where id = p_member_id;
+
+  v_result := jsonb_build_object('member_id', p_member_id, 'role', p_role);
+  perform app.action_complete(p_client_action_id, v_result);
+  return v_result;
 end;
 $$;
 
 -- Sets (or with null clears) a member's operator PIN. PINs are 4–6 digits, unique per org.
-create or replace function public.admin_set_member_pin(p_member_id uuid, p_pin text)
-returns void
+-- The PIN is never written to action_log.
+create or replace function public.admin_set_member_pin(
+  p_client_action_id text, p_member_id uuid, p_pin text
+)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
   v_org uuid := app.org_id();
+  v_action jsonb;
   v_target public.org_member_role;
   v_clash public.org_member;
+  v_result jsonb;
 begin
   perform app.require_role('{owner,manager}');
+  v_action := app.action_begin(p_client_action_id, 'member.set_pin',
+    jsonb_build_object('member_id', p_member_id, 'clear', p_pin is null));
+  if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+
   select role into v_target from public.org_member where id = p_member_id and org_id = v_org;
   if not found then
     raise exception 'member not found' using errcode = 'P0002';
@@ -202,55 +236,127 @@ begin
   end if;
   if p_pin is null then
     update public.org_member set pin_hash = null where id = p_member_id;
-    return;
+  else
+    if not app.valid_pin(p_pin) then
+      raise exception 'PIN must be 4–6 digits' using errcode = '22023';
+    end if;
+    -- Serialise PIN changes per org so the uniqueness check cannot race.
+    perform pg_advisory_xact_lock(hashtext('org_member_pin:' || v_org::text));
+    v_clash := app.member_by_pin(v_org, p_pin);
+    if v_clash.id is not null and v_clash.id <> p_member_id then
+      raise exception 'PIN already in use in this org' using errcode = '23505';
+    end if;
+    update public.org_member
+    set pin_hash = extensions.crypt(p_pin, extensions.gen_salt('bf', 6))
+    where id = p_member_id;
   end if;
-  if not app.valid_pin(p_pin) then
-    raise exception 'PIN must be 4–6 digits' using errcode = '22023';
-  end if;
-  -- Serialise PIN changes per org so the uniqueness check cannot race.
-  perform pg_advisory_xact_lock(hashtext('org_member_pin:' || v_org::text));
-  v_clash := app.member_by_pin(v_org, p_pin);
-  if v_clash.id is not null and v_clash.id <> p_member_id then
-    raise exception 'PIN already in use in this org' using errcode = '23505';
-  end if;
-  update public.org_member
-  set pin_hash = extensions.crypt(p_pin, extensions.gen_salt('bf', 6))
-  where id = p_member_id;
+
+  v_result := jsonb_build_object('member_id', p_member_id, 'has_pin', p_pin is not null);
+  perform app.action_complete(p_client_action_id, v_result);
+  return v_result;
 end;
 $$;
 
 -- Sites admin --------------------------------------------------------------------------
 
-create or replace function public.admin_set_default_site(p_site_id uuid)
-returns void
+create or replace function public.admin_create_site(p_client_action_id text, p_name text)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_action jsonb;
+  v_id uuid;
+  v_result jsonb;
 begin
   perform app.require_role('{owner,manager}');
+  v_action := app.action_begin(p_client_action_id, 'site.create', jsonb_build_object('name', p_name));
+  if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+
+  insert into public.site (org_id, name)
+  values (app.org_id(), trim(p_name))
+  returning id into v_id;
+
+  v_result := jsonb_build_object('site_id', v_id);
+  perform app.action_complete(p_client_action_id, v_result);
+  return v_result;
+end;
+$$;
+
+create or replace function public.admin_rename_site(p_client_action_id text, p_site_id uuid, p_name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_action jsonb;
+  v_result jsonb;
+begin
+  perform app.require_role('{owner,manager}');
+  v_action := app.action_begin(p_client_action_id, 'site.rename',
+    jsonb_build_object('site_id', p_site_id, 'name', p_name));
+  if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+
+  update public.site set name = trim(p_name) where id = p_site_id and org_id = app.org_id();
+  if not found then
+    raise exception 'site not found' using errcode = 'P0002';
+  end if;
+
+  v_result := jsonb_build_object('site_id', p_site_id);
+  perform app.action_complete(p_client_action_id, v_result);
+  return v_result;
+end;
+$$;
+
+create or replace function public.admin_set_default_site(p_client_action_id text, p_site_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_action jsonb;
+  v_result jsonb;
+begin
+  perform app.require_role('{owner,manager}');
+  v_action := app.action_begin(p_client_action_id, 'site.set_default',
+    jsonb_build_object('site_id', p_site_id));
+  if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+
   if not exists (select 1 from public.site where id = p_site_id and org_id = app.org_id()) then
     raise exception 'site not found' using errcode = 'P0002';
   end if;
   update public.site set is_default = false where org_id = app.org_id() and is_default and id <> p_site_id;
   update public.site set is_default = true where id = p_site_id;
+
+  v_result := jsonb_build_object('site_id', p_site_id);
+  perform app.action_complete(p_client_action_id, v_result);
+  return v_result;
 end;
 $$;
 
 -- Devices ------------------------------------------------------------------------------
 
 create or replace function public.admin_create_device(
-  p_name text, p_station public.device_station, p_site_id uuid default null
+  p_client_action_id text, p_name text, p_station public.device_station, p_site_id uuid default null
 )
-returns uuid
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
+  v_action jsonb;
   v_id uuid;
+  v_result jsonb;
 begin
   perform app.require_role('{owner,manager}');
+  v_action := app.action_begin(p_client_action_id, 'device.create',
+    jsonb_build_object('name', p_name, 'station', p_station, 'site_id', p_site_id));
+  if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+
   if p_site_id is not null
      and not exists (select 1 from public.site where id = p_site_id and org_id = app.org_id()) then
     raise exception 'site not found' using errcode = 'P0002';
@@ -258,7 +364,10 @@ begin
   insert into public.device (org_id, name, station, site_id)
   values (app.org_id(), trim(p_name), p_station, p_site_id)
   returning id into v_id;
-  return v_id;
+
+  v_result := jsonb_build_object('device_id', v_id);
+  perform app.action_complete(p_client_action_id, v_result);
+  return v_result;
 end;
 $$;
 
@@ -531,9 +640,12 @@ grant execute on function
 to authenticated, service_role;
 
 revoke all on function
-  public.admin_list_members(), public.admin_add_member(uuid, public.org_member_role, text),
-  public.admin_set_member_role(uuid, public.org_member_role), public.admin_set_member_pin(uuid, text),
-  public.admin_set_default_site(uuid), public.admin_create_device(text, public.device_station, uuid),
+  public.admin_list_members(), public.admin_add_member(text, uuid, public.org_member_role, text),
+  public.admin_set_member_role(text, uuid, public.org_member_role),
+  public.admin_set_member_pin(text, uuid, text),
+  public.admin_create_site(text, text), public.admin_rename_site(text, uuid, text),
+  public.admin_set_default_site(text, uuid),
+  public.admin_create_device(text, text, public.device_station, uuid),
   public.admin_device_pairing_code(uuid), public.device_heartbeat(), public.operator_identify(text),
   public.elevation_status(text),
   public.device_redeem_pairing(text), public.device_bind_auth_user(uuid, uuid),
@@ -541,9 +653,12 @@ revoke all on function
 from public, anon, authenticated;
 
 grant execute on function
-  public.admin_list_members(), public.admin_add_member(uuid, public.org_member_role, text),
-  public.admin_set_member_role(uuid, public.org_member_role), public.admin_set_member_pin(uuid, text),
-  public.admin_set_default_site(uuid), public.admin_create_device(text, public.device_station, uuid),
+  public.admin_list_members(), public.admin_add_member(text, uuid, public.org_member_role, text),
+  public.admin_set_member_role(text, uuid, public.org_member_role),
+  public.admin_set_member_pin(text, uuid, text),
+  public.admin_create_site(text, text), public.admin_rename_site(text, uuid, text),
+  public.admin_set_default_site(text, uuid),
+  public.admin_create_device(text, text, public.device_station, uuid),
   public.admin_device_pairing_code(uuid), public.device_heartbeat(), public.operator_identify(text),
   public.elevation_status(text)
 to authenticated;

@@ -20,17 +20,15 @@ export async function createDevice(_state: ActionState, formData: FormData): Pro
   if (!parsed.success) return { error: "Enter a name and pick a station." };
   const result = await adminMutation(
     formData,
-    { action: "device.create", input: parsed.data },
-    async ({ supabase }) => {
-      const id = unwrap(
+    async ({ supabase }, id) =>
+      unwrap(
         await supabase.rpc("admin_create_device", {
+          p_client_action_id: id,
           p_name: parsed.data.name,
           p_station: parsed.data.station,
           p_site_id: parsed.data.site_id || undefined,
         }),
-      );
-      return { device_id: id };
-    },
+      ),
     `Added ${parsed.data.name}. Press “Pair” to connect a tablet.`,
   );
   revalidatePath("/admin/devices");

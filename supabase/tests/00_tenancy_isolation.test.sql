@@ -154,6 +154,17 @@ from pg_temp.foreign_rows_visible(
 );
 
 -- Writes as org A -----------------------------------------------------------------------
+-- A probe table exercises enable_org_rls' generic write path (write_roles owner|manager),
+-- which later work packages use; it is created after the catalog checks above.
+create table public.rls_probe (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.org (id),
+  label text
+);
+select app.enable_org_rls('public.rls_probe', write_roles => '{owner,manager}');
+insert into public.rls_probe (id, org_id, label) values
+  ('b0000000-0000-4000-8000-0000000009b1', 'b0000000-0000-4000-8000-00000000000b', 'B');
+
 select set_config('request.jwt.claims',
   '{"sub":"a0000000-0000-4000-8000-0000000000a1","role":"authenticated","org_id":"a0000000-0000-4000-8000-00000000000a","app_role":"owner"}',
   true);
@@ -164,20 +175,44 @@ select isnt_empty(
   'owner of org A sees own sites'
 );
 
+select lives_ok(
+  $$ insert into public.rls_probe (org_id, label) values ('a0000000-0000-4000-8000-00000000000a', 'A') $$,
+  'enable_org_rls: a write role writes rows of its own org'
+);
+
 select throws_ok(
-  $$ insert into public.site (org_id, name) values ('b0000000-0000-4000-8000-00000000000b', 'Sneaky') $$,
+  $$ insert into public.rls_probe (org_id, label) values ('b0000000-0000-4000-8000-00000000000b', 'Sneaky') $$,
   '42501', null,
-  'owner of org A cannot insert a site into org B'
+  'enable_org_rls: owner of org A cannot insert into org B'
 );
 
 select is_empty(
-  $$ update public.site set name = 'Hijacked' where id = 'b0000000-0000-4000-8000-0000000005b1' returning id $$,
-  'owner of org A cannot update org B sites'
+  $$ update public.rls_probe set label = 'Hijacked' where id = 'b0000000-0000-4000-8000-0000000009b1' returning id $$,
+  'enable_org_rls: owner of org A cannot update org B rows'
 );
 
 select is_empty(
-  $$ delete from public.site where id = 'b0000000-0000-4000-8000-0000000005b1' returning id $$,
-  'owner of org A cannot delete org B sites'
+  $$ delete from public.rls_probe where id = 'b0000000-0000-4000-8000-0000000009b1' returning id $$,
+  'enable_org_rls: owner of org A cannot delete org B rows'
+);
+
+-- Sites are read-only for clients; managers write them through the atomic admin_* functions.
+select throws_ok(
+  $$ insert into public.site (org_id, name) values ('a0000000-0000-4000-8000-00000000000a', 'Direct') $$,
+  '42501', null,
+  'sites are not directly writable by clients'
+);
+
+select throws_ok(
+  $$ select public.admin_rename_site('act-cross-org-1', 'b0000000-0000-4000-8000-0000000005b1', 'Hijacked') $$,
+  'P0002', null,
+  'owner of org A cannot rename an org B site through the admin functions'
+);
+
+select throws_ok(
+  $$ select public.admin_set_default_site('act-cross-org-2', 'b0000000-0000-4000-8000-0000000005b1') $$,
+  'P0002', null,
+  'owner of org A cannot change org B''s default site'
 );
 
 select is_empty(
@@ -209,7 +244,7 @@ select throws_ok(
   'app.sequence_prefix is not readable by clients'
 );
 
--- Staff cannot manage sites (write_roles owner|manager).
+-- Staff cannot write (write_roles owner|manager) or manage sites.
 reset role;
 select set_config('request.jwt.claims',
   '{"sub":"a0000000-0000-4000-8000-0000000000a2","role":"authenticated","org_id":"a0000000-0000-4000-8000-00000000000a","app_role":"staff"}',
@@ -217,7 +252,13 @@ select set_config('request.jwt.claims',
 set local role authenticated;
 
 select throws_ok(
-  $$ insert into public.site (org_id, name) values ('a0000000-0000-4000-8000-00000000000a', 'Staff site') $$,
+  $$ insert into public.rls_probe (org_id, label) values ('a0000000-0000-4000-8000-00000000000a', 'Staff') $$,
+  '42501', null,
+  'enable_org_rls: roles outside write_roles cannot write'
+);
+
+select throws_ok(
+  $$ select public.admin_create_site('act-staff-site', 'Staff site') $$,
   '42501', null,
   'staff cannot create sites'
 );

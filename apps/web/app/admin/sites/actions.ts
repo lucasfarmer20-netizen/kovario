@@ -11,17 +11,13 @@ export async function createSite(_state: ActionState, formData: FormData): Promi
   if (!parsed.success) return { error: "Enter a site name." };
   const result = await adminMutation(
     formData,
-    { action: "site.create", input: parsed.data },
-    async ({ supabase, claims }) => {
-      const site = unwrap(
-        await supabase
-          .from("site")
-          .insert({ org_id: claims.orgId, name: parsed.data.name })
-          .select("id")
-          .single(),
-      );
-      return { site_id: site?.id ?? null };
-    },
+    async ({ supabase }, id) =>
+      unwrap(
+        await supabase.rpc("admin_create_site", {
+          p_client_action_id: id,
+          p_name: parsed.data.name,
+        }),
+      ),
     `Added ${parsed.data.name}.`,
   );
   revalidatePath("/admin/sites");
@@ -35,16 +31,14 @@ export async function renameSite(_state: ActionState, formData: FormData): Promi
   if (!parsed.success) return { error: "Enter a site name." };
   const result = await adminMutation(
     formData,
-    { action: "site.rename", input: parsed.data },
-    async ({ supabase }) => {
+    async ({ supabase }, id) =>
       unwrap(
-        await supabase
-          .from("site")
-          .update({ name: parsed.data.name })
-          .eq("id", parsed.data.site_id),
-      );
-      return parsed.data;
-    },
+        await supabase.rpc("admin_rename_site", {
+          p_client_action_id: id,
+          p_site_id: parsed.data.site_id,
+          p_name: parsed.data.name,
+        }),
+      ),
     "Saved.",
   );
   revalidatePath("/admin/sites");
@@ -61,11 +55,13 @@ export async function makeDefaultSite(
   if (!parsed.success) return { error: "Unknown site." };
   const result = await adminMutation(
     formData,
-    { action: "site.set_default", input: parsed.data },
-    async ({ supabase }) => {
-      unwrap(await supabase.rpc("admin_set_default_site", { p_site_id: parsed.data.site_id }));
-      return parsed.data;
-    },
+    async ({ supabase }, id) =>
+      unwrap(
+        await supabase.rpc("admin_set_default_site", {
+          p_client_action_id: id,
+          p_site_id: parsed.data.site_id,
+        }),
+      ),
     "Default site changed.",
   );
   revalidatePath("/admin/sites");

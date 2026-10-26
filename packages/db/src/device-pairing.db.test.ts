@@ -1,5 +1,6 @@
 // End-to-end device pairing, operator PIN and manager elevation through the Edge Functions
 // served by `supabase start` (docs/01-ARCHITECTURE.md §5).
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { kovarioClaims } from "./claims";
 import {
@@ -40,11 +41,12 @@ describe("device pairing", { timeout: 60_000 }, () => {
     manager = await createUser(org, "manager");
     staff = await createUser(org, "staff");
     const { data, error } = await manager.client.rpc("admin_create_device", {
+      p_client_action_id: randomUUID(),
       p_name: "Intake 1",
       p_station: "intake",
     });
     if (error) throw error;
-    deviceId = data;
+    deviceId = (data as { device_id: string }).device_id;
   });
 
   afterAll(async () => {
@@ -90,6 +92,7 @@ describe("device pairing", { timeout: 60_000 }, () => {
     expect(
       (
         await manager.client.rpc("admin_set_member_pin", {
+          p_client_action_id: randomUUID(),
           p_member_id: staffMember?.id ?? "",
           p_pin: "2468",
         })
@@ -98,6 +101,7 @@ describe("device pairing", { timeout: 60_000 }, () => {
     expect(
       (
         await manager.client.rpc("admin_set_member_pin", {
+          p_client_action_id: randomUUID(),
           p_member_id: managerMember?.id ?? "",
           p_pin: "13579",
         })
@@ -188,7 +192,9 @@ describe("device pairing", { timeout: 60_000 }, () => {
     const { data, error } = await manager.client.functions.invoke<{
       member_id: string;
       invited: boolean;
-    }>("member-invite", { body: { email, display_name: "Ivy Invitee", role: "cashier" } });
+    }>("member-invite", {
+      body: { client_action_id: randomUUID(), email, display_name: "Ivy Invitee", role: "cashier" },
+    });
     expect(error).toBeNull();
     expect(data?.invited).toBe(true);
     const { data: members } = await manager.client.rpc("admin_list_members");
@@ -198,7 +204,12 @@ describe("device pairing", { timeout: 60_000 }, () => {
     });
 
     const forbidden = await staff.client.functions.invoke("member-invite", {
-      body: { email: `x-${Date.now()}@test.kovario`, display_name: "X", role: "staff" },
+      body: {
+        client_action_id: randomUUID(),
+        email: `x-${Date.now()}@test.kovario`,
+        display_name: "X",
+        role: "staff",
+      },
     });
     expect(forbidden.error).toBeTruthy();
   });

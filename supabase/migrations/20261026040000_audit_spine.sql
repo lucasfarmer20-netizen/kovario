@@ -39,19 +39,23 @@ create index if not exists domain_event_unprocessed on public.domain_event (org_
 select app.track_updated_at('public.domain_event');
 select app.enable_org_rls('public.domain_event', write_roles => '{}');
 
--- An in-flight claim older than this is treated as abandoned and may be taken over.
-create or replace function app.action_stale_after()
-returns interval
-language sql
-immutable
-as $$ select interval '2 minutes' $$;
+-- Idempotent mutations (AGENTS.md hard rule 3). Every mutation is ONE SQL function that
+-- takes the client's `client_action_id` and, in its own transaction:
+--
+--   v := app.action_begin(p_client_action_id, 'site.create', <input without secrets>);
+--   if v ->> 'status' = 'done' then return v -> 'result'; end if;   -- replay
+--   ... domain writes ...
+--   perform app.action_complete(p_client_action_id, <result>);
+--   return <result>;
+--
+-- The claim, the domain writes and the stored result commit or roll back together, so a
+-- lost response or crashed client can retry the same id without duplicating the write.
+-- A concurrent request with the same id blocks on the action_log unique index until the
+-- first commits, then replays its result (or claims the id if the first rolled back).
+-- Never claim in one round trip and complete in another.
 
--- Claims `client_action_id` for the current org. Returns
---   {"status":"new"}                      — caller runs the action, then action_complete
---   {"status":"done","result":<stored>}   — replay: return the stored result
---   {"status":"pending"}                  — another request is running it now
--- SQL functions that do their whole write in one transaction call this first and
--- app.action_complete last, so the claim and the writes commit (or roll back) together.
+-- Returns {"status":"new"} (caller performs the action) or
+-- {"status":"done","result":<stored>} (replay: return the stored result).
 create or replace function app.action_begin(p_client_action_id text, p_action text, p_input jsonb)
 returns jsonb
 language plpgsql
@@ -65,6 +69,9 @@ begin
   if v_org is null then
     raise exception 'action_begin: no org in session' using errcode = '42501';
   end if;
+  if p_client_action_id is null then
+    raise exception 'action_begin: client_action_id is required' using errcode = '22004';
+  end if;
 
   insert into public.action_log (org_id, client_action_id, user_id, device_id, action, input)
   values (v_org, p_client_action_id, app.user_id(), app.device_id(), p_action, p_input)
@@ -76,26 +83,20 @@ begin
   end if;
 
   select * into v_row from public.action_log
-  where client_action_id = p_client_action_id
-  for update;
+  where client_action_id = p_client_action_id;
 
   if v_row.org_id <> v_org or v_row.action <> p_action then
     raise exception 'action_begin: client_action_id already used for another action'
       using errcode = '23505';
   end if;
 
-  if v_row.completed_at is not null then
-    return jsonb_build_object('status', 'done', 'result', v_row.result);
+  if v_row.completed_at is null then
+    -- Only reachable when the same transaction claims an id twice.
+    raise exception 'action_begin: action % is already in progress', p_client_action_id
+      using errcode = '55006';
   end if;
 
-  if v_row.at < now() - app.action_stale_after() then
-    update public.action_log
-    set at = now(), user_id = app.user_id(), device_id = app.device_id(), input = p_input
-    where id = v_row.id;
-    return jsonb_build_object('status', 'new');
-  end if;
-
-  return jsonb_build_object('status', 'pending');
+  return jsonb_build_object('status', 'done', 'result', v_row.result);
 end;
 $$;
 
@@ -115,21 +116,6 @@ begin
     raise exception 'action_complete: no pending action %', p_client_action_id
       using errcode = 'P0002';
   end if;
-end;
-$$;
-
--- Releases a failed in-flight claim so the client can retry with the same id.
-create or replace function app.action_abort(p_client_action_id text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  delete from public.action_log
-  where client_action_id = p_client_action_id
-    and org_id = app.org_id()
-    and completed_at is null;
 end;
 $$;
 
@@ -155,30 +141,6 @@ end;
 $$;
 
 revoke all on function app.action_begin(text, text, jsonb), app.action_complete(text, jsonb),
-  app.action_abort(text), app.emit_event(uuid, text, uuid, jsonb) from public;
+  app.emit_event(uuid, text, uuid, jsonb) from public;
 grant execute on function app.action_begin(text, text, jsonb), app.action_complete(text, jsonb),
-  app.action_abort(text), app.emit_event(uuid, text, uuid, jsonb) to authenticated, service_role;
-
--- Data API entry points for packages/db `withAction` (the app schema is not exposed).
-create or replace function public.action_begin(p_client_action_id text, p_action text, p_input jsonb default null)
-returns jsonb
-language sql
-set search_path = ''
-as $$ select app.action_begin(p_client_action_id, p_action, p_input) $$;
-
-create or replace function public.action_complete(p_client_action_id text, p_result jsonb)
-returns void
-language sql
-set search_path = ''
-as $$ select app.action_complete(p_client_action_id, p_result) $$;
-
-create or replace function public.action_abort(p_client_action_id text)
-returns void
-language sql
-set search_path = ''
-as $$ select app.action_abort(p_client_action_id) $$;
-
-revoke all on function public.action_begin(text, text, jsonb), public.action_complete(text, jsonb),
-  public.action_abort(text) from public, anon;
-grant execute on function public.action_begin(text, text, jsonb), public.action_complete(text, jsonb),
-  public.action_abort(text) to authenticated;
+  app.emit_event(uuid, text, uuid, jsonb) to authenticated, service_role;

@@ -1,8 +1,10 @@
-// POST /functions/v1/member-invite  { email, display_name, role }  (Authorization: manager)
-//   → { member_id, invited }
+// POST /functions/v1/member-invite  { client_action_id, email, display_name, role }
+//   (Authorization: manager)  → { member_id, invited }
 // Creating auth users needs the service role, which apps/web may not use, so invites run
 // here. The membership itself is written with the caller's JWT through
-// public.admin_add_member, so the role checks stay in SQL.
+// public.admin_add_member, so the role checks stay in SQL. That function records
+// `client_action_id` atomically with the membership: a retry after a lost response finds
+// the existing auth user (no second invite) and replays the stored membership.
 import { callerClient, json, preflight, serviceClient, verifyCaller } from "../_shared/supabase.ts";
 
 const ROLES = ["owner", "manager", "staff", "cashier"];
@@ -22,7 +24,13 @@ Deno.serve(async (req) => {
   const displayName = typeof body?.display_name === "string" ? body.display_name.trim() : "";
   const role = typeof body?.role === "string" ? body.role : "";
   const redirectTo = typeof body?.redirect_to === "string" ? body.redirect_to : undefined;
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !displayName || !ROLES.includes(role)) {
+  const clientActionId = typeof body?.client_action_id === "string" ? body.client_action_id : "";
+  if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    !displayName ||
+    !ROLES.includes(role) ||
+    clientActionId.length < 8
+  ) {
     return json({ error: "invalid_input" }, 400);
   }
   if (email.endsWith("@devices.kovario.internal")) return json({ error: "invalid_input" }, 400);
@@ -47,13 +55,18 @@ Deno.serve(async (req) => {
     invited = false;
   }
 
-  const { data: memberId, error: addError } = await callerClient(caller.accessToken).rpc(
+  const { data: added, error: addError } = await callerClient(caller.accessToken).rpc(
     "admin_add_member",
-    { p_user_id: userId, p_role: role, p_display_name: displayName },
+    {
+      p_client_action_id: clientActionId,
+      p_user_id: userId,
+      p_role: role,
+      p_display_name: displayName,
+    },
   );
   if (addError) {
     const status = addError.code === "23505" ? 409 : addError.code === "42501" ? 403 : 400;
     return json({ error: addError.message }, status);
   }
-  return json({ member_id: memberId, invited });
+  return json({ member_id: (added as { member_id?: string } | null)?.member_id ?? null, invited });
 });

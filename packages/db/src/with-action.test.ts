@@ -1,30 +1,26 @@
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import type { Database, Json } from "./types";
-import { ActionInProgressError, withAction } from "./with-action";
+import { withAction } from "./with-action";
 
-// A fake PostgREST that implements action_begin/complete/abort over an in-memory log.
+// A fake PostgREST: GET /action_log answers from an in-memory log; RPCs record there
+// atomically, like the SQL functions do.
 function fakeClient() {
-  const log = new Map<string, { result: Json; done: boolean }>();
-  const calls: string[] = [];
+  const log = new Map<string, Json>();
   const fetch = async (input: string | URL | Request, init?: RequestInit) => {
-    const fn = String(input).split("/rpc/")[1]?.split("?")[0] ?? "";
-    calls.push(fn);
-    const args = JSON.parse(String(init?.body ?? "{}")) as Record<string, Json>;
-    const id = String(args.p_client_action_id);
+    const url = new URL(String(input));
     let body: Json = null;
-    if (fn === "action_begin") {
-      const row = log.get(id);
-      if (!row) {
-        log.set(id, { result: null, done: false });
-        body = { status: "new" };
-      } else {
-        body = row.done ? { status: "done", result: row.result } : { status: "pending" };
-      }
-    } else if (fn === "action_complete") {
-      log.set(id, { result: args.p_result ?? null, done: true });
-    } else if (fn === "action_abort") {
-      log.delete(id);
+    if (url.pathname.endsWith("/action_log")) {
+      const id = url.searchParams.get("client_action_id")?.replace(/^eq\./, "") ?? "";
+      // maybeSingle() fetches a list and checks the cardinality client-side.
+      body = log.has(id)
+        ? [{ result: log.get(id) ?? null, completed_at: "2026-10-26T00:00:00Z" }]
+        : [];
+    } else {
+      const args = JSON.parse(String(init?.body ?? "{}")) as { p_client_action_id: string };
+      const result = { site_id: `site-for-${args.p_client_action_id}` };
+      log.set(args.p_client_action_id, result);
+      body = result;
     }
     return new Response(JSON.stringify(body), {
       status: 200,
@@ -35,36 +31,30 @@ function fakeClient() {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { fetch },
   });
-  return { client, log, calls };
+  return { client, log };
 }
 
 describe("withAction", () => {
-  it("replaying an action id returns the stored result without re-running", async () => {
+  it("passes the action id to fn and returns its result", async () => {
     const { client } = fakeClient();
-    const fn = vi.fn(async () => ({ number: "INT-0001" }));
-    const first = await withAction(client, "act-00000001", fn, { action: "intake.save" });
-    const replay = await withAction(client, "act-00000001", fn, { action: "intake.save" });
-    expect(first).toEqual({ number: "INT-0001" });
-    expect(replay).toEqual(first);
-    expect(fn).toHaveBeenCalledTimes(1);
+    const fn = vi.fn(async (id: string) => {
+      const { data } = await client.rpc("admin_create_site", {
+        p_client_action_id: id,
+        p_name: "Dock",
+      });
+      return data;
+    });
+    await expect(withAction(client, "act-00000001", fn)).resolves.toEqual({
+      site_id: "site-for-act-00000001",
+    });
+    expect(fn).toHaveBeenCalledWith("act-00000001");
   });
 
-  it("releases the claim when the action throws so a retry runs", async () => {
-    const { client, calls } = fakeClient();
-    await expect(
-      withAction(client, "act-00000002", () => Promise.reject(new Error("boom")), { action: "x" }),
-    ).rejects.toThrow("boom");
-    expect(calls).toContain("action_abort");
-    await expect(withAction(client, "act-00000002", async () => 7, { action: "x" })).resolves.toBe(
-      7,
-    );
-  });
-
-  it("reports an in-flight duplicate as ActionInProgressError", async () => {
+  it("answers a completed id from action_log without calling fn", async () => {
     const { client, log } = fakeClient();
-    log.set("act-00000003", { result: null, done: false });
-    await expect(
-      withAction(client, "act-00000003", async () => 1, { action: "x" }),
-    ).rejects.toBeInstanceOf(ActionInProgressError);
+    log.set("act-00000002", { site_id: "stored" });
+    const fn = vi.fn(async () => ({ site_id: "new" }));
+    await expect(withAction(client, "act-00000002", fn)).resolves.toEqual({ site_id: "stored" });
+    expect(fn).not.toHaveBeenCalled();
   });
 });

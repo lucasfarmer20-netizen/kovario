@@ -36,35 +36,35 @@ grant execute on function pg_temp.act_as(text, text, text) to authenticated, ser
 -- Member admin ---------------------------------------------------------------------------
 select pg_temp.act_as('a0000000-0000-4000-8000-0000000000a2', 'manager');
 
-select lives_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a3', '4321') $$,
+select lives_ok($$ select public.admin_set_member_pin(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a3', '4321') $$,
   'manager sets a staff PIN');
-select lives_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a2', '987654') $$,
+select lives_ok($$ select public.admin_set_member_pin(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a2', '987654') $$,
   'manager sets own 6-digit PIN');
-select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a2', '4321') $$,
+select throws_ok($$ select public.admin_set_member_pin(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a2', '4321') $$,
   '23505', null, 'PINs are unique per org');
-select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a2', '123') $$,
+select throws_ok($$ select public.admin_set_member_pin(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a2', '123') $$,
   '22023', null, 'PIN shorter than 4 digits is rejected');
-select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a2', '12a4') $$,
+select throws_ok($$ select public.admin_set_member_pin(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a2', '12a4') $$,
   '22023', null, 'non-digit PIN is rejected');
-select throws_ok($$ select public.admin_set_member_role('a0000000-0000-4000-8000-0000000003a3', 'owner') $$,
+select throws_ok($$ select public.admin_set_member_role(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a3', 'owner') $$,
   '42501', null, 'a manager cannot promote to owner');
-select lives_ok($$ select public.admin_set_member_role('a0000000-0000-4000-8000-0000000003a3', 'cashier') $$,
+select lives_ok($$ select public.admin_set_member_role(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a3', 'cashier') $$,
   'a manager changes a staff role');
-select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a1', '2580') $$,
+select throws_ok($$ select public.admin_set_member_pin(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a1', '2580') $$,
   '42501', null, 'a manager cannot set an owner''s PIN');
-select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a1', null) $$,
+select throws_ok($$ select public.admin_set_member_pin(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a1', null) $$,
   '42501', null, 'a manager cannot clear an owner''s PIN');
 select is((select count(*)::int from public.admin_list_members() where has_pin), 2,
   'admin_list_members reports PIN presence without the hash');
 
 select pg_temp.act_as('a0000000-0000-4000-8000-0000000000a1', 'owner');
-select lives_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a1', '2580') $$,
+select lives_ok($$ select public.admin_set_member_pin(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a1', '2580') $$,
   'an owner sets an owner''s PIN');
-select throws_ok($$ select public.admin_set_member_role('a0000000-0000-4000-8000-0000000003a1', 'manager') $$,
+select throws_ok($$ select public.admin_set_member_role(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a1', 'manager') $$,
   '23514', null, 'the last owner cannot be demoted');
 
 select pg_temp.act_as('a0000000-0000-4000-8000-0000000000a3', 'cashier');
-select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a3', '5555') $$,
+select throws_ok($$ select public.admin_set_member_pin(gen_random_uuid()::text, 'a0000000-0000-4000-8000-0000000003a3', '5555') $$,
   '42501', null, 'non-managers cannot set PINs');
 select throws_ok($$ select * from public.admin_list_members() $$,
   '42501', null, 'non-managers cannot list members');
@@ -72,11 +72,11 @@ select throws_ok($$ select * from public.admin_list_members() $$,
 -- Device pairing -------------------------------------------------------------------------
 select pg_temp.act_as('a0000000-0000-4000-8000-0000000000a2', 'manager');
 
-select throws_ok($$ select public.admin_create_device('Sneaky', 'intake', 'b0000000-0000-4000-8000-0000000005b1') $$,
+select throws_ok($$ select public.admin_create_device(gen_random_uuid()::text, 'Sneaky', 'intake', 'b0000000-0000-4000-8000-0000000005b1') $$,
   'P0002', null, 'a device cannot be bound to another org''s site');
 
 create temp table t_device on commit drop as
-  select public.admin_create_device('Wave 1', 'wave') as id;
+  select (public.admin_create_device(gen_random_uuid()::text, 'Wave 1', 'wave') ->> 'device_id')::uuid as id;
 grant select on t_device to authenticated, service_role;
 
 create temp table t_code on commit drop as

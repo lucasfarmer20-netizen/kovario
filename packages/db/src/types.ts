@@ -227,20 +227,14 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "action_abort":
-{ Args: { "p_client_action_id": string }; Returns: undefined
-                           },
-"action_begin":
-{ Args: { "p_action": string,"p_client_action_id": string,"p_input"?: Json }; Returns: Json
-                           },
-"action_complete":
-{ Args: { "p_client_action_id": string,"p_result": Json }; Returns: undefined
-                           },
-"admin_add_member":
-{ Args: { "p_display_name": string,"p_role": Database["public"]['Enums']["org_member_role"],"p_user_id": string }; Returns: string
+            "admin_add_member":
+{ Args: { "p_client_action_id": string,"p_display_name": string,"p_role": Database["public"]['Enums']["org_member_role"],"p_user_id": string }; Returns: Json
                            },
 "admin_create_device":
-{ Args: { "p_name": string,"p_site_id"?: string,"p_station": Database["public"]['Enums']["device_station"] }; Returns: string
+{ Args: { "p_client_action_id": string,"p_name": string,"p_site_id"?: string,"p_station": Database["public"]['Enums']["device_station"] }; Returns: Json
+                           },
+"admin_create_site":
+{ Args: { "p_client_action_id": string,"p_name": string }; Returns: Json
                            },
 "admin_device_pairing_code":
 { Args: { "p_device_id": string }; Returns: {
@@ -252,14 +246,17 @@ isOneToOne: false
               "created_at": string,"display_name": string,"email": string,"has_pin": boolean,"id": string,"is_default": boolean,"role": Database["public"]['Enums']["org_member_role"],"user_id": string
             }[]
                            },
+"admin_rename_site":
+{ Args: { "p_client_action_id": string,"p_name": string,"p_site_id": string }; Returns: Json
+                           },
 "admin_set_default_site":
-{ Args: { "p_site_id": string }; Returns: undefined
+{ Args: { "p_client_action_id": string,"p_site_id": string }; Returns: Json
                            },
 "admin_set_member_pin":
-{ Args: { "p_member_id": string,"p_pin": string }; Returns: undefined
+{ Args: { "p_client_action_id": string,"p_member_id": string,"p_pin": string }; Returns: Json
                            },
 "admin_set_member_role":
-{ Args: { "p_member_id": string,"p_role": Database["public"]['Enums']["org_member_role"] }; Returns: undefined
+{ Args: { "p_client_action_id": string,"p_member_id": string,"p_role": Database["public"]['Enums']["org_member_role"] }; Returns: Json
                            },
 "device_bind_auth_user":
 { Args: { "p_device_id": string,"p_user_id": string }; Returns: undefined

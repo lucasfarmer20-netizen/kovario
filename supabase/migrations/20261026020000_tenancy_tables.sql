@@ -58,7 +58,9 @@ create table if not exists public.site (
 create unique index if not exists site_one_default_per_org on public.site (org_id) where is_default;
 
 select app.track_updated_at('public.site');
-select app.enable_org_rls('public.site', write_roles => '{owner,manager}');
+-- Read-only for clients; writes go through the admin_* functions, each in one
+-- transaction with its action_log entry (AGENTS.md hard rule 3).
+select app.enable_org_rls('public.site', write_roles => '{}');
 
 -- org_member ---------------------------------------------------------------------------
 do $$ begin
