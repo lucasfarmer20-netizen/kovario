@@ -211,7 +211,9 @@ create index if not exists box_plan_shipment_id on public.box_plan (shipment_id)
 
 select app.track_updated_at('public.box_plan');
 select app.enable_org_rls('public.box_plan', write_roles => '{}');
-select app.guard_state('public.box_plan', 'box_plan', 'fulfillment_state');
+-- Not forceable: terminal fulfillment states never roll back, not even by a manager
+-- (docs/02 §8, docs/03); a forced edge could return a released box to `planned`.
+select app.guard_state('public.box_plan', 'box_plan', 'fulfillment_state', p_forceable => false);
 
 -- release_audit (D3) -------------------------------------------------------------------
 -- Append-only. Restore writes a new 'restored' row; nothing is edited.

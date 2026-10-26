@@ -547,7 +547,29 @@ select is(
   'replaying the same client_action_id returns the stored result'
 );
 
+select throws_ok(
+  $$ select public.force_transition('force-box-000001', 'box_plan', 'c0000000-0000-4000-8000-0000000082c1',
+                                    'planned', 'customer changed their mind') $$,
+  '23514', null,
+  'box_plan terminal states never roll back, not even through force_transition'
+);
+
 reset role;
+
+-- The guard enforces it on its own, even with the bypass flag set for that exact row.
+select set_config('app.forced_transition', 'box_plan:c0000000-0000-4000-8000-0000000082c1:planned', true);
+select throws_ok(
+  $$ update public.box_plan set fulfillment_state = 'planned' where id = 'c0000000-0000-4000-8000-0000000082c1' $$,
+  '23514', null,
+  'the guard refuses the manager bypass for non-forceable entities (box_plan)'
+);
+select set_config('app.forced_transition', '', true);
+
+select is(
+  (select fulfillment_state::text from public.box_plan where id = 'c0000000-0000-4000-8000-0000000082c1'),
+  'packed',
+  'the released box stays packed'
+);
 
 select results_eq(
   $$ select state::text, stored_at is not null from public.intake where id = 'c0000000-0000-4000-8000-0000000020c1' $$,

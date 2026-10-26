@@ -28,10 +28,13 @@ revoke all on public.state_transitions from public, anon, authenticated;
 grant select on public.state_transitions to service_role;
 
 -- Registry of guarded tables, used by force_transition() to find the table and column.
+-- forceable = false: the transition table is absolute for this entity — the manager bypass
+-- is refused by the guard itself (e.g. box_plan: terminal states never roll back).
 create table if not exists app.state_entity (
   entity text primary key,
   tbl regclass not null unique,
-  state_column text not null
+  state_column text not null,
+  forceable boolean not null default true
 );
 
 alter table app.state_entity enable row level security;
@@ -63,8 +66,11 @@ begin
   if not exists (
     select 1 from app.state_transitions
     where entity = v_entity and from_state = v_from and to_state = v_to
-  ) and coalesce(current_setting('app.forced_transition', true), '')
-        <> format('%s:%s:%s', v_entity, v_new ->> 'id', v_to) then
+  ) and (
+    coalesce(current_setting('app.forced_transition', true), '')
+      <> format('%s:%s:%s', v_entity, v_new ->> 'id', v_to)
+    or not coalesce((select e.forceable from app.state_entity e where e.entity = v_entity), false)
+  ) then
     raise exception 'illegal % transition: % -> %', v_entity, v_from, v_to
       using errcode = '23514',
             hint = 'allowed edges come from packages/rules/src/states.ts; managers use force_transition()';
@@ -84,7 +90,8 @@ $$;
 -- app.guard_state('public.intake', 'intake', 'state', '{processing:pulled_at,...}')
 -- attaches the guard and registers the entity. Idempotent.
 create or replace function app.guard_state(
-  tbl regclass, p_entity text, p_state_column text default 'state', p_stamps text[] default '{}'
+  tbl regclass, p_entity text, p_state_column text default 'state', p_stamps text[] default '{}',
+  p_forceable boolean default true
 )
 returns void
 language plpgsql
@@ -98,9 +105,10 @@ begin
     v_args := v_args || format(', %L', v_stamp);
   end loop;
 
-  insert into app.state_entity (entity, tbl, state_column)
-  values (p_entity, tbl, p_state_column)
-  on conflict (entity) do update set tbl = excluded.tbl, state_column = excluded.state_column;
+  insert into app.state_entity (entity, tbl, state_column, forceable)
+  values (p_entity, tbl, p_state_column, p_forceable)
+  on conflict (entity) do update
+    set tbl = excluded.tbl, state_column = excluded.state_column, forceable = excluded.forceable;
 
   execute format('drop trigger if exists state_transition_guard on %s', tbl);
   execute format(
@@ -111,7 +119,7 @@ begin
 end;
 $$;
 
-revoke all on function app.state_transition_guard(), app.guard_state(regclass, text, text, text[]) from public;
+revoke all on function app.state_transition_guard(), app.guard_state(regclass, text, text, text[], boolean) from public;
 
 -- Manager override: moves `p_id` of `p_entity` to `p_to_state` even when the edge is not in
 -- the table, as one idempotent action whose action_log input carries the reason.
@@ -157,6 +165,10 @@ begin
   select * into v_reg from app.state_entity where entity = p_entity;
   if not found then
     raise exception 'force_transition: unknown entity %', p_entity using errcode = '22023';
+  end if;
+  if not v_reg.forceable then
+    raise exception 'force_transition: % transitions cannot be forced', p_entity
+      using errcode = '23514';
   end if;
   select a.atttypid::regtype into v_type
   from pg_catalog.pg_attribute a
