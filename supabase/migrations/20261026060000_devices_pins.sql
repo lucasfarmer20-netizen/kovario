@@ -257,7 +257,8 @@ end;
 $$;
 
 -- Issues a fresh one-time pairing code (valid 10 minutes), replacing any outstanding one.
--- Re-pairing an already paired device rotates its session on redeem.
+-- Re-pairing an already paired device revokes the old tablet's sessions on redeem
+-- (device_bind_auth_user).
 create or replace function public.admin_device_pairing_code(p_device_id uuid)
 returns table (code text, expires_at timestamptz)
 language plpgsql
@@ -312,19 +313,28 @@ begin
 end;
 $$;
 
--- service_role only (device-pair Edge Function). Binds the device's auth user.
+-- service_role only (device-pair Edge Function). Binds the device's auth user and revokes
+-- every existing session of it (and of a previously bound device user), so a re-paired —
+-- e.g. lost or stolen — tablet can no longer refresh station tokens. Deleting the
+-- auth.sessions rows cascades to their refresh tokens; the Edge Function signs the new
+-- tablet in only after this. An already-issued access token stays valid until it expires
+-- (jwt_expiry).
 create or replace function public.device_bind_auth_user(p_device_id uuid, p_user_id uuid)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_previous uuid;
 begin
-  update public.device set auth_user_id = p_user_id, paired_at = now(), last_seen_at = now()
-  where id = p_device_id;
+  select auth_user_id into v_previous from public.device where id = p_device_id for update;
   if not found then
     raise exception 'device not found' using errcode = 'P0002';
   end if;
+  delete from auth.sessions where user_id in (p_user_id, v_previous);
+  update public.device set auth_user_id = p_user_id, paired_at = now(), last_seen_at = now()
+  where id = p_device_id;
 end;
 $$;
 

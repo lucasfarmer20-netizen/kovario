@@ -103,6 +103,21 @@ reset role;
 select ok((select paired_at is not null and auth_user_id = 'a0000000-0000-4000-8000-0000000000d1'
            from public.device where id = (select id from t_device)), 'device is paired to its auth user');
 
+-- Re-pairing revokes the old tablet: rebinding deletes the device user's sessions and, by
+-- cascade, their refresh tokens (independent of GoTrue's own password-change behaviour).
+insert into auth.sessions (id, user_id) values
+  ('a0000000-0000-4000-8000-00000000e5e1', 'a0000000-0000-4000-8000-0000000000d1');
+insert into auth.refresh_tokens (token, user_id, session_id, revoked) values
+  ('old-tablet-refresh-token', 'a0000000-0000-4000-8000-0000000000d1', 'a0000000-0000-4000-8000-00000000e5e1', false);
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+set local role service_role;
+select public.device_bind_auth_user((select id from t_device), 'a0000000-0000-4000-8000-0000000000d1');
+reset role;
+select is((select count(*)::int from auth.sessions where user_id = 'a0000000-0000-4000-8000-0000000000d1'), 0,
+  're-pairing revokes the device user''s existing sessions');
+select is((select count(*)::int from auth.refresh_tokens where token = 'old-tablet-refresh-token'), 0,
+  're-pairing removes the old tablet''s refresh token');
+
 -- Expired codes fail.
 select pg_temp.act_as('a0000000-0000-4000-8000-0000000000a2', 'manager');
 create temp table t_code2 on commit drop as

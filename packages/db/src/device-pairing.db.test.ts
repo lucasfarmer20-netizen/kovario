@@ -148,6 +148,34 @@ describe("device pairing", { timeout: 60_000 }, () => {
     expect(after?.auth_user_id).toBe(before?.auth_user_id);
   });
 
+  it("re-pairing revokes the previous tablet's session", async () => {
+    const issue = async () =>
+      (await manager.client.rpc("admin_device_pairing_code", { p_device_id: deviceId })).data?.[0]
+        ?.code ?? "";
+
+    // The old tablet holds a working session.
+    const first = await pair(await issue());
+    expect(first.status).toBe(200);
+    const oldTablet = anonClient();
+    await oldTablet.auth.setSession(first.body.session ?? { access_token: "", refresh_token: "" });
+    expect((await oldTablet.auth.refreshSession()).error).toBeNull();
+    const { data: oldSession } = await oldTablet.auth.getSession();
+    const oldRefreshToken = oldSession.session?.refresh_token ?? "";
+
+    // A manager re-pairs the device on a new tablet.
+    const second = await pair(await issue());
+    expect(second.status).toBe(200);
+
+    // The old tablet can no longer mint tokens; the new one can.
+    const stale = await anonClient().auth.refreshSession({ refresh_token: oldRefreshToken });
+    expect(stale.error).toBeTruthy();
+    expect(stale.data.session).toBeNull();
+
+    const newTablet = anonClient();
+    await newTablet.auth.setSession(second.body.session ?? { access_token: "", refresh_token: "" });
+    expect((await newTablet.auth.refreshSession()).error).toBeNull();
+  });
+
   it("staff cannot issue pairing codes", async () => {
     const { error } = await staff.client.rpc("admin_device_pairing_code", {
       p_device_id: deviceId,
