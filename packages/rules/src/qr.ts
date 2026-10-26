@@ -17,6 +17,11 @@ export type QrKind = (typeof QR_KINDS)[number];
 /** Canonical asset-tag width (`org.settings.scanner.tag_digits`). */
 export const TAG_DIGITS = 3;
 
+export interface QrOptions {
+  /** The org's `scanner.tag_digits`; defaults to {@link TAG_DIGITS}. */
+  tagDigits?: number;
+}
+
 export interface QrFields {
   TOTE: { intakeNumber: string; toteNo: number };
   TAG: { orgSlug: string; code: string };
@@ -72,15 +77,15 @@ function count(name: string, value: number): string {
   return String(value);
 }
 
-function tagCode(code: string): string {
-  const canonical = normalizeTagCode(code);
+function tagCode(code: string, digits: number): string {
+  const canonical = normalizeTagCode(code, digits);
   if (canonical === null) throw new RangeError(`QR tag code is invalid: ${JSON.stringify(code)}`);
   return canonical;
 }
 
-const ENCODERS: { [K in QrKind]: (f: QrFields[K]) => string[] } = {
+const ENCODERS: { [K in QrKind]: (f: QrFields[K], tagDigits: number) => string[] } = {
   TOTE: (f) => [field("intake number", f.intakeNumber, INTAKE_NUMBER), count("tote no", f.toteNo)],
-  TAG: (f) => [field("org slug", f.orgSlug, ORG_SLUG), tagCode(f.code)],
+  TAG: (f, digits) => [field("org slug", f.orgSlug, ORG_SLUG), tagCode(f.code, digits)],
   LOC: (f) => [
     field("org slug", f.orgSlug, ORG_SLUG),
     field("location code", f.code, LOCATION_CODE),
@@ -90,17 +95,21 @@ const ENCODERS: { [K in QrKind]: (f: QrFields[K]) => string[] } = {
 };
 
 /** QR text for a label. Throws `RangeError` on a field that would not parse back. */
-export function encode<K extends QrKind>(kind: K, fields: QrFields[K]): string {
-  return [QR_PREFIX, kind, ...ENCODERS[kind](fields)].join(":");
+export function encode<K extends QrKind>(
+  kind: K,
+  fields: QrFields[K],
+  options: QrOptions = {},
+): string {
+  return [QR_PREFIX, kind, ...ENCODERS[kind](fields, options.tagDigits ?? TAG_DIGITS)].join(":");
 }
 
-const DECODERS: { [K in QrKind]: (parts: string[]) => QrFields[K] | null } = {
+const DECODERS: { [K in QrKind]: (parts: string[], tagDigits: number) => QrFields[K] | null } = {
   TOTE: ([intakeNumber = "", tote = ""]) => {
     const toteNo = positiveInt(tote);
     return INTAKE_NUMBER.test(intakeNumber) && toteNo !== null ? { intakeNumber, toteNo } : null;
   },
-  TAG: ([orgSlug = "", raw = ""]) => {
-    const code = normalizeTagCode(raw);
+  TAG: ([orgSlug = "", raw = ""], digits) => {
+    const code = normalizeTagCode(raw, digits);
     return ORG_SLUG.test(orgSlug) && code !== null ? { orgSlug, code } : null;
   },
   LOC: ([orgSlug = "", code = ""]) =>
@@ -119,14 +128,15 @@ function isQrKind(value: string): value is QrKind {
 }
 
 /** Parse scanned text. Never throws; the reason goes to `scan_log` on rejection. */
-export function parse(raw: string): ParseResult {
+export function parse(raw: string, options: QrOptions = {}): ParseResult {
+  const digits = options.tagDigits ?? TAG_DIGITS;
   // Keyboard-wedge scanners may append CR/LF or tabs.
   const text = raw.trim();
   if (text === "") return { ok: false, reason: "empty" };
 
   const [prefix, kind, ...rest] = text.split(":");
   if (prefix === QR_PREFIX && kind !== undefined && isQrKind(kind)) {
-    const fields = rest.length === ARITY[kind] ? DECODERS[kind](rest) : null;
+    const fields = rest.length === ARITY[kind] ? DECODERS[kind](rest, digits) : null;
     if (fields === null) return { ok: false, reason: "bad_field" };
     return { ok: true, value: { kind, ...fields, legacy: false } as ParsedQr };
   }
@@ -134,7 +144,7 @@ export function parse(raw: string): ParseResult {
   if (INTAKE_NUMBER.test(text)) {
     return { ok: true, value: { kind: "TOTE", intakeNumber: text, toteNo: null, legacy: true } };
   }
-  const code = normalizeTagCode(text);
+  const code = normalizeTagCode(text, digits);
   if (code !== null) {
     return { ok: true, value: { kind: "TAG", orgSlug: null, code, legacy: true } };
   }

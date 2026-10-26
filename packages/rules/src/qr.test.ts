@@ -168,3 +168,18 @@ describe("normalizeTagCode", () => {
     );
   });
 });
+
+describe("tagDigits option (org.settings.scanner.tag_digits)", () => {
+  it("pads asset tags to the org's width on encode and parse", () => {
+    const opts = { tagDigits: 4 };
+    expect(encode("TAG", { orgSlug: "demo", code: "42" }, opts)).toBe("KV:TAG:demo:0042");
+    expect(parse("KV:TAG:demo:042", opts)).toEqual({
+      ok: true,
+      value: { kind: "TAG", orgSlug: "demo", code: "0042", legacy: false },
+    });
+    expect(parse("42", opts)).toEqual({
+      ok: true,
+      value: { kind: "TAG", orgSlug: null, code: "0042", legacy: true },
+    });
+  });
+});
