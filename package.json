@@ -24,6 +24,7 @@
     "eslint-config-prettier": "10.1.8",
     "globals": "17.13.0",
     "prettier": "3.9.10",
+    "supabase": "2.122.0",
     "typescript": "5.9.3",
     "typescript-eslint": "8.72.1",
     "vitest": "4.1.12"
