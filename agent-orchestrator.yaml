@@ -1,0 +1,60 @@
+# Composio Agent Orchestrator config for Kovario.
+# Load with: export AO_CONFIG_PATH=$PWD/agent-orchestrator.yaml && ao start
+# Docs: https://mintlify.wiki/ComposioHQ/agent-orchestrator/configuration/overview.md
+
+port: 3000
+readyThresholdMs: 300000
+
+defaults:
+  runtime: tmux            # process | docker also fine; tmux is the default on Windows via WSL
+  agent: claude-code       # scripts/run-wave.sh overrides to codex for UI/labels packages
+  workspace: worktree
+  notifiers: [desktop]
+
+projects:
+  kovario:
+    name: "Kovario"
+    repo: lucasfarmer20-netizen/kovario
+    path: ~/src/kovario                  # <- local clone of main
+    defaultBranch: main
+    sessionPrefix: kv
+    tracker:
+      plugin: github
+    scm:
+      plugin: github
+    symlinks:
+      - .env                 # local Supabase/Vercel settings shared into every worktree
+    postCreate:
+      - "pnpm install --frozen-lockfile || pnpm install"
+      - "cp -n .env.example .env || true"
+    agentConfig:
+      permissions: skip      # hands-off: no permission prompts inside sessions
+      model: opus
+    agentRulesFile: .agent-rules.md
+    reactions:
+      approved-and-green:
+        auto: true
+        action: auto-merge   # the review workflow never approves area:critical PRs, so those wait for a human
+
+# Auto-responses to events (global defaults)
+reactions:
+  ci-failed:
+    auto: true
+    action: send-to-agent
+    retries: 3
+    escalateAfter: 3
+  changes-requested:
+    auto: true
+    action: send-to-agent
+    escalateAfter: 45m
+  agent-stuck:
+    auto: true
+    action: notify
+    priority: urgent
+    threshold: 15m
+
+notificationRouting:
+  urgent: [desktop]
+  action: [desktop]
+  warning: [desktop]
+  info: [desktop]

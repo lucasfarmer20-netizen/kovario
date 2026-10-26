@@ -1,0 +1,45 @@
+# Automated reviewer: runs Claude Code against the PR with scripts/review-prompt.md and
+# approves or requests changes using a bot PAT (REVIEWER_PAT). PRs labelled
+# area:critical get comments only — a human must approve those.
+name: Agent review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Is this PR critical? (PR labels, else labels of the linked issue)
+        id: prompt
+        env:
+          GH_TOKEN: "${{ secrets.REVIEWER_PAT }}"
+          PR_BODY: "${{ github.event.pull_request.body }}"
+        run: |
+          CRITICAL=false
+          if echo '${{ toJson(github.event.pull_request.labels.*.name) }}' | grep -q 'area:critical'; then CRITICAL=true; fi
+          ISSUE=$(printf '%s' "$PR_BODY" | grep -oiE '(closes|fixes|resolves) #[0-9]+' | head -1 | grep -oE '[0-9]+' || true)
+          if [ -n "$ISSUE" ] && gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -q 'area:critical'; then CRITICAL=true; fi
+          echo "critical=$CRITICAL" >> "$GITHUB_OUTPUT"
+      - uses: anthropics/claude-code-action@v1
+        env: { GH_TOKEN: "${{ secrets.REVIEWER_PAT }}" }
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.REVIEWER_PAT }}
+          prompt: |
+            You are the reviewer for PR #${{ github.event.pull_request.number }} in the Kovario repo.
+            CRITICAL=${{ steps.prompt.outputs.critical }}
+            Follow scripts/review-prompt.md exactly. Read AGENTS.md, the linked issue
+            (gh issue view), the docs the issue names, and the diff (gh pr diff).
+            When CRITICAL=false finish by running exactly one of:
+              gh pr review ${{ github.event.pull_request.number }} --approve --body "<summary>"
+              gh pr review ${{ github.event.pull_request.number }} --request-changes --body "<numbered findings>"
+            When CRITICAL=true post your findings with `gh pr comment` and do NOT approve.
+          claude_args: "--allowedTools Bash(gh:*),Read,Grep,Glob --max-turns 40"

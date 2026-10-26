@@ -1,0 +1,1753 @@
+{
+  "species": {
+    "salmonids": [
+      "salmon_chum",
+      "salmon_kings",
+      "salmon_pinks",
+      "salmon_reds",
+      "salmon_silvers"
+    ],
+    "whitefish": [
+      "whitefish_cod",
+      "whitefish_flounder",
+      "whitefish_halibut",
+      "whitefish_lingcod",
+      "whitefish_rockfish",
+      "whitefish_yelloweye"
+    ],
+    "byproduct": [
+      "byproduct_eggs",
+      "byproduct_heads"
+    ],
+    "other": [
+      "other_dolly",
+      "other_octopus",
+      "other_shark",
+      "other_shrimp"
+    ]
+  },
+  "species_shorthand": {
+    "salmon_reds": "SOCK",
+    "salmon_silvers": "COHO",
+    "salmon_kings": "KING",
+    "salmon_pinks": "PINK",
+    "salmon_chum": "CHUM",
+    "whitefish_halibut": "HAL",
+    "whitefish_cod": "COD",
+    "whitefish_lingcod": "LING",
+    "whitefish_rockfish": "ROCK",
+    "whitefish_yelloweye": "YLWY",
+    "whitefish_flounder": "FLND",
+    "other_shark": "SHRK",
+    "other_octopus": "OCT",
+    "other_shrimp": "SHMP",
+    "other_dolly": "DLLY",
+    "byproduct_eggs": "EGGS",
+    "byproduct_heads": "HEAD"
+  },
+  "processing_shorthand": {
+    "portions": "POR",
+    "fillets": "FIL",
+    "smoking": "SMK",
+    "smoked_exchange_traditional": "SX-T",
+    "smoked_exchange_cajun": "SX-C",
+    "freeze": "FRZ",
+    "head_off": "H/O",
+    "as_is": "AIS"
+  },
+  "skin_off": {
+    "species": [
+      "other_shark",
+      "whitefish_cod",
+      "whitefish_flounder",
+      "whitefish_halibut",
+      "whitefish_lingcod",
+      "whitefish_rockfish",
+      "whitefish_yelloweye"
+    ],
+    "multiplier": {
+      "whitefish_rockfish": 0.867,
+      "whitefish_lingcod": 0.923
+    },
+    "default_multiplier": 0.85
+  },
+  "smoked_exchange_codes": [
+    "smoked_exchange_cajun",
+    "smoked_exchange_traditional"
+  ],
+  "yield_table": [
+    {
+      "species": "byproduct_eggs",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "byproduct_eggs",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "byproduct_eggs",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "byproduct_eggs",
+      "condition": "whole",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "byproduct_heads",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "byproduct_heads",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "byproduct_heads",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "byproduct_heads",
+      "condition": "whole",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "other_dolly",
+      "condition": "filleted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "other_dolly",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "other_dolly",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.6
+    },
+    {
+      "species": "other_octopus",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "other_shark",
+      "condition": "filleted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "other_shark",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "other_shark",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "other_shark",
+      "condition": "whole",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "other_shark",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.6
+    },
+    {
+      "species": "other_shrimp",
+      "condition": "tails_only",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "other_shrimp",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "other_shrimp",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "as_is",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "filleted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "filleted",
+      "processing": "fillets",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "filleted",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "filleted_ribs",
+      "processing": "fillets",
+      "factor": 0.95
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "filleted_ribs",
+      "processing": "portions",
+      "factor": 0.95
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "filleted_ribs",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "gutted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "gutted",
+      "processing": "fillets",
+      "factor": 0.57
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "gutted",
+      "processing": "portions",
+      "factor": 0.57
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "gutted",
+      "processing": "smoking",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "headed",
+      "processing": "fillets",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "headed",
+      "processing": "portions",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "headed",
+      "processing": "smoking",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "hg",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "hg",
+      "processing": "fillets",
+      "factor": 0.75
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "hg",
+      "processing": "portions",
+      "factor": 0.75
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "hg",
+      "processing": "smoking",
+      "factor": 0.52
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "vs",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "vsf",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "whole",
+      "processing": "fillets",
+      "factor": 0.56
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.56
+    },
+    {
+      "species": "salmon_chum",
+      "condition": "whole",
+      "processing": "smoking",
+      "factor": 0.39
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "as_is",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "filleted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "filleted",
+      "processing": "fillets",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "filleted",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "filleted_ribs",
+      "processing": "fillets",
+      "factor": 0.95
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "filleted_ribs",
+      "processing": "portions",
+      "factor": 0.95
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "filleted_ribs",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "gutted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "gutted",
+      "processing": "fillets",
+      "factor": 0.57
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "gutted",
+      "processing": "portions",
+      "factor": 0.57
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "gutted",
+      "processing": "smoking",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "headed",
+      "processing": "fillets",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "headed",
+      "processing": "portions",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "headed",
+      "processing": "smoking",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "hg",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "hg",
+      "processing": "fillets",
+      "factor": 0.75
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "hg",
+      "processing": "portions",
+      "factor": 0.75
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "hg",
+      "processing": "smoking",
+      "factor": 0.52
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "vs",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "vsf",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "whole",
+      "processing": "fillets",
+      "factor": 0.56
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.52
+    },
+    {
+      "species": "salmon_kings",
+      "condition": "whole",
+      "processing": "smoking",
+      "factor": 0.39
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "as_is",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "filleted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "filleted",
+      "processing": "fillets",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "filleted",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "filleted_ribs",
+      "processing": "fillets",
+      "factor": 0.9
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "filleted_ribs",
+      "processing": "portions",
+      "factor": 0.9
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "filleted_ribs",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "gutted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "gutted",
+      "processing": "fillets",
+      "factor": 0.57
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "gutted",
+      "processing": "portions",
+      "factor": 0.57
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "gutted",
+      "processing": "smoking",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "headed",
+      "processing": "fillets",
+      "factor": 0.65
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "headed",
+      "processing": "portions",
+      "factor": 0.65
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "headed",
+      "processing": "smoking",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "hg",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "hg",
+      "processing": "fillets",
+      "factor": 0.65
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "hg",
+      "processing": "portions",
+      "factor": 0.65
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "hg",
+      "processing": "smoking",
+      "factor": 0.52
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "vs",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "vsf",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "whole",
+      "processing": "fillets",
+      "factor": 0.5
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.5
+    },
+    {
+      "species": "salmon_pinks",
+      "condition": "whole",
+      "processing": "smoking",
+      "factor": 0.39
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "as_is",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "filleted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "filleted",
+      "processing": "fillets",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "filleted",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "filleted",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "filleted",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "filleted_ribs",
+      "processing": "fillets",
+      "factor": 0.95
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "filleted_ribs",
+      "processing": "portions",
+      "factor": 0.95
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "filleted_ribs",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "filleted_ribs",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "filleted_ribs",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "gutted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "gutted",
+      "processing": "fillets",
+      "factor": 0.57
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "gutted",
+      "processing": "portions",
+      "factor": 0.57
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "gutted",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "gutted",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "gutted",
+      "processing": "smoking",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "headed",
+      "processing": "fillets",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "headed",
+      "processing": "portions",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "headed",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "headed",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "headed",
+      "processing": "smoking",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "hg",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "hg",
+      "processing": "fillets",
+      "factor": 0.75
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "hg",
+      "processing": "portions",
+      "factor": 0.75
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "hg",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.52
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "hg",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.52
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "hg",
+      "processing": "smoking",
+      "factor": 0.52
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "vs",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "vs",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "vs",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "vsf",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "vsf",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "vsf",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "whole",
+      "processing": "fillets",
+      "factor": 0.56
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.56
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "whole",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.39
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "whole",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.39
+    },
+    {
+      "species": "salmon_reds",
+      "condition": "whole",
+      "processing": "smoking",
+      "factor": 0.39
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "as_is",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "filleted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "filleted",
+      "processing": "fillets",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "filleted",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "filleted",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "filleted",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "filleted_ribs",
+      "processing": "fillets",
+      "factor": 0.95
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "filleted_ribs",
+      "processing": "portions",
+      "factor": 0.95
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "filleted_ribs",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "filleted_ribs",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "filleted_ribs",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "gutted",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "gutted",
+      "processing": "fillets",
+      "factor": 0.57
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "gutted",
+      "processing": "portions",
+      "factor": 0.57
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "gutted",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "gutted",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "gutted",
+      "processing": "smoking",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "headed",
+      "processing": "fillets",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "headed",
+      "processing": "portions",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "headed",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "headed",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "headed",
+      "processing": "smoking",
+      "factor": 0.49
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "hg",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "hg",
+      "processing": "fillets",
+      "factor": 0.75
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "hg",
+      "processing": "portions",
+      "factor": 0.75
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "hg",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.52
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "hg",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.52
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "hg",
+      "processing": "smoking",
+      "factor": 0.52
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "vs",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "vs",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "vs",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "vsf",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "vsf",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "vsf",
+      "processing": "smoking",
+      "factor": 0.7
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "whole",
+      "processing": "fillets",
+      "factor": 0.56
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.56
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "whole",
+      "processing": "smoked_exchange_cajun",
+      "factor": 0.39
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "whole",
+      "processing": "smoked_exchange_traditional",
+      "factor": 0.39
+    },
+    {
+      "species": "salmon_silvers",
+      "condition": "whole",
+      "processing": "smoking",
+      "factor": 0.39
+    },
+    {
+      "species": "whitefish_cod",
+      "condition": "as_is",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_cod",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_cod",
+      "condition": "filleted_ribs",
+      "processing": "portions",
+      "factor": 0.95
+    },
+    {
+      "species": "whitefish_cod",
+      "condition": "gutted",
+      "processing": "portions",
+      "factor": 0.55
+    },
+    {
+      "species": "whitefish_cod",
+      "condition": "headed",
+      "processing": "portions",
+      "factor": 0.6
+    },
+    {
+      "species": "whitefish_cod",
+      "condition": "hg",
+      "processing": "portions",
+      "factor": 0.65
+    },
+    {
+      "species": "whitefish_cod",
+      "condition": "portions",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_cod",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_cod",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_cod",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_cod",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.5
+    },
+    {
+      "species": "whitefish_flounder",
+      "condition": "as_is",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_flounder",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_flounder",
+      "condition": "gutted",
+      "processing": "portions",
+      "factor": 0.5
+    },
+    {
+      "species": "whitefish_flounder",
+      "condition": "headed",
+      "processing": "portions",
+      "factor": 0.55
+    },
+    {
+      "species": "whitefish_flounder",
+      "condition": "hg",
+      "processing": "portions",
+      "factor": 0.6
+    },
+    {
+      "species": "whitefish_flounder",
+      "condition": "portions",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_flounder",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_flounder",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.45
+    },
+    {
+      "species": "whitefish_halibut",
+      "condition": "as_is",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_halibut",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_halibut",
+      "condition": "filleted_ribs",
+      "processing": "portions",
+      "factor": 0.95
+    },
+    {
+      "species": "whitefish_halibut",
+      "condition": "gutted",
+      "processing": "portions",
+      "factor": 0.65
+    },
+    {
+      "species": "whitefish_halibut",
+      "condition": "headed",
+      "processing": "portions",
+      "factor": 0.7
+    },
+    {
+      "species": "whitefish_halibut",
+      "condition": "hg",
+      "processing": "portions",
+      "factor": 0.75
+    },
+    {
+      "species": "whitefish_halibut",
+      "condition": "portions",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_halibut",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_halibut",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_halibut",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_halibut",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.6
+    },
+    {
+      "species": "whitefish_lingcod",
+      "condition": "as_is",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_lingcod",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_lingcod",
+      "condition": "filleted_ribs",
+      "processing": "portions",
+      "factor": 0.78
+    },
+    {
+      "species": "whitefish_lingcod",
+      "condition": "gutted",
+      "processing": "portions",
+      "factor": 0.65
+    },
+    {
+      "species": "whitefish_lingcod",
+      "condition": "headed",
+      "processing": "portions",
+      "factor": 0.7
+    },
+    {
+      "species": "whitefish_lingcod",
+      "condition": "hg",
+      "processing": "portions",
+      "factor": 0.75
+    },
+    {
+      "species": "whitefish_lingcod",
+      "condition": "portions",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_lingcod",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_lingcod",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_lingcod",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_lingcod",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.6
+    },
+    {
+      "species": "whitefish_rockfish",
+      "condition": "as_is",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_rockfish",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_rockfish",
+      "condition": "filleted_ribs",
+      "processing": "portions",
+      "factor": 0.75
+    },
+    {
+      "species": "whitefish_rockfish",
+      "condition": "gutted",
+      "processing": "portions",
+      "factor": 0.65
+    },
+    {
+      "species": "whitefish_rockfish",
+      "condition": "headed",
+      "processing": "portions",
+      "factor": 0.7
+    },
+    {
+      "species": "whitefish_rockfish",
+      "condition": "hg",
+      "processing": "portions",
+      "factor": 0.75
+    },
+    {
+      "species": "whitefish_rockfish",
+      "condition": "portions",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_rockfish",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_rockfish",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_rockfish",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_rockfish",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.6
+    },
+    {
+      "species": "whitefish_yelloweye",
+      "condition": "as_is",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_yelloweye",
+      "condition": "filleted",
+      "processing": "portions",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_yelloweye",
+      "condition": "filleted_ribs",
+      "processing": "portions",
+      "factor": 0.95
+    },
+    {
+      "species": "whitefish_yelloweye",
+      "condition": "gutted",
+      "processing": "portions",
+      "factor": 0.65
+    },
+    {
+      "species": "whitefish_yelloweye",
+      "condition": "headed",
+      "processing": "portions",
+      "factor": 0.7
+    },
+    {
+      "species": "whitefish_yelloweye",
+      "condition": "hg",
+      "processing": "portions",
+      "factor": 0.75
+    },
+    {
+      "species": "whitefish_yelloweye",
+      "condition": "portions",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_yelloweye",
+      "condition": "vs",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_yelloweye",
+      "condition": "vsf",
+      "processing": "as_is",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_yelloweye",
+      "condition": "vsr",
+      "processing": "freeze",
+      "factor": 1.0
+    },
+    {
+      "species": "whitefish_yelloweye",
+      "condition": "whole",
+      "processing": "portions",
+      "factor": 0.6
+    }
+  ],
+  "processing_matrix": {
+    "salmon|whole": [
+      "fresh",
+      "smoking"
+    ],
+    "salmon|hg": [
+      "fresh",
+      "smoking",
+      "as_is"
+    ],
+    "salmon|headed": [
+      "fresh",
+      "smoking"
+    ],
+    "salmon|gutted": [
+      "fresh",
+      "smoking",
+      "as_is"
+    ],
+    "salmon|filleted": [
+      "fresh",
+      "smoking",
+      "as_is"
+    ],
+    "salmon|filleted_ribs": [
+      "fresh",
+      "smoking"
+    ],
+    "salmon|as_is": [
+      "as_is"
+    ],
+    "salmon|vs": [
+      "as_is"
+    ],
+    "salmon|vsf": [
+      "as_is"
+    ],
+    "salmon|vsr": [
+      "freeze"
+    ],
+    "whitefish|whole": [
+      "portions"
+    ],
+    "whitefish|hg": [
+      "portions"
+    ],
+    "whitefish|headed": [
+      "portions"
+    ],
+    "whitefish|gutted": [
+      "portions"
+    ],
+    "whitefish|filleted": [
+      "portions"
+    ],
+    "whitefish|filleted_ribs": [
+      "portions"
+    ],
+    "whitefish|portions": [
+      "as_is"
+    ],
+    "whitefish|as_is": [
+      "as_is"
+    ],
+    "whitefish|vs": [
+      "as_is"
+    ],
+    "whitefish|vsf": [
+      "as_is"
+    ],
+    "whitefish|vsr": [
+      "freeze"
+    ],
+    "other_shark|whole": [
+      "portions",
+      "as_is"
+    ],
+    "other_shark|filleted": [
+      "portions",
+      "as_is"
+    ],
+    "other_shark|as_is": [
+      "as_is"
+    ],
+    "other_shark|vsr": [
+      "freeze"
+    ],
+    "other_shrimp|whole": [
+      "portions"
+    ],
+    "other_shrimp|tails_only": [
+      "as_is"
+    ],
+    "other_shrimp|vsr": [
+      "freeze"
+    ],
+    "other|whole": [
+      "portions",
+      "as_is"
+    ],
+    "other|filleted": [
+      "portions",
+      "as_is"
+    ],
+    "other|as_is": [
+      "as_is"
+    ],
+    "other|vsr": [
+      "freeze"
+    ],
+    "byproduct|whole": [
+      "as_is"
+    ],
+    "byproduct|vs": [
+      "as_is"
+    ],
+    "byproduct|vsf": [
+      "as_is"
+    ],
+    "byproduct|vsr": [
+      "freeze"
+    ]
+  },
+  "condition_matrix": {
+    "salmon": [
+      "whole",
+      "hg",
+      "headed",
+      "gutted",
+      "filleted",
+      "filleted_ribs",
+      "as_is",
+      "vs",
+      "vsf",
+      "vsr"
+    ],
+    "whitefish": [
+      "whole",
+      "hg",
+      "headed",
+      "gutted",
+      "filleted",
+      "filleted_ribs",
+      "portions",
+      "as_is",
+      "vs",
+      "vsf",
+      "vsr"
+    ],
+    "other_shark": [
+      "whole",
+      "filleted",
+      "as_is",
+      "vsr"
+    ],
+    "other_shrimp": [
+      "whole",
+      "tails_only",
+      "vsr"
+    ],
+    "other": [
+      "whole",
+      "filleted",
+      "as_is",
+      "vsr"
+    ],
+    "byproduct": [
+      "whole",
+      "vs",
+      "vsf",
+      "vsr"
+    ]
+  }
+}

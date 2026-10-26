@@ -1,0 +1,26 @@
+# Kovario — Decisions (ADR log)
+
+Decided items are binding. Items tagged **DECISION NEEDED** are assumptions Lucas has
+not confirmed; agents build on the stated default and must not silently change it.
+Lucas: edit the line, commit, and reference the ADR in the PR that applies it.
+
+| # | Decision | Status |
+|---|---|---|
+| DECISION-01 | Greenfield Next.js + Supabase standalone; no Odoo code or integration. CSP Odoo suite is reference only. | **Decided** 2026-10-25 |
+| DECISION-02 | Payments are a provider interface. **Dejavoo SPIn is built first** (CSP runs on it); Stripe Terminal second; `manual` always available. Per-terminal provider selection. | **Decided** 2026-10-25 |
+| DECISION-03 | Multi-tenant single database with RLS by `org_id`; per-org sequences; no schema-per-tenant. | **Decided** 2026-10-25 |
+| DECISION-04 | **Offline:** v1 is online-required with an IndexedDB scan queue + idempotent actions. PowerSync is a post-v1 work package behind the same data layer. | **DECISION NEEDED** — default as stated. Memory says PowerSync was in the stack; it is deferred, not dropped. |
+| DECISION-05 | Stripe Terminal tenants supply their own Stripe API keys (no Stripe Connect in v1). | **DECISION NEEDED** — default: own keys. |
+| DECISION-06 | Subscription tiers: five, $79–$899. Names, limits and feature gates unspecified. | **DECISION NEEDED** — default placeholder tiers `starter 79 / plant 199 / plant-plus 349 / multi-site 599 / enterprise 899`; gates: station count, sites, users, SMS. |
+| DECISION-07 | Tax computed at the register with optional per-transaction cap (`tax.cap_amount`). | **DECISION NEEDED** — default: compute, exclusive, cap supported. |
+| DECISION-08 | SMS notifications deferred; email via Resend in v1. | **DECISION NEEDED** — default: email only. |
+| DECISION-09 | Orchestration: Composio Agent Orchestrator, GitHub Issues as the unit of work, one PR per work package, CI as the merge gate, auto-merge on green + reviewer-agent approval. | **Decided** 2026-10-25 |
+| DECISION-10 | Framework versions: Next.js latest stable App Router (15.x at kickoff), React 19, TypeScript 5.x strict, Tailwind 4, Node 20+, pnpm 9+. Agents pin exact versions in WP-01 and do not upgrade majors mid-build. | **Decided** 2026-10-25 |
+| DECISION-11 | Weight unit is lb in v1 (org setting reserved). Currency USD. | **Decided** 2026-10-25 |
+| DECISION-12 | Production-mode / split-intake (CSP deferred design) is **not** in v1. Schema reserves `intake.split_from_id`. | **Decided** 2026-10-25 |
+| DECISION-13 | Receipts rendered by Kovario from stored payment data; terminal receipts suppressed. | **Decided** (carried from CSP) |
+| DECISION-14 | No freezer capacity gating anywhere. Capacity is display-only. | **Decided** (carried from CSP) |
+| DECISION-15 | Location master is generated from the racking actually built; generator is idempotent; archived locations cannot be bound. | **Decided** (carried from CSP) |
+| DECISION-16 | Domain name / app host: `app.kovario.com`; marketing site out of scope for this repo. | **DECISION NEEDED** — default as stated. |
+| DECISION-17 | Testing: no mandatory e2e per PR beyond smoke; rules engine and payments adapters require unit coverage; release + storage invariants have dedicated integration tests against local Supabase. | **Decided** 2026-10-25 |
+| DECISION-18 | Long-running payment calls run in Next.js Node route handlers with `maxDuration = 300` on Vercel Pro. Alternative if the plan is Hobby: Supabase Edge Function. | **DECISION NEEDED** — default: Vercel Pro. |

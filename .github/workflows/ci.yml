@@ -1,0 +1,36 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test                         # root script: vitest run --passWithNoTests across the workspace
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }               # WP-01 pins this to the version it generated types with
+      - name: Apply migrations on a fresh local database
+        run: |
+          supabase start -x studio,imgproxy,logflare,vector
+          supabase db reset
+      - run: pnpm db:types                      # regenerates packages/db/src/types.ts; drift is a reviewer check, not a CI gate
+      - run: pnpm test:db                       # SQL/integration tests against the local DB (passes when none exist)
+      - run: pnpm build
+      - name: e2e smoke (only once apps/web/e2e exists)
+        if: ${{ hashFiles('apps/web/e2e/**') != '' }}
+        run: |
+          pnpm --filter web exec playwright install --with-deps chromium
+          pnpm e2e
