@@ -38,17 +38,19 @@ When CRITICAL=true post findings with: gh pr comment $num --body \"...\" and do 
     | tail -20 || echo "!! review of #$num failed"
 }
 
-# Prints AO's verdict for (branch, head sha): none (not an AO PR) | pending | failed |
-# changes_requested | <other completed verdict>.
+# Prints AO's verdict for (pr url, branch, head sha): none (not an AO PR) | pending | failed |
+# changes_requested | <other completed verdict>. A PR is AO's if AO tracks its URL (pr table)
+# or its branch is a session's branch.
 PY=python3; "$PY" -c '' 2>/dev/null || PY=python   # Windows python3 Store stub
 ao_verdict() {
-  "$PY" -I - "$1" "$2" <<'PY'
+  "$PY" -I - "$1" "$2" "$3" <<'PY'
 import os, sqlite3, sys
-branch, sha = sys.argv[1], sys.argv[2]
+url, branch, sha = sys.argv[1], sys.argv[2], sys.argv[3]
 db = os.path.expanduser(os.environ.get("AO_DB", "~/.ao/data/ao.db"))
 if not os.path.exists(db): print("none"); sys.exit()
 c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-s = c.execute("select id from sessions where branch = ? order by created_at desc", (branch,)).fetchone()
+s = (c.execute("select session_id from pr where url = ? and session_id != ''", (url,)).fetchone()
+     or c.execute("select id from sessions where branch = ? order by created_at desc", (branch,)).fetchone())
 if not s: print("none"); sys.exit()
 rows = c.execute("select status, verdict from review_run where session_id = ? and target_sha = ?"
                  " order by created_at desc", (s[0], sha)).fetchall()
@@ -78,7 +80,7 @@ pass() {
     state=$(gh api "repos/$REPO/commits/$head/check-runs" -q '[.check_runs[]|select(.name=="check")|.conclusion][0]' 2>/dev/null || echo null)
     [ "$state" = "null" ] && { echo "-- #$num: CI still running, skip"; continue; }
     if [ "${AO_GATE:-1}" != 0 ]; then
-      verdict=$(ao_verdict "$branch" "$head" | tr -d '\r')
+      verdict=$(ao_verdict "https://github.com/$REPO/pull/$num" "$branch" "$head" | tr -d '\r')
       case "$verdict" in
         none) ;;
         pending) echo "-- #$num: AO review of ${head:0:7} not finished, skip"; continue ;;

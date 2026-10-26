@@ -26,7 +26,10 @@ if ($LASTEXITCODE -ne 0) { throw "git worktree add failed" }
 
 # pwsh -WindowStyle Hidden keeps bash's console from showing; the loop itself runs from the worktree.
 $svc = Join-Path $Worktree "scripts\review-loop-service.sh"
-$action = New-ScheduledTaskAction -Execute "pwsh.exe" -Argument (
+# Full path: Task Scheduler's PATH can predate the PowerShell 7 install (0x80070002).
+$pwsh = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
+if (-not $pwsh) { $pwsh = "$env:ProgramFiles\PowerShell\7\pwsh.exe" }
+$action = New-ScheduledTaskAction -Execute $pwsh -Argument (
   "-NoProfile -WindowStyle Hidden -Command `"& '$bash' '$svc'`"")
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
