@@ -181,6 +181,12 @@ begin
     jsonb_build_object('member_id', p_member_id, 'role', p_role));
   if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
 
+  -- Serialise role changes per org before reading roles: otherwise two owners demoting each
+  -- other concurrently each lock a different member, each still count the other as an
+  -- owner, and both commit, leaving no owner. An advisory lock (not FOR UPDATE on the org
+  -- row, which would block every FK insert referencing the org).
+  perform pg_advisory_xact_lock(hashtext('org_member_role:' || app.org_id()::text));
+
   select * into v_member from public.org_member
   where id = p_member_id and org_id = app.org_id()
   for update;
