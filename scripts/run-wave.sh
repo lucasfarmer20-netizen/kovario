@@ -9,25 +9,28 @@ for a in "$@"; do case "$a" in --dry-run) DRY=1;; *) AGENT_ARGS+=("$a");; esac; 
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 PROJECT="${AO_PROJECT:-kovario}"
 [ -f issues/map.json ] || { echo "run scripts/seed-issues.sh first"; exit 1; }
-python3 - "$REPO" "$WAVE" <<'PY' > /tmp/kv-wave-spawn.txt
+# Windows ships a python3 Store stub that just errors; fall back to python.
+PY=python3; "$PY" -c '' 2>/dev/null || PY=python
+"$PY" - "$REPO" "$WAVE" <<'PY' > /tmp/kv-wave-spawn.txt
 import json, subprocess, sys
+sys.stdout.reconfigure(newline='\n')  # no CRLF into the bash read loop
 repo, wave = sys.argv[1], int(sys.argv[2])
-m = json.load(open('issues/map.json'))
+wpmap = json.load(open('issues/map.json', encoding='utf-8'))
 issues = json.loads(subprocess.check_output(['gh','issue','list','-R',repo,'--state','all','--limit','500','--json','number,state,labels']))
 prs = json.loads(subprocess.check_output(['gh','pr','list','-R',repo,'--state','open','--limit','200','--json','body,headRefName']))
 import re
 inflight = set()
 for p in prs:
     inflight |= {int(x) for x in re.findall(r'#(\d+)', p.get('body') or '')}
-    m = re.match(r'feat/(\d+)-', p.get('headRefName') or '')
-    if m: inflight.add(int(m.group(1)))
+    hm = re.match(r'feat/(\d+)-', p.get('headRefName') or '')
+    if hm: inflight.add(int(hm.group(1)))
 state = {i['number']: i['state'] for i in issues}
 labels = {i['number']: [l['name'] for l in i['labels']] for i in issues}
-for wp, num in sorted(m.items()):
+for wp, num in sorted(wpmap.items()):
     ls = labels.get(num, [])
     if f'wave:{wave}' not in ls or state.get(num) != 'OPEN': continue
     blockers = [l.split(':',1)[1] for l in ls if l.startswith('blocked-by:')]
-    open_blockers = [b for b in blockers if state.get(m.get(b, -1)) == 'OPEN']
+    open_blockers = [b for b in blockers if state.get(wpmap.get(b, -1)) == 'OPEN']
     if open_blockers: print(f'# skip {wp} (#{num}) blocked by {open_blockers}'); continue
     if num in inflight: print(f'# skip {wp} (#{num}) already has an open PR'); continue
     heavy = {'area:critical','area:db','area:rules','area:payments'}
@@ -37,6 +40,7 @@ PY
 cat /tmp/kv-wave-spawn.txt
 while read -r num agent wp; do
   [[ "$num" == \#* || -z "$num" ]] && continue
-  cmd=(ao spawn --project "$PROJECT" --kind worker --name "$wp" --issue "$num" --harness "$agent" --mode tui ${AGENT_ARGS[@]+"${AGENT_ARGS[@]}"})
+  prompt="Work GitHub issue #$num ($wp) per AGENTS.md: read the issue and its Read first docs, implement it on this branch, and open a PR with the issue's labels and 'Closes #$num'."
+  cmd=(ao spawn --project "$PROJECT" --name "$wp" --issue "$num" --harness "$agent" --branch "feat/$num-${wp,,}" --prompt "$prompt" ${AGENT_ARGS[@]+"${AGENT_ARGS[@]}"})
   echo "+ ${cmd[*]}"; [ "$DRY" = 1 ] || { "${cmd[@]}"; sleep 1; }
 done < /tmp/kv-wave-spawn.txt
