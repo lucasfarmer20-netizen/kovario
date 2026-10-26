@@ -188,11 +188,17 @@ set search_path = ''
 as $$
 declare
   v_org uuid := app.org_id();
+  v_target public.org_member_role;
   v_clash public.org_member;
 begin
   perform app.require_role('{owner,manager}');
-  if not exists (select 1 from public.org_member where id = p_member_id and org_id = v_org) then
+  select role into v_target from public.org_member where id = p_member_id and org_id = v_org;
+  if not found then
     raise exception 'member not found' using errcode = 'P0002';
+  end if;
+  -- Same rule as admin_set_member_role: an owner's PIN identifies and elevates as the owner.
+  if v_target = 'owner' and app.role() <> 'owner' then
+    raise exception 'only an owner can change an owner''s PIN' using errcode = '42501';
   end if;
   if p_pin is null then
     update public.org_member set pin_hash = null where id = p_member_id;

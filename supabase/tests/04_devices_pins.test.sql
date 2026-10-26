@@ -40,20 +40,26 @@ select lives_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0
   'manager sets a staff PIN');
 select lives_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a2', '987654') $$,
   'manager sets own 6-digit PIN');
-select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a1', '4321') $$,
+select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a2', '4321') $$,
   '23505', null, 'PINs are unique per org');
-select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a1', '123') $$,
+select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a2', '123') $$,
   '22023', null, 'PIN shorter than 4 digits is rejected');
-select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a1', '12a4') $$,
+select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a2', '12a4') $$,
   '22023', null, 'non-digit PIN is rejected');
 select throws_ok($$ select public.admin_set_member_role('a0000000-0000-4000-8000-0000000003a3', 'owner') $$,
   '42501', null, 'a manager cannot promote to owner');
 select lives_ok($$ select public.admin_set_member_role('a0000000-0000-4000-8000-0000000003a3', 'cashier') $$,
   'a manager changes a staff role');
+select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a1', '2580') $$,
+  '42501', null, 'a manager cannot set an owner''s PIN');
+select throws_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a1', null) $$,
+  '42501', null, 'a manager cannot clear an owner''s PIN');
 select is((select count(*)::int from public.admin_list_members() where has_pin), 2,
   'admin_list_members reports PIN presence without the hash');
 
 select pg_temp.act_as('a0000000-0000-4000-8000-0000000000a1', 'owner');
+select lives_ok($$ select public.admin_set_member_pin('a0000000-0000-4000-8000-0000000003a1', '2580') $$,
+  'an owner sets an owner''s PIN');
 select throws_ok($$ select public.admin_set_member_role('a0000000-0000-4000-8000-0000000003a1', 'manager') $$,
   '23514', null, 'the last owner cannot be demoted');
 

@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(10);
+select plan(12);
 
 insert into public.org (id, slug, name, timezone) values
   ('a0000000-0000-4000-8000-00000000000a', 'org-a', 'Org A', 'UTC'),
@@ -63,6 +63,14 @@ select throws_ok(
   '23505', null, 'another org cannot replay org A''s action id'
 );
 select is_empty($$ select id from public.action_log $$, 'another org cannot read org A''s action_log');
+
+-- Outbox writes are org-guarded like next_seq.
+select isnt(app.emit_event('b0000000-0000-4000-8000-00000000000b', 'test_event', null, '{}'), null,
+  'end user emits a domain_event for their own org');
+select throws_ok(
+  $$ select app.emit_event('a0000000-0000-4000-8000-00000000000a', 'test_event', null, '{}') $$,
+  '42501', null, 'end user cannot emit a domain_event into another org'
+);
 
 reset role;
 select * from finish();

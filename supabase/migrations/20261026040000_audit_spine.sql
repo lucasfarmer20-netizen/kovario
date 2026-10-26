@@ -133,16 +133,25 @@ begin
 end;
 $$;
 
--- Outbox write, called inside the transaction that made the change.
+-- Outbox write, called inside the transaction that made the change. Like app.next_seq, an
+-- end-user session may only write events for its own org.
 create or replace function app.emit_event(p_org_id uuid, p_kind text, p_subject_id uuid, p_payload jsonb)
 returns uuid
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_id uuid;
+begin
+  if app.is_end_user() and p_org_id is distinct from app.org_id() then
+    raise exception 'emit_event: org mismatch' using errcode = '42501';
+  end if;
   insert into public.domain_event (org_id, kind, subject_id, payload)
   values (p_org_id, p_kind, p_subject_id, coalesce(p_payload, '{}'::jsonb))
-  returning id
+  returning id into v_id;
+  return v_id;
+end;
 $$;
 
 revoke all on function app.action_begin(text, text, jsonb), app.action_complete(text, jsonb),
