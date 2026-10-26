@@ -19,14 +19,16 @@ for w in 0 1 2 3 4 5; do label "wave:$w" BFD4F2 "Dependency wave $w"; done
 for n in $(seq -w 1 24); do label "blocked-by:WP-$n" FEF2C0 "Blocked until WP-$n is merged"; done
 for w in 0 1 2 3 4 5; do gh api -X POST "repos/$REPO/milestones" -f title="Wave $w" >/dev/null 2>&1 || true; done
 
-python3 - "$REPO" <<'PY'
+# Windows ships a python3 Store stub that just errors; fall back to python.
+PY=python3; "$PY" -c '' 2>/dev/null || PY=python
+"$PY" - "$REPO" <<'PY'
 import json, re, subprocess, sys, glob, os
 repo = sys.argv[1]
 existing = {i['title']: i['number'] for i in json.loads(subprocess.check_output(
     ['gh','issue','list','-R',repo,'--state','all','--limit','500','--json','title,number']))}
 mapping = {}
 for fn in sorted(glob.glob('issues/WP-*.md')):
-    text = open(fn).read()
+    text = open(fn, encoding='utf-8').read()
     fm_raw, body = text.split('---\n',2)[1:]
     fm = json.loads(fm_raw)
     wp = fm['title'].split(':')[0]
@@ -38,6 +40,6 @@ for fn in sorted(glob.glob('issues/WP-*.md')):
     url = subprocess.check_output(args).decode().strip()
     num = int(url.rstrip('/').split('/')[-1]); mapping[wp] = num
     print('created', wp, num)
-json.dump(mapping, open('issues/map.json','w'), indent=2)
+json.dump(mapping, open('issues/map.json','w',encoding='utf-8'), indent=2)
 PY
 echo "Wrote issues/map.json"
