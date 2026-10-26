@@ -1,10 +1,10 @@
 -- State-machine guard (docs/03-STATE-MACHINES.md). The allowed edges live in
--- app.state_transitions, filled by supabase/seed/state_transitions.sql — GENERATED from
--- packages/rules/src/states.ts by `pnpm --filter rules gen:states` (WP-04); never edit it
--- here. Every stateful table gets app.state_transition_guard() via app.guard_state(), which
--- rejects any state change that is not an edge and stamps the transition's timestamp
--- column. Managers bypass the table only through public.force_transition(), which writes
--- action_log with the reason.
+-- app.state_transitions, filled by the next migration (…100100_state_transitions.sql) —
+-- GENERATED from packages/rules/src/states.ts by `pnpm --filter rules gen:states` (WP-04);
+-- never edit it by hand. Every stateful table gets app.state_transition_guard() via
+-- app.guard_state(), which rejects any state change that is not an edge and stamps the
+-- transition's timestamp column. Managers bypass the table only through
+-- public.force_transition(), which writes action_log with the reason.
 
 -- Platform reference data shared by every tenant: no org_id, so it lives in schema `app`
 -- (like app.sequence_prefix) with RLS on and no policies — only definer functions read it.
@@ -12,20 +12,14 @@ create table if not exists app.state_transitions (
   entity text not null,
   from_state text not null,
   to_state text not null,
+  -- manager-only edge in canTransition(); the function taking the edge enforces the role
+  manager boolean not null default false,
   primary key (entity, from_state, to_state),
   check (from_state <> to_state)
 );
 
 alter table app.state_transitions enable row level security;
 revoke all on app.state_transitions from public, anon, authenticated;
-
--- The generated seed addresses the table unqualified (`delete from state_transitions`), so
--- expose it on the default search_path as an auto-updatable view. Clients get nothing.
-create or replace view public.state_transitions with (security_invoker = true) as
-  select entity, from_state, to_state from app.state_transitions;
-
-revoke all on public.state_transitions from public, anon, authenticated;
-grant select on public.state_transitions to service_role;
 
 -- Registry of guarded tables, used by force_transition() to find the table and column.
 -- forceable = false: the transition table is absolute for this entity — the manager bypass

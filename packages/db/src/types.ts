@@ -1702,20 +1702,6 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"state_transitions": {
-                  Row: {
-                    "entity": string,"from_state": string,"to_state": string
-                  }
-                  ComputedFields: never
-                  Insert: {
-                           "entity"?: string | null,"from_state"?: string | null,"to_state"?: string | null
-                         }
-                        Update: {
-                           "entity"?: string | null,"from_state"?: string | null,"to_state"?: string | null
-                         }
-                        Relationships: [
-                    
-                  ]
                 },"storage_box_days": {
                   Row: {
                     "box_no": number,"days_stored": number | null,"intake_at": string,"label": string,"org_id": string,"released_at": string | null,"state": Database["public"]['Enums']["storage_box_state"],"storage_box_id": string,"storage_intake_id": string

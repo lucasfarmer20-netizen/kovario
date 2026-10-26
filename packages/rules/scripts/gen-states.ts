@@ -1,4 +1,4 @@
-// `pnpm --filter rules gen:states`: writes supabase/seed/state_transitions.sql from states.ts.
+// `pnpm --filter rules gen:states`: writes the state_transitions migration (STATE_TRANSITIONS_SQL_PATH) from states.ts.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

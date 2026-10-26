@@ -81,7 +81,9 @@ select is(
 );
 
 select ok(
-  not has_table_privilege('authenticated', 'public.state_transitions', 'select'),
+  not has_table_privilege('authenticated', 'app.state_transitions', 'select')
+  and not has_table_privilege('authenticated', 'app.state_transitions', 'insert')
+  and not has_table_privilege('anon', 'app.state_transitions', 'select'),
   'clients cannot read or edit the transition table'
 );
 
@@ -114,16 +116,24 @@ select is(
   'every enum is named <table>_<col> as in the doc'
 );
 
--- The seed generated from packages/rules/src/states.ts is loaded, and every entity in it
--- is guarded by a trigger on its table.
-select ok((select count(*) from app.state_transitions) > 0, 'state_transitions is seeded');
+-- The migration generated from packages/rules/src/states.ts filled the table (no seed
+-- step needed), with manager flags, and every entity in it is guarded by a trigger.
+select ok((select count(*) from app.state_transitions) > 0, 'state_transitions is filled by its migration');
+
+select results_eq(
+  $$ select manager from app.state_transitions
+     where (entity, from_state, to_state) in (('vessel', 'emptied', 'occupied'), ('intake', 'draft', 'holding'))
+     order by entity desc $$,
+  array[true, false],
+  'state_transitions carries the manager flag from states.ts'
+);
 
 select is(
   (select array_agg(entity order by entity) from (
      select distinct entity from app.state_transitions
      except select entity from app.state_entity) x),
   null,
-  'every entity in the transition seed has a guarded table'
+  'every entity in the transition table has a guarded table'
 );
 
 select is(

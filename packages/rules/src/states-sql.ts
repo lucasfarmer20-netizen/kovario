@@ -1,8 +1,12 @@
-// Renders the transition table as the SQL seed WP-03's guard trigger loads. Pure: the
-// gen:states script writes it to disk and a test fails when the committed file is stale.
+// Renders the transition table as the SQL migration that fills app.state_transitions, read by
+// WP-03's state_transition_guard(). Pure: the gen:states script writes it to disk and a test
+// fails when the committed file is stale. Shipping it as a migration means every environment
+// gets the edges with the schema; the statement is idempotent (upsert + prune), so the table
+// always equals TRANSITIONS after it runs.
 import { ENTITIES, TRANSITIONS, type Entity, type Transition } from "./states.ts";
 
-export const STATE_TRANSITIONS_SQL_PATH = "supabase/seed/state_transitions.sql";
+export const STATE_TRANSITIONS_SQL_PATH =
+  "supabase/migrations/20261026100100_state_transitions.sql";
 
 function literal(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
@@ -13,21 +17,29 @@ export function renderStateTransitionsSql(): string {
     (TRANSITIONS[entity] as readonly Transition<Entity>[]).map((t) => ({ entity, ...t })),
   );
   const values = rows.map((r, i) => {
-    const sep = i === rows.length - 1 ? ";" : ",";
-    const note = r.manager ? " -- manager" : "";
-    return `  (${literal(r.entity)}, ${literal(r.from)}, ${literal(r.to)})${sep}${note}`;
+    const sep = i === rows.length - 1 ? "" : ",";
+    return `  (${literal(r.entity)}, ${literal(r.from)}, ${literal(r.to)}, ${r.manager ? "true" : "false"})${sep}`;
   });
   return [
     "-- GENERATED from packages/rules/src/states.ts — do not edit by hand.",
     "-- Regenerate with `pnpm --filter rules gen:states`; a rules test fails when this is stale.",
     "-- Allowed state transitions (docs/03-STATE-MACHINES.md) for state_transition_guard().",
-    "-- Rows marked `manager` are manager-only in canTransition(); the function performing",
-    "-- the transition enforces the role.",
+    "-- `manager` edges are manager-only in canTransition(); the function performing the",
+    "-- transition enforces the role. Idempotent: upserts every edge and deletes edges that are",
+    "-- no longer in states.ts, so the table equals the generated set.",
     "",
-    "delete from state_transitions;",
-    "",
-    "insert into state_transitions (entity, from_state, to_state) values",
+    "with generated (entity, from_state, to_state, manager) as (values",
     ...values,
+    "), pruned as (",
+    "  delete from app.state_transitions t",
+    "  where not exists (",
+    "    select 1 from generated g",
+    "    where g.entity = t.entity and g.from_state = t.from_state and g.to_state = t.to_state",
+    "  )",
+    ")",
+    "insert into app.state_transitions (entity, from_state, to_state, manager)",
+    "select entity, from_state, to_state, manager from generated",
+    "on conflict (entity, from_state, to_state) do update set manager = excluded.manager;",
     "",
   ].join("\n");
 }
