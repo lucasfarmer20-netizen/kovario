@@ -12,7 +12,7 @@ issues; `scripts/run-wave.sh N` spawns a wave.
 | 0 | WP-01 scaffold | single |
 | 1 | WP-02 tenancy/RLS · WP-04 rules engine · WP-03 schema · WP-05 station shell | 02 and 04 in parallel; 03 after both; 05 after 03 |
 | 2 | WP-06 customers · WP-07 intake · WP-08 print agent + labels · WP-09 storage · WP-10 wave · WP-11 rollstock · WP-12 reconcile · WP-13 freezers | 06, 08 first; 07 after 06; 09–13 after 07/08 (see blocked-by labels) |
-| 3 | WP-14 allocation · WP-15 release · WP-16 payments core + register · WP-17 Dejavoo · WP-18 Stripe Terminal · WP-19 shipping · WP-20 status page + email · WP-21 reports · WP-22 onboarding + billing | 14 and 16 first; 15 after 14; 17/18 after 16; others parallel |
+| 3 | WP-14 allocation · WP-15 release · WP-16 payments core + register · WP-17 Dejavoo · WP-18 Stripe Terminal · WP-19 shipping · WP-20 status page + email · WP-21 reports · WP-22 onboarding + billing · WP-25 environments + deploy | 14 and 16 first; 15 after 14; 17/18 after 16; 25 needs only 01–03 (human merges: area:critical); others parallel |
 | 4 | WP-23 e2e smoke | after everything |
 | 5 | WP-24 PowerSync (post-v1, gated on DECISION-04) | — |
 
