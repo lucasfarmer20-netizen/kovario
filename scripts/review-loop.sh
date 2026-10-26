@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Local PR reviewer. Runs Claude Code headless (your Max/Pro subscription, no API key)
+# Local PR reviewer + merger. Runs Claude Code headless (your Max/Pro subscription, no API key)
 # against every open, non-draft PR whose latest commit CustomSeafoods hasn't reviewed yet,
 # using scripts/review-prompt.md. Approves / requests changes as the REVIEWER account via
-# GH_TOKEN so the author (your gh login) and the reviewer are different identities.
+# GH_TOKEN so the author (your gh login) and the reviewer are different identities, and
+# arms GitHub auto-merge on approved non-critical PRs (merges once CI is green).
+# AO's own autoReview is complementary: its findings go back to the worker session; this
+# loop is what produces the GitHub approval and the merge, which AO does not do.
 #
 # Usage:  REVIEWER_PAT=ghp_... scripts/review-loop.sh            # loop forever, every 3 min
 #         REVIEWER_PAT=ghp_... scripts/review-loop.sh --once     # single pass
@@ -22,7 +25,7 @@ review_one() {
 Follow scripts/review-prompt.md exactly. Read AGENTS.md, the linked issue (gh issue view),
 the docs the issue names, and the diff (gh pr diff $num). Do not edit files.
 When CRITICAL=false finish by running exactly one of:
-  gh pr review $num --approve --body \"<summary>\"
+  gh pr review $num --approve --body \"<summary>\" && gh pr merge $num --auto --squash
   gh pr review $num --request-changes --body \"<numbered findings>\"
 When CRITICAL=true post findings with: gh pr comment $num --body \"...\" and do NOT approve."
   echo "== PR #$num ($head) critical=$critical"

@@ -10,21 +10,20 @@ Agents: `AGENTS.md`.
 ## Kickoff checklist (Lucas)
 
 1. Create the GitHub repo (private), push this bundle to `main`.
-2. Set `projects.kovario.repo` and `path` in `agent-orchestrator.yaml`.
+2. Clone to a local folder; `ao.project.json` holds the AO project config (applied by `scripts/ao-setup.ps1`).
 3. Add a second GitHub account (e.g. CustomSeafoods) as a collaborator with Write;
    from that account mint a classic PAT with `repo` scope — that is `REVIEWER_PAT`
    (keep it in your shell, never in the repo). Branch protection on `main`: require
    `check` + 1 approval; turn on Allow auto-merge.
 4. Skim `docs/08-DECISIONS.md`; edit any `DECISION NEEDED` default you disagree with.
-5. `gh auth login`, `npm i -g @aoagents/ao`, then:
-   ```bash
-   export AO_CONFIG_PATH=$PWD/agent-orchestrator.yaml
-   ./scripts/seed-issues.sh
-   ao start
+5. `gh auth login`, install the Agent Orchestrator desktop app, then in the repo:
+   ```powershell
+   ao start                      # wait for `ao status` to show the daemon running
+   pwsh scripts/ao-setup.ps1     # registers the project from ao.project.json
+   ./scripts/seed-issues.sh      # creates labels + issues #1–#24
    ./scripts/run-wave.sh 0
-   REVIEWER_PAT=ghp_... ./scripts/review-loop.sh   # second terminal; reviews PRs on your Claude Code login
+   $env:REVIEWER_PAT="ghp_..."; ./scripts/review-loop.sh   # second terminal (Git Bash/WSL)
    ```
-6. When WP-01 merges, `./scripts/run-wave.sh 1`, and so on. The dashboard (`:3000`)
    shows sessions; `area:critical` PRs (WP-15 release, WP-16 payments) wait for you.
 
 ## Layout (created by WP-01)

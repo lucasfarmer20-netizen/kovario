@@ -14,7 +14,7 @@ Lucas: edit the line, commit, and reference the ADR in the PR that applies it.
 | DECISION-06 | Subscription tiers: five, $79–$899. Names, limits and feature gates unspecified. | **DECISION NEEDED** — default placeholder tiers `starter 79 / plant 199 / plant-plus 349 / multi-site 599 / enterprise 899`; gates: station count, sites, users, SMS. |
 | DECISION-07 | Tax computed at the register with optional per-transaction cap (`tax.cap_amount`). | **DECISION NEEDED** — default: compute, exclusive, cap supported. |
 | DECISION-08 | SMS notifications deferred; email via Resend in v1. | **DECISION NEEDED** — default: email only. |
-| DECISION-09 | Orchestration: Composio Agent Orchestrator, GitHub Issues as the unit of work, one PR per work package, CI as the merge gate, auto-merge on green + reviewer-agent approval. | **Decided** 2026-10-25 |
+| DECISION-09 | Orchestration: Agent Orchestrator desktop app (`ao.project.json`), GitHub Issues as the unit of work, one PR per work package, CI as the merge gate; `scripts/review-loop.sh` approves as a second GitHub identity and arms GitHub auto-merge (AO itself never merges). Workers run with `bypass-permissions` inside isolated worktrees; `main` is branch-protected. | **Decided** 2026-10-26 |
 | DECISION-10 | Framework versions: Next.js latest stable App Router (15.x at kickoff), React 19, TypeScript 5.x strict, Tailwind 4, Node 20+, pnpm 9+. Agents pin exact versions in WP-01 and do not upgrade majors mid-build. | **Decided** 2026-10-25 |
 | DECISION-11 | Weight unit is lb in v1 (org setting reserved). Currency USD. | **Decided** 2026-10-25 |
 | DECISION-12 | Production-mode / split-intake (CSP deferred design) is **not** in v1. Schema reserves `intake.split_from_id`. | **Decided** 2026-10-25 |

@@ -19,7 +19,7 @@ issues; `scripts/run-wave.sh N` spawns a wave.
 `blocked-by:WP-xx` labels are the dependency graph. `run-wave.sh` only spawns issues
 whose blockers are closed (PR merged), so you can re-run it as waves drain.
 
-## Agent assignment (defaults in `agent-orchestrator.yaml`)
+## Agent assignment (defaults in `ao.project.json`)
 
 | Agent | Used for |
 |---|---|
@@ -27,7 +27,7 @@ whose blockers are closed (PR merged), so you can re-run it as waves drain.
 | `codex` | `area:ui` / `area:labels` packages that carry no `area:db`, `area:rules`, `area:payments` or `area:critical` label (05, 10, 11, 12, 20, 21, 08) — `scripts/run-wave.sh` applies this rule |
 | Antigravity | **Not an AO agent.** Use it interactively for design review of station screens and for the two `area:critical` PRs' second review before merge. |
 
-Per-issue override: `ao spawn kovario <n> --agent codex`.
+Per-issue override: `ao spawn --project kovario --kind worker --name WP-NN --issue <n> --harness codex --mode tui`.
 
 ## Merge gates (hands-off mode)
 
@@ -38,24 +38,25 @@ Per-issue override: `ao spawn kovario <n> --agent codex`.
    changes as the **reviewer account** (`REVIEWER_PAT`, a second GitHub identity such
    as CustomSeafoods, because GitHub ignores self-approval). AO's `changes-requested`
    reaction feeds the findings back to the authoring agent.
-3. `approved-and-green` → auto-merge, **except** `area:critical` (WP-15, WP-16), which
-   notify and wait for Lucas.
+3. After approving a non-critical PR the loop arms `gh pr merge --auto --squash`, so
+   GitHub merges when CI is green. `area:critical` (WP-15, WP-16) get comments only
+   and wait for Lucas. AO's built-in lifecycle rules send CI failures, review comments
+   and merge conflicts back to the worker session automatically (no config needed);
+   AO's `autoReview` adds a second, in-app review pass but never merges.
 
 ## Running it
 
 ```bash
-# once
-gh auth login                       # account with write access; AO's GitHub tracker/SCM plugins use the same gh auth (export GITHUB_TOKEN=$(gh auth token) if a plugin asks for one)
-npm i -g @aoagents/ao               # Agent Orchestrator
-export AO_CONFIG_PATH=$PWD/agent-orchestrator.yaml
+# once (AO is a desktop app now; the old agent-orchestrator.yaml is retired)
+gh auth login                       # as the authoring account (lucasfarmer20-netizen)
+ao start                            # opens the desktop app + daemon; wait for `ao status` = running
+pwsh scripts/ao-setup.ps1           # or scripts/ao-setup.sh — registers the project from ao.project.json
 ./scripts/seed-issues.sh            # labels + milestones + 24 issues → issues/map.json
-ao start                            # dashboard on :3000
-REVIEWER_PAT=ghp_... ./scripts/review-loop.sh   # reviewer, in a second terminal
 
 # then, per wave
 ./scripts/run-wave.sh 0             # WP-01
-./scripts/run-wave.sh 1             # spawns unblocked wave-1 issues
-# … ao status / dashboard; re-run run-wave.sh N as blockers merge
+REVIEWER_PAT=ghp_... ./scripts/review-loop.sh   # second terminal: reviews, approves, arms auto-merge
+./scripts/run-wave.sh 1             # spawns unblocked wave-1 issues; re-run as blockers merge
 ```
 
 No API keys and no repo secrets are needed for v1: builders and the reviewer run on

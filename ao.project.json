@@ -1,0 +1,16 @@
+{
+  "defaultBranch": "main",
+  "sessionPrefix": "kv",
+  "symlinks": [".env"],
+  "postCreate": [
+    "pnpm install --frozen-lockfile || pnpm install",
+    "cp -n .env.example .env || true"
+  ],
+  "agentConfig": { "permissions": "bypass-permissions" },
+  "worker": { "agent": "claude-code", "agentConfig": { "model": "opus", "permissions": "bypass-permissions" } },
+  "orchestrator": { "agent": "claude-code", "agentConfig": { "model": "opus" } },
+  "agentRulesFile": ".agent-rules.md",
+  "reviewers": [{ "harness": "claude-code" }],
+  "autoReview": true,
+  "workersRequestReview": true
+}

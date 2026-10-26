@@ -69,7 +69,7 @@ pnpm db:types                               # regenerate packages/db types
 ```
 
 ## Review agents
-A local reviewer loop (`scripts/review-loop.sh`, Claude Code headless) checks each PR against the issue's acceptance list and the invariant
+A local reviewer loop (`scripts/review-loop.sh`, Claude Code headless) plus AO's in-app review check each PR against the issue's acceptance list and the invariant
 tables in `docs/10-LESSONS-FROM-CSP.md` using `scripts/review-prompt.md`. For
 `area:critical` PRs a human merges.
 

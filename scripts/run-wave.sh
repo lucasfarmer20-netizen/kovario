@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Spawn every issue in wave N whose blockers are all closed. Re-run as blockers merge.
-# Usage: scripts/run-wave.sh 1 [--agent codex] [--dry-run]
+# Usage: scripts/run-wave.sh 1 [--dry-run]   (extra args are passed to `ao spawn`)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 WAVE="${1:?wave number}"; shift || true
@@ -32,11 +32,11 @@ for wp, num in sorted(m.items()):
     if num in inflight: print(f'# skip {wp} (#{num}) already has an open PR'); continue
     heavy = {'area:critical','area:db','area:rules','area:payments'}
     agent = 'codex' if any(l in ls for l in ('area:ui','area:labels')) and not (heavy & set(ls)) else 'claude-code'
-    print(f'{num} {agent}')
+    print(f'{num} {agent} {wp}')
 PY
 cat /tmp/kv-wave-spawn.txt
-while read -r num agent; do
+while read -r num agent wp; do
   [[ "$num" == \#* || -z "$num" ]] && continue
-  cmd=(ao spawn "$PROJECT" "#$num" --agent "$agent" ${AGENT_ARGS[@]+"${AGENT_ARGS[@]}"})
+  cmd=(ao spawn --project "$PROJECT" --kind worker --name "$wp" --issue "$num" --harness "$agent" --mode tui ${AGENT_ARGS[@]+"${AGENT_ARGS[@]}"})
   echo "+ ${cmd[*]}"; [ "$DRY" = 1 ] || { "${cmd[@]}"; sleep 1; }
 done < /tmp/kv-wave-spawn.txt
