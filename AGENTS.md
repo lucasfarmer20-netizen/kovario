@@ -46,6 +46,11 @@ pnpm workspace: `apps/web`, `packages/{rules,payments,labels,db,shipping}`,
   read those labels.
 - Before pushing: `pnpm -r typecheck && pnpm -r lint && pnpm -r test && pnpm build`;
   for DB work also `supabase db reset` locally.
+- Your worktree has its **own local Supabase stack** (`supabase/.env`, written at
+  workspace creation, sets its project id and ports), so `supabase start`, `db reset`,
+  `test db` and `pnpm db:types` never touch another worker's database. Don't edit
+  `supabase/.env` or `config.toml` ports. Run `supabase stop` when your PR is done;
+  Docker memory fits only a few stacks at once.
 - Migrations: `supabase/migrations/<timestamp>_<slug>.sql`, idempotent where practical,
   one concern per file, every new table calls `enable_org_rls`. Regenerate
   `packages/db/src/types.ts` in the same PR.
