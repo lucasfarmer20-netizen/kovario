@@ -80,6 +80,9 @@ importers:
       react-dom:
         specifier: 19.3.1
         version: 19.3.1(react@19.3.1)
+      rules:
+        specifier: workspace:*
+        version: link:../../packages/rules
       tailwind-merge:
         specifier: 3.7.0
         version: 3.7.0

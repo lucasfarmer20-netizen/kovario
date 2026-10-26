@@ -1,17 +1,23 @@
-/**
- * The URL a pairing QR encodes. It is opened by the tablet's camera app, never scanned by a
- * station's <ScanInput>, so it is a plain URL rather than a `KV:` payload from
- * packages/rules/src/qr.ts.
- */
-export function pairingUrl(origin: string, code: string): string {
-  const url = new URL("/pair", origin);
-  url.searchParams.set("code", code);
-  return url.toString();
+import { encode, normalizePairingCode, parse } from "rules";
+
+// Device pairing QR text goes through packages/rules/src/qr.ts like every other QR
+// (AGENTS.md hard rule 4): the admin page shows `KV:PAIR:<code>`, which the station
+// tablet's scanner types into the focused /pair input.
+
+/** QR text for a pairing code: `KV:PAIR:<code>`. Throws `RangeError` on an invalid code. */
+export function pairingQrText(code: string): string {
+  return encode("PAIR", { code });
 }
 
-/** Pairing codes: 8 characters from the unambiguous alphabet (no 0/O, 1/I/L, U). */
-export const PAIRING_CODE_PATTERN = /^[A-HJKMNP-TV-Z2-9]{8}$/;
-
-export function normalisePairingCode(raw: string): string {
-  return raw.replace(/[\s-]/g, "").toUpperCase();
+/**
+ * What a scanner or a person entered on /pair, as a canonical pairing code, or `null`.
+ * Accepts a scanned `KV:PAIR:<code>` payload or a typed code (`abcd-2345`). Any other QR
+ * (a tote tag, an asset tag…) is not a pairing code.
+ */
+export function readPairingInput(raw: string): string | null {
+  const scanned = parse(raw);
+  if (scanned.ok && scanned.value.kind === "PAIR") return scanned.value.code;
+  // Typed codes have no KV: wrapper. An all-digit code (e.g. 23456789) parses as a legacy
+  // asset tag, so fall through to the typed-code rule for anything that is not KV:PAIR.
+  return normalizePairingCode(raw);
 }

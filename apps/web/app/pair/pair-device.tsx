@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { normalisePairingCode, PAIRING_CODE_PATTERN } from "@/lib/pairing";
+import { readPairingInput } from "@/lib/pairing";
 import { getDeviceClient } from "@/lib/supabase/device";
 
 type PairResponse = {
@@ -10,7 +10,11 @@ type PairResponse = {
   error?: string;
 };
 
-/** Exchanges a pairing code for the device's own session and stores it on this tablet. */
+/**
+ * Exchanges a pairing code for the device's own session and stores it on this tablet.
+ * The input stays focused for the station scanner, which types the admin page's
+ * `KV:PAIR:<code>` QR followed by Enter; a person can type the bare code instead.
+ */
 export function PairDevice({ initialCode }: { initialCode: string }) {
   const router = useRouter();
   const [code, setCode] = useState(initialCode);
@@ -19,9 +23,9 @@ export function PairDevice({ initialCode }: { initialCode: string }) {
   const started = useRef(false);
 
   async function pair(raw: string) {
-    const normalised = normalisePairingCode(raw);
-    if (!PAIRING_CODE_PATTERN.test(normalised)) {
-      setError("Codes are 8 letters and digits.");
+    const normalised = readPairingInput(raw);
+    if (normalised === null) {
+      setError("That is not a pairing code. Scan the pairing QR or type its 8 characters.");
       return;
     }
     setPending(true);
@@ -47,13 +51,13 @@ export function PairDevice({ initialCode }: { initialCode: string }) {
     router.replace("/device");
   }
 
-  // A code in the QR URL pairs immediately.
+  // A code passed in the link (/pair?code=…) pairs immediately.
   useEffect(() => {
     if (initialCode && !started.current) {
       started.current = true;
       void pair(initialCode);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for the QR code
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for the linked code
   }, []);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -64,7 +68,7 @@ export function PairDevice({ initialCode }: { initialCode: string }) {
   return (
     <form onSubmit={onSubmit} className="flex w-full max-w-md flex-col gap-4 text-lg">
       <label className="flex flex-col gap-2 font-medium">
-        Pairing code
+        Scan the pairing QR or type the code
         <input
           autoFocus
           value={code}

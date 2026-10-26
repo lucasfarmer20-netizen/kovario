@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/form";
 import { issuePairingCode, type PairingState } from "./actions";
 
 /**
- * Shows a pairing QR + code for one device. Scan it with the tablet's camera.
+ * Shows a pairing QR + code for one device. The tablet opens /pair and scans the QR with its
+ * station scanner (or someone types the code).
  * One click intent keeps one client_action_id until a code is shown, so a double click or
  * a retry after an error replays the same code instead of replacing it; only the response
  * to the latest intent is displayed.
@@ -42,10 +43,10 @@ export function PairButton({ deviceId, paired }: { deviceId: string; paired: boo
       ) : null}
       {state?.active && state.code && state.qrSvg ? (
         <div className="flex items-center gap-4 rounded-md border border-border p-3">
-          {/* SVG generated server-side by the qrcode library from our own pairing URL. */}
+          {/* SVG rendered server-side from the KV:PAIR text produced by packages/rules qr.ts. */}
           <div className="size-40" dangerouslySetInnerHTML={{ __html: state.qrSvg }} />
           <div className="flex flex-col gap-1 text-sm">
-            <span>Scan with the tablet, or open /pair and type:</span>
+            <span>On the tablet open /pair, then scan this QR or type:</span>
             <span className="font-mono text-2xl tracking-widest">{state.code}</span>
             <span className="text-muted-foreground">
               Expires {state.expiresAt ? new Date(state.expiresAt).toLocaleTimeString() : "soon"} ·

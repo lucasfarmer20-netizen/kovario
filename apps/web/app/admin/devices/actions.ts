@@ -2,13 +2,12 @@
 
 import { Constants } from "db";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { unstable_rethrow } from "next/navigation";
 import QRCode from "qrcode";
 import { z } from "zod";
 import { adminMutation, unwrap, type ActionState } from "@/lib/admin-action";
 import { ForbiddenError, requireManager } from "@/lib/auth";
-import { pairingUrl } from "@/lib/pairing";
+import { pairingQrText } from "@/lib/pairing";
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -39,7 +38,6 @@ export async function createDevice(_state: ActionState, formData: FormData): Pro
 export type PairingState = {
   error?: string;
   code?: string;
-  url?: string;
   qrSvg?: string;
   expiresAt?: string;
   /** False when this action id's code has since been replaced, redeemed or expired. */
@@ -72,11 +70,13 @@ export async function issuePairingCode(
     if (error || !row) return { error: error?.message ?? "Could not issue a code." };
     revalidatePath("/admin/devices");
     if (!row.active) return { active: false };
-    const origin =
-      process.env.NEXT_PUBLIC_APP_URL ?? (await headers()).get("origin") ?? "http://localhost:3000";
-    const url = pairingUrl(origin, row.code);
-    const qrSvg = await QRCode.toString(url, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
-    return { code: row.code, url, qrSvg, expiresAt: row.expires_at, active: true };
+    // QR text comes only from the rules codec (KV:PAIR:<code>, hard rule 4).
+    const qrSvg = await QRCode.toString(pairingQrText(row.code), {
+      type: "svg",
+      margin: 1,
+      errorCorrectionLevel: "M",
+    });
+    return { code: row.code, qrSvg, expiresAt: row.expires_at, active: true };
   } catch (err) {
     unstable_rethrow(err); // let the /login redirect through
     if (err instanceof ForbiddenError) return { error: "Managers only." };
