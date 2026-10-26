@@ -6,6 +6,10 @@
 # arms GitHub auto-merge on approved non-critical PRs (merges once CI is green).
 # AO's own autoReview is complementary: its findings go back to the worker session; this
 # loop is what produces the GitHub approval and the merge, which AO does not do.
+# AO gate: for a PR whose branch belongs to an AO session, wait until AO's reviewer has a
+# completed, non-"changes requested" verdict on the exact head commit (read from AO's
+# local DB). Otherwise an approval here can merge over a review AO is still running.
+# AO_GATE=0 disables it; PRs not opened by an AO session are not gated.
 #
 # Usage:  REVIEWER_PAT=ghp_... scripts/review-loop.sh            # loop forever, every 3 min
 #         REVIEWER_PAT=ghp_... scripts/review-loop.sh --once     # single pass
@@ -34,10 +38,32 @@ When CRITICAL=true post findings with: gh pr comment $num --body \"...\" and do 
     | tail -20 || echo "!! review of #$num failed"
 }
 
+# Prints AO's verdict for (branch, head sha): none (not an AO PR) | pending | failed |
+# changes_requested | <other completed verdict>.
+PY=python3; "$PY" -c '' 2>/dev/null || PY=python   # Windows python3 Store stub
+ao_verdict() {
+  "$PY" -I - "$1" "$2" <<'PY'
+import os, sqlite3, sys
+branch, sha = sys.argv[1], sys.argv[2]
+db = os.path.expanduser(os.environ.get("AO_DB", "~/.ao/data/ao.db"))
+if not os.path.exists(db): print("none"); sys.exit()
+c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+s = c.execute("select id from sessions where branch = ? order by created_at desc", (branch,)).fetchone()
+if not s: print("none"); sys.exit()
+rows = c.execute("select status, verdict from review_run where session_id = ? and target_sha = ?"
+                 " order by created_at desc", (s[0], sha)).fetchall()
+done = [v for st, v in rows if st == "complete"]
+if done: print(done[0] or "approved")
+elif any(st not in ("failed",) for st, _ in rows) or not rows: print("pending")
+else: print("failed")
+PY
+}
+
 pass() {
-  gh pr list -R "$REPO" --state open --json number,isDraft,headRefOid,labels,body \
+  gh pr list -R "$REPO" --state open --json number,isDraft,headRefOid,headRefName,labels,body \
   | jq -c '.[] | select(.isDraft|not)' | while read -r pr; do
     num=$(jq -r .number <<<"$pr"); head=$(jq -r .headRefOid <<<"$pr")
+    branch=$(jq -r .headRefName <<<"$pr")
     labels=$(jq -r '[.labels[].name]|join(",")' <<<"$pr")
     issue=$(jq -r .body <<<"$pr" | grep -oiE '(closes|fixes|resolves) #[0-9]+' | head -1 | grep -oE '[0-9]+' || true)
     critical=false
@@ -51,6 +77,15 @@ pass() {
     # CI must have finished (green or red) for this commit before we spend a review
     state=$(gh api "repos/$REPO/commits/$head/check-runs" -q '[.check_runs[]|select(.name=="check")|.conclusion][0]' 2>/dev/null || echo null)
     [ "$state" = "null" ] && { echo "-- #$num: CI still running, skip"; continue; }
+    if [ "${AO_GATE:-1}" != 0 ]; then
+      verdict=$(ao_verdict "$branch" "$head" | tr -d '\r')
+      case "$verdict" in
+        none) ;;
+        pending) echo "-- #$num: AO review of ${head:0:7} not finished, skip"; continue ;;
+        failed) echo "-- #$num: AO review of ${head:0:7} FAILED; check AO, skip"; continue ;;
+        changes_requested) echo "-- #$num: AO requested changes on ${head:0:7}, skip"; continue ;;
+      esac
+    fi
     review_one "$num" "$head" "$critical"
   done
 }
