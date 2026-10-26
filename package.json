@@ -1,0 +1,32 @@
+{
+  "name": "kovario",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.9.0",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "pnpm -r --if-present test",
+    "test:db": "node scripts/test-db.mjs",
+    "db:types": "supabase gen types typescript --local > packages/db/src/types.ts",
+    "e2e": "pnpm --filter web run --if-present e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.3",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "supabase": "2.122.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1",
+    "vitest": "4.1.12"
+  }
+}

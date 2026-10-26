@@ -7,6 +7,34 @@ The Custom Seafoods Odoo suite is the reference implementation, not a dependency
 **Start here:** `docs/00-PRD.md` → `docs/01-ARCHITECTURE.md` → `docs/09-WORK-PACKAGES.md`.
 Agents: `AGENTS.md`.
 
+## Quickstart (local dev)
+
+Prerequisites: Node 20.9+, pnpm 9+, Docker (running), and the Supabase CLI **2.122.0**
+(the version CI pins; `npx supabase@2.122.0 …` works if you don't want a global install).
+
+```bash
+git clone https://github.com/lucasfarmer20-netizen/kovario.git && cd kovario
+pnpm install
+cp .env.example .env              # names only; fill local values from `supabase status`
+supabase start                    # local Postgres/Auth/Realtime in Docker (first run pulls images)
+supabase db reset                 # applies supabase/migrations/* + supabase/seed.sql
+pnpm dev                          # http://localhost:3000 — /healthz returns {"ok":true}
+```
+
+`supabase status` prints the local API URL and anon / service-role keys for `.env`.
+`supabase stop` shuts the stack down.
+
+| Script | What it does |
+|---|---|
+| `pnpm dev` | Next.js dev server (`apps/web`) |
+| `pnpm build` | Builds every package that has a `build` script |
+| `pnpm typecheck` | `tsc --noEmit` in every package |
+| `pnpm lint` | ESLint + Prettier check |
+| `pnpm test` | Unit tests (vitest) in every package; `*.db.test.ts` excluded |
+| `pnpm test:db` | `supabase test db` (SQL tests in `supabase/tests/`) + vitest `*.db.test.ts` suites; needs `supabase start` |
+| `pnpm db:types` | Regenerates `packages/db/src/types.ts` from the local DB |
+| `pnpm e2e` | Playwright smoke in `apps/web` (no-op until WP-23 adds it) |
+
 ## Kickoff checklist (Lucas)
 
 1. Create the GitHub repo (private), push this bundle to `main`.
@@ -26,7 +54,7 @@ Agents: `AGENTS.md`.
    ```
    shows sessions; `area:critical` PRs (WP-15 release, WP-16 payments) wait for you.
 
-## Layout (created by WP-01)
+## Layout
 ```
 apps/web            Next.js app: stations, admin, register, public status page
 packages/rules      pure TS rules engine (matrices, yield, pricing, QR codec, states)
