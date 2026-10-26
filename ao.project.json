@@ -2,10 +2,7 @@
   "defaultBranch": "main",
   "sessionPrefix": "kv",
   "symlinks": [".env"],
-  "postCreate": [
-    "pnpm install --frozen-lockfile || pnpm install",
-    "cp -n .env.example .env || true"
-  ],
+  "postCreate": ["pwsh -NoProfile -File scripts/ao-post-create.ps1"],
   "agentConfig": { "permissions": "bypass-permissions" },
   "worker": { "agent": "claude-code", "agentConfig": { "model": "opus", "permissions": "bypass-permissions" } },
   "orchestrator": { "agent": "claude-code", "agentConfig": { "model": "opus" } },
