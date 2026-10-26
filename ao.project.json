@@ -1,13 +1,34 @@
 {
   "defaultBranch": "main",
   "sessionPrefix": "kv",
-  "symlinks": [".env"],
-  "postCreate": ["pwsh -NoProfile -File scripts/ao-post-create.ps1"],
-  "agentConfig": { "permissions": "bypass-permissions" },
-  "worker": { "agent": "claude-code", "agentConfig": { "model": "claude-opus-5-5", "permissions": "bypass-permissions" } },
-  "orchestrator": { "agent": "claude-code", "agentConfig": { "model": "claude-opus-5-5" } },
+  "symlinks": [
+    ".env"
+  ],
+  "postCreate": [
+    "pwsh -NoProfile -File scripts/ao-post-create.ps1"
+  ],
+  "agentConfig": {},
+  "worker": {
+    "agent": "claude-code",
+    "agentConfig": {
+      "effort": "high",
+      "permissions": "bypass-permissions"
+    }
+  },
+  "orchestrator": {
+    "agent": "claude-code",
+    "agentConfig": {
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "permissions": "bypass-permissions"
+    }
+  },
   "agentRulesFile": ".agent-rules.md",
-  "reviewers": [{ "harness": "claude-code" }],
+  "reviewers": [
+    {
+      "harness": "codex"
+    }
+  ],
   "autoReview": true,
   "workersRequestReview": true
 }
