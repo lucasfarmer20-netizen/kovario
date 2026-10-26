@@ -1,0 +1,14 @@
+# Spec, issue bodies and tooling are hand-formatted; prettier checks code only.
+*.md
+docs/
+issues/
+scripts/*.sh
+scripts/*.ps1
+ao.project.json
+.github/
+supabase/
+pnpm-lock.yaml
+packages/db/src/types.ts
+**/.next/
+**/next-env.d.ts
+coverage/

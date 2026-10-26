@@ -1,0 +1,20 @@
+{
+  "name": "rules",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pure TS rules engine: processing rules, yield, pricing, QR codec, state machines. No runtime deps.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}

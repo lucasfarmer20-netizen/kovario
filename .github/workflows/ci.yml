@@ -21,12 +21,14 @@ jobs:
       - run: pnpm lint
       - run: pnpm test                         # root script: vitest run --passWithNoTests across the workspace
       - uses: supabase/setup-cli@v1
-        with: { version: latest }               # WP-01 pins this to the version it generated types with
+        with: { version: 2.122.0 }               # the CLI version packages/db/src/types.ts was generated with
       - name: Apply migrations on a fresh local database
         run: |
           supabase start -x studio,imgproxy,logflare,vector
           supabase db reset
       - run: pnpm db:types                      # regenerates packages/db/src/types.ts; drift is a reviewer check, not a CI gate
+      - name: Report types drift (non-blocking)
+        run: git diff --exit-code -- packages/db/src/types.ts || echo "::warning file=packages/db/src/types.ts::generated types differ from the committed file; run pnpm db:types"
       - run: pnpm test:db                       # SQL/integration tests against the local DB (passes when none exist)
       - run: pnpm build
       - name: e2e smoke (only once apps/web/e2e exists)

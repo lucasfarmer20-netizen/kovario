@@ -12,3 +12,5 @@ supabase/.temp/
 *.log
 issues/map.json
 .ao/
+next-env.d.ts
+*.tsbuildinfo
