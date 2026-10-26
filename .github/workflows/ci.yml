@@ -15,7 +15,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with: { version: 9 }
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: pnpm }
+        with: { node-version: 22, cache: pnpm }   # supabase-js realtime needs native WebSocket (Node 22+)
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint

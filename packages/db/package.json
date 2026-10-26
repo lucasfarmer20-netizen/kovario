@@ -14,7 +14,13 @@
   },
   "devDependencies": {
     "@types/node": "20.19.43",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1",
     "typescript": "5.9.3",
     "vitest": "4.1.12"
+  },
+  "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0"
   }
 }

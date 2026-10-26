@@ -9,7 +9,7 @@ Agents: `AGENTS.md`.
 
 ## Quickstart (local dev)
 
-Prerequisites: Node 20.9+, pnpm 9+, Docker (running), and the Supabase CLI **2.122.0**
+Prerequisites: Node 22+, pnpm 9+, Docker (running), and the Supabase CLI **2.122.0**
 (the version CI pins; `npx supabase@2.122.0 …` works if you don't want a global install).
 
 ```bash

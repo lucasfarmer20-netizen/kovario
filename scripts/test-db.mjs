@@ -28,10 +28,18 @@ function run(command, env = {}) {
 
 const sqlDir = join(root, "supabase", "tests");
 const sqlTests = existsSync(sqlDir) && readdirSync(sqlDir).some((f) => f.endsWith(".sql"));
-const vitestSuites = ["apps", "packages", "agent"].some(
-  (d) => existsSync(join(root, d)) && hasDbSuites(join(root, d)),
-);
+// Workspace packages (apps/*, packages/*, agent/*) that contain *.db.test.ts suites.
+const dbPackages = ["apps", "packages", "agent"]
+  .filter((d) => existsSync(join(root, d)))
+  .flatMap((d) =>
+    readdirSync(join(root, d), { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => join(d, e.name)),
+  )
+  .filter((pkg) => hasDbSuites(join(root, pkg)));
 
 if (sqlTests) run("supabase test db");
-if (vitestSuites) run("pnpm -r --if-present test", { KOVARIO_TEST_DB: "1" });
-if (!sqlTests && !vitestSuites) console.log("test:db: no SQL or *.db.test.ts suites yet");
+// Run vitest directly (not each package's `test` script): DB mode selects only
+// *.db.test.ts, so unit-run flags such as rules' `--coverage` thresholds don't apply.
+for (const pkg of dbPackages) run(`pnpm --dir ${pkg} exec vitest run`, { KOVARIO_TEST_DB: "1" });
+if (!sqlTests && dbPackages.length === 0) console.log("test:db: no SQL or *.db.test.ts suites yet");
