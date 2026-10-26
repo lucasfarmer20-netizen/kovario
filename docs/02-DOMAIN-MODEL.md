@@ -330,6 +330,7 @@ DECISION-07 covers whether tax is computed in v1 or recorded as a note.
 | Location | `KV:LOC:<org_slug>:<IF-A-01-1-F>` |
 | Boxing token | `KV:BOX:<settlement.boxing_token>` |
 | Storage box | `KV:SBOX:<STG-0001>:<n>` |
+| Device pairing | `KV:PAIR:<code>` (one-time 8-character code, scanned at `/pair`) |
 
 `packages/rules/src/qr.ts` exports `encode(kind, …)` and `parse(raw)`; every label
 template and every scan handler imports from it. A scan handler must also accept bare

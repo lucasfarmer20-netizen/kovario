@@ -6,13 +6,24 @@
 //   Location     KV:LOC:<org_slug>:<IF-A-01-1-F>
 //   Boxing token KV:BOX:<settlement.boxing_token>
 //   Storage box  KV:SBOX:<STG-0001>:<n>
+//   Pairing      KV:PAIR:<code>   one-time device pairing code (8 chars, see PAIRING_ALPHABET),
+//                                 scanned at /pair by the station tablet's scanner
 //
 // Scan handlers also accept the bare legacy forms `INT-0001` (a tote of that intake) and
-// `042` / `42` (an asset tag), with asset-tag padding normalised.
+// `042` / `42` (an asset tag), with asset-tag padding normalised. A pairing code has no bare
+// legacy form: only /pair accepts a typed code (via normalizePairingCode), so an 8-character
+// scan at a station is never mistaken for one.
 
 export const QR_PREFIX = "KV";
-export const QR_KINDS = ["TOTE", "TAG", "LOC", "BOX", "SBOX"] as const;
+export const QR_KINDS = ["TOTE", "TAG", "LOC", "BOX", "SBOX", "PAIR"] as const;
 export type QrKind = (typeof QR_KINDS)[number];
+
+/**
+ * Characters of a pairing code: no 0/O, 1/I/L or U. Must match the alphabet in
+ * public.admin_device_pairing_code (supabase/migrations/*_devices_pins.sql).
+ */
+export const PAIRING_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+export const PAIRING_CODE_LENGTH = 8;
 
 /** Canonical asset-tag width (`org.settings.scanner.tag_digits`). */
 export const TAG_DIGITS = 3;
@@ -28,6 +39,7 @@ export interface QrFields {
   LOC: { orgSlug: string; code: string };
   BOX: { token: string };
   SBOX: { storageNumber: string; boxNo: number };
+  PAIR: { code: string };
 }
 
 export type QrPayload = { [K in QrKind]: { kind: K } & QrFields[K] }[QrKind];
@@ -48,6 +60,7 @@ const LOCATION_CODE = /^[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 const BOXING_TOKEN = /^[A-Za-z0-9_-]+$/;
 const POSITIVE_INT = /^[1-9]\d*$/;
 const DIGITS = /^\d+$/;
+const PAIRING_CODE = new RegExp(`^[${PAIRING_ALPHABET}]{${PAIRING_CODE_LENGTH}}$`);
 
 /**
  * Canonical asset-tag code: `42` / `042` / `0042` → `042`. `null` when the input is not
@@ -57,6 +70,16 @@ export function normalizeTagCode(raw: string, digits: number = TAG_DIGITS): stri
   const s = raw.trim();
   if (!DIGITS.test(s)) return null;
   return s.replace(/^0+(?=\d)/, "").padStart(digits, "0");
+}
+
+/**
+ * Canonical pairing code: whitespace and dashes removed, upper-cased (`abcd-2345` →
+ * `ABCD2345`). `null` unless it is exactly PAIRING_CODE_LENGTH characters of
+ * PAIRING_ALPHABET. A valid code is not evidence it is live — the server redeems it.
+ */
+export function normalizePairingCode(raw: string): string | null {
+  const s = raw.replace(/[\s-]/g, "").toUpperCase();
+  return PAIRING_CODE.test(s) ? s : null;
 }
 
 function positiveInt(s: string): number | null {
@@ -77,6 +100,13 @@ function count(name: string, value: number): string {
   return String(value);
 }
 
+function pairingCode(code: string): string {
+  const canonical = normalizePairingCode(code);
+  if (canonical === null)
+    throw new RangeError(`QR pairing code is invalid: ${JSON.stringify(code)}`);
+  return canonical;
+}
+
 function tagCode(code: string, digits: number): string {
   const canonical = normalizeTagCode(code, digits);
   if (canonical === null) throw new RangeError(`QR tag code is invalid: ${JSON.stringify(code)}`);
@@ -92,6 +122,7 @@ const ENCODERS: { [K in QrKind]: (f: QrFields[K], tagDigits: number) => string[]
   ],
   BOX: (f) => [field("boxing token", f.token, BOXING_TOKEN)],
   SBOX: (f) => [field("storage number", f.storageNumber, STORAGE_NUMBER), count("box no", f.boxNo)],
+  PAIR: (f) => [pairingCode(f.code)],
 };
 
 /** QR text for a label. Throws `RangeError` on a field that would not parse back. */
@@ -119,9 +150,14 @@ const DECODERS: { [K in QrKind]: (parts: string[], tagDigits: number) => QrField
     const boxNo = positiveInt(box);
     return STORAGE_NUMBER.test(storageNumber) && boxNo !== null ? { storageNumber, boxNo } : null;
   },
+  PAIR: ([raw = ""]) => {
+    // Scanned payloads hold no dashes or spaces; only letter case is normalised here.
+    const code = raw.toUpperCase();
+    return PAIRING_CODE.test(code) ? { code } : null;
+  },
 };
 
-const ARITY: Record<QrKind, number> = { TOTE: 2, TAG: 2, LOC: 2, BOX: 1, SBOX: 2 };
+const ARITY: Record<QrKind, number> = { TOTE: 2, TAG: 2, LOC: 2, BOX: 1, SBOX: 2, PAIR: 1 };
 
 function isQrKind(value: string): value is QrKind {
   return (QR_KINDS as readonly string[]).includes(value);
