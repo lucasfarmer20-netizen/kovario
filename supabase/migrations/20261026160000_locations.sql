@@ -70,9 +70,11 @@ create index if not exists location_org_sort on public.location (org_id, sort_ke
 select app.track_updated_at('public.location');
 select app.enable_org_rls('public.location', write_roles => '{}');
 
--- Raises unless the location exists and is live. A scanned code is never evidence the
--- shelf exists (docs/10-LESSONS-FROM-CSP.md §1).
-create or replace function app.check_location_is_live(p_location_id uuid)
+-- Raises unless the location exists IN `p_org_id` (default: the caller's org) and is live.
+-- A scanned code is never evidence the shelf exists (docs/10-LESSONS-FROM-CSP.md §1).
+-- Another org's location is indistinguishable from a missing one, and an end user can
+-- only ask about their own org.
+create or replace function app.check_location_is_live(p_location_id uuid, p_org_id uuid default null)
 returns void
 language plpgsql
 stable
@@ -80,12 +82,18 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_org uuid := coalesce(p_org_id, app.org_id());
   v_active boolean;
   v_code text;
 begin
-  select is_active, code into v_active, v_code from public.location where id = p_location_id;
+  if app.is_end_user() and v_org is distinct from app.org_id() then
+    v_org := null;
+  end if;
+  select is_active, code into v_active, v_code
+  from public.location
+  where id = p_location_id and org_id = v_org;
   if not found then
-    raise exception 'location % does not exist', p_location_id using errcode = '23503';
+    raise exception 'location not found' using errcode = '23503';
   end if;
   if not v_active then
     raise exception 'location % is archived and cannot be bound', v_code using errcode = '23514';
@@ -93,8 +101,9 @@ begin
 end;
 $$;
 
--- Trigger form: TG_ARGV[0] names the location column being bound. Fires on insert and
--- when the column changes, so rows already on a location that is later archived stay put.
+-- Trigger form: TG_ARGV[0] names the location column being bound; the location must belong
+-- to the binding row's org. Fires on insert and when the column changes, so rows already
+-- on a location that is later archived stay put.
 create or replace function app.location_is_live_trigger()
 returns trigger
 language plpgsql
@@ -105,14 +114,14 @@ declare
 begin
   if v_location is not null
      and (tg_op = 'INSERT' or v_location is distinct from (to_jsonb(old) ->> tg_argv[0])::uuid) then
-    perform app.check_location_is_live(v_location);
+    perform app.check_location_is_live(v_location, new.org_id);
   end if;
   return new;
 end;
 $$;
 
-revoke all on function app.check_location_is_live(uuid), app.location_is_live_trigger() from public;
-grant execute on function app.check_location_is_live(uuid) to authenticated, service_role;
+revoke all on function app.check_location_is_live(uuid, uuid), app.location_is_live_trigger() from public;
+grant execute on function app.check_location_is_live(uuid, uuid) to authenticated, service_role;
 
 -- vessel / scan_log location FKs ------------------------------------------------------
 do $$ begin

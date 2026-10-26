@@ -381,6 +381,72 @@ select throws_ok(
   'an archived location cannot be bound to a vessel'
 );
 
+-- Another org's locations: one live, one archived.
+insert into public.location (id, org_id, zone, kind, code, qr, is_active) values
+  ('d0000000-0000-4000-8000-0000000050d1', 'd0000000-0000-4000-8000-00000000000d', 'IF', 'pallet',
+   'IF-PALLET-01', 'KV:LOC:org-d:IF-PALLET-01', true),
+  ('d0000000-0000-4000-8000-0000000050d2', 'd0000000-0000-4000-8000-00000000000d', 'IF', 'pallet',
+   'IF-PALLET-02', 'KV:LOC:org-d:IF-PALLET-02', false);
+
+select throws_ok(
+  $$ insert into public.location_placement (org_id, vessel_id, location_id) values
+     ('c0000000-0000-4000-8000-00000000000c', 'c0000000-0000-4000-8000-0000000060c1', 'd0000000-0000-4000-8000-0000000050d1') $$,
+  '23503', 'location not found',
+  'a placement cannot bind another org''s live location'
+);
+
+select throws_ok(
+  $$ update public.vessel set location_id = 'd0000000-0000-4000-8000-0000000050d1'
+     where id = 'c0000000-0000-4000-8000-0000000060c1' $$,
+  '23503', 'location not found',
+  'a vessel cannot be bound to another org''s location'
+);
+
+select throws_ok(
+  $$ insert into public.storage_intake (org_id, number, customer_id, location_id) values
+     ('c0000000-0000-4000-8000-00000000000c', 'STG-0002', 'c0000000-0000-4000-8000-0000000010c1',
+      'd0000000-0000-4000-8000-0000000050d1') $$,
+  '23503', 'location not found',
+  'a storage intake cannot be bound to another org''s location'
+);
+
+select set_config('request.jwt.claims',
+  '{"sub":"c0000000-0000-4000-8000-0000000000c1","role":"authenticated","org_id":"c0000000-0000-4000-8000-00000000000c","app_role":"manager"}',
+  true);
+set local role authenticated;
+
+select lives_ok(
+  $$ select app.check_location_is_live('c0000000-0000-4000-8000-0000000050c1') $$,
+  'check_location_is_live passes for a live location of the caller''s org'
+);
+
+select throws_ok(
+  $$ select app.check_location_is_live('c0000000-0000-4000-8000-0000000050c3') $$,
+  '23514', null,
+  'check_location_is_live rejects the caller''s archived location'
+);
+
+select throws_ok(
+  $$ select app.check_location_is_live('d0000000-0000-4000-8000-0000000050d1') $$,
+  '23503', 'location not found',
+  'another org''s live location reads as not found'
+);
+
+select throws_ok(
+  $$ select app.check_location_is_live('d0000000-0000-4000-8000-0000000050d2') $$,
+  '23503', 'location not found',
+  'another org''s archived location reads as not found (no state or code leaks)'
+);
+
+select throws_ok(
+  $$ select app.check_location_is_live('d0000000-0000-4000-8000-0000000050d1', 'd0000000-0000-4000-8000-00000000000d') $$,
+  '23503', 'location not found',
+  'an end user cannot ask about another org by passing its id'
+);
+
+reset role;
+select set_config('request.jwt.claims', '', true);
+
 select throws_ok(
   $$ update public.location_placement set location_id = 'c0000000-0000-4000-8000-0000000050c1'
      where vessel_id = 'c0000000-0000-4000-8000-0000000060c1' $$,
