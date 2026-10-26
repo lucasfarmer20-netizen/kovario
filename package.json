@@ -15,6 +15,7 @@
     "test": "pnpm -r --if-present test",
     "test:db": "node scripts/test-db.mjs",
     "db:types": "supabase gen types typescript --local > packages/db/src/types.ts",
+    "db:demo-owner": "node scripts/demo-owner.mjs",
     "e2e": "pnpm --filter web run --if-present e2e"
   },
   "devDependencies": {
