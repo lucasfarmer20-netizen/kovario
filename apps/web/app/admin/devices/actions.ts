@@ -3,10 +3,11 @@
 import { Constants } from "db";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { unstable_rethrow } from "next/navigation";
 import QRCode from "qrcode";
 import { z } from "zod";
 import { adminMutation, unwrap, type ActionState } from "@/lib/admin-action";
-import { requireManager } from "@/lib/auth";
+import { ForbiddenError, requireManager } from "@/lib/auth";
 import { pairingUrl } from "@/lib/pairing";
 
 const createSchema = z.object({
@@ -41,28 +42,44 @@ export type PairingState = {
   url?: string;
   qrSvg?: string;
   expiresAt?: string;
+  /** False when this action id's code has since been replaced, redeemed or expired. */
+  active?: boolean;
 };
 
+const issueSchema = z.object({ deviceId: z.uuid(), clientActionId: z.uuid() });
+
 /**
- * Issues a one-time pairing code. Not routed through withAction: action_log would then
- * store the code, and re-issuing is harmless (it replaces the previous code).
+ * Issues a one-time pairing code, idempotently per `clientActionId`.
+ * admin_device_pairing_code records the action in one transaction and derives the code from
+ * the action id, so a replay (double submit, retry after a lost response) returns the same
+ * code without the plaintext ever being stored. withAction's action_log shortcut is not
+ * used because the stored result deliberately omits the code.
  */
-export async function issuePairingCode(deviceId: string): Promise<PairingState> {
-  if (!z.uuid().safeParse(deviceId).success) return { error: "Unknown device." };
+export async function issuePairingCode(
+  deviceId: string,
+  clientActionId: string,
+): Promise<PairingState> {
+  if (!issueSchema.safeParse({ deviceId, clientActionId }).success) {
+    return { error: "Unknown device." };
+  }
   try {
     const { supabase } = await requireManager();
     const { data, error } = await supabase.rpc("admin_device_pairing_code", {
+      p_client_action_id: clientActionId,
       p_device_id: deviceId,
     });
     const row = data?.[0];
     if (error || !row) return { error: error?.message ?? "Could not issue a code." };
+    revalidatePath("/admin/devices");
+    if (!row.active) return { active: false };
     const origin =
       process.env.NEXT_PUBLIC_APP_URL ?? (await headers()).get("origin") ?? "http://localhost:3000";
     const url = pairingUrl(origin, row.code);
     const qrSvg = await QRCode.toString(url, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
-    revalidatePath("/admin/devices");
-    return { code: row.code, url, qrSvg, expiresAt: row.expires_at };
-  } catch {
-    return { error: "Managers only." };
+    return { code: row.code, url, qrSvg, expiresAt: row.expires_at, active: true };
+  } catch (err) {
+    unstable_rethrow(err); // let the /login redirect through
+    if (err instanceof ForbiddenError) return { error: "Managers only." };
+    return { error: err instanceof Error ? err.message : "Could not issue a code." };
   }
 }

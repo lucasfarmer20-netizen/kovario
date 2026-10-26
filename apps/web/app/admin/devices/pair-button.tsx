@@ -1,26 +1,46 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/form";
 import { issuePairingCode, type PairingState } from "./actions";
 
-/** Shows a fresh pairing QR + code for one device. Scan it with the tablet's camera. */
+/**
+ * Shows a pairing QR + code for one device. Scan it with the tablet's camera.
+ * One click intent keeps one client_action_id until a code is shown, so a double click or
+ * a retry after an error replays the same code instead of replacing it; only the response
+ * to the latest intent is displayed.
+ */
 export function PairButton({ deviceId, paired }: { deviceId: string; paired: boolean }) {
   const [state, setState] = useState<PairingState | null>(null);
   const [pending, startTransition] = useTransition();
+  const intentId = useRef<string | null>(null);
+  const latestId = useRef<string | null>(null);
+
+  function issue() {
+    intentId.current ??= crypto.randomUUID();
+    const id = intentId.current;
+    latestId.current = id;
+    startTransition(async () => {
+      const result = await issuePairingCode(deviceId, id);
+      if (latestId.current !== id) return; // a newer request owns the display
+      setState(result);
+      if (!result.error) intentId.current = null; // next click issues a fresh code
+    });
+  }
 
   return (
     <div className="flex flex-col items-start gap-2">
-      <Button
-        type="button"
-        variant="secondary"
-        disabled={pending}
-        onClick={() => startTransition(async () => setState(await issuePairingCode(deviceId)))}
-      >
+      <Button type="button" variant="secondary" disabled={pending} onClick={issue}>
         {paired ? "Re-pair" : "Pair"}
       </Button>
       {state?.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
-      {state?.code && state.qrSvg ? (
+      {state?.active === false ? (
+        <p className="text-sm text-muted-foreground">
+          That code was replaced or already used. Press “{paired ? "Re-pair" : "Pair"}” for a new
+          one.
+        </p>
+      ) : null}
+      {state?.active && state.code && state.qrSvg ? (
         <div className="flex items-center gap-4 rounded-md border border-border p-3">
           {/* SVG generated server-side by the qrcode library from our own pairing URL. */}
           <div className="size-40" dangerouslySetInnerHTML={{ __html: state.qrSvg }} />

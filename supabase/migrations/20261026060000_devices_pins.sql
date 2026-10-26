@@ -371,11 +371,18 @@ begin
 end;
 $$;
 
--- Issues a fresh one-time pairing code (valid 10 minutes), replacing any outstanding one.
+-- Issues a one-time pairing code (valid 10 minutes), replacing any outstanding one, as one
+-- atomic, idempotent action keyed by the client's `client_action_id`:
+--   * the code is derived as HMAC(device.pairing_key, client_action_id), so a replay of the
+--     same id recomputes the identical code — the plaintext is never stored (the device keeps
+--     only sha256(code); action_log keeps {device_id, expires_at});
+--   * the device row is locked first, so concurrent requests serialise: a duplicate of the same
+--     id waits, then replays the same code; a request with a newer id replaces the code;
+--   * `active` is false when the replayed code has since been replaced, redeemed or expired.
 -- Re-pairing an already paired device revokes the old tablet's sessions on redeem
 -- (device_bind_auth_user).
-create or replace function public.admin_device_pairing_code(p_device_id uuid)
-returns table (code text, expires_at timestamptz)
+create or replace function public.admin_device_pairing_code(p_client_action_id text, p_device_id uuid)
+returns table (code text, expires_at timestamptz, active boolean)
 language plpgsql
 security definer
 set search_path = ''
@@ -383,21 +390,43 @@ as $$
 declare
   -- Unambiguous alphabet: no 0/O, 1/I/L, U.
   v_alphabet constant text := 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
-  v_bytes bytea := extensions.gen_random_bytes(8);
+  v_device public.device;
+  v_action jsonb;
+  v_bytes bytea;
   v_code text := '';
-  v_expires timestamptz := now() + interval '10 minutes';
+  v_expires timestamptz;
 begin
   perform app.require_role('{owner,manager}');
-  for i in 0..7 loop
-    v_code := v_code || substr(v_alphabet, (get_byte(v_bytes, i) % length(v_alphabet)) + 1, 1);
-  end loop;
-  update public.device
-  set token_hash = app.sha256_hex(v_code), pairing_expires_at = v_expires
-  where id = p_device_id and org_id = app.org_id() and is_active;
+  select * into v_device from public.device
+  where id = p_device_id and org_id = app.org_id() and is_active
+  for update;
   if not found then
     raise exception 'device not found' using errcode = 'P0002';
   end if;
-  return query select v_code, v_expires;
+
+  v_action := app.action_begin(p_client_action_id, 'device.pairing_code',
+    jsonb_build_object('device_id', p_device_id));
+
+  v_bytes := extensions.hmac(convert_to(p_client_action_id, 'UTF8'), v_device.pairing_key, 'sha256');
+  for i in 0..7 loop
+    v_code := v_code || substr(v_alphabet, (get_byte(v_bytes, i) % length(v_alphabet)) + 1, 1);
+  end loop;
+
+  if v_action ->> 'status' = 'done' then
+    v_expires := (v_action -> 'result' ->> 'expires_at')::timestamptz;
+    return query select v_code, v_expires,
+      coalesce(v_device.token_hash = app.sha256_hex(v_code) and v_device.pairing_expires_at > now(), false);
+    return;
+  end if;
+
+  v_expires := now() + interval '10 minutes';
+  update public.device
+  set token_hash = app.sha256_hex(v_code), pairing_expires_at = v_expires
+  where id = p_device_id;
+
+  perform app.action_complete(p_client_action_id,
+    jsonb_build_object('device_id', p_device_id, 'expires_at', v_expires));
+  return query select v_code, v_expires, true;
 end;
 $$;
 
@@ -646,7 +675,7 @@ revoke all on function
   public.admin_create_site(text, text), public.admin_rename_site(text, uuid, text),
   public.admin_set_default_site(text, uuid),
   public.admin_create_device(text, text, public.device_station, uuid),
-  public.admin_device_pairing_code(uuid), public.device_heartbeat(), public.operator_identify(text),
+  public.admin_device_pairing_code(text, uuid), public.device_heartbeat(), public.operator_identify(text),
   public.elevation_status(text),
   public.device_redeem_pairing(text), public.device_bind_auth_user(uuid, uuid),
   public.elevation_mint(uuid, uuid, uuid, text)
@@ -659,7 +688,7 @@ grant execute on function
   public.admin_create_site(text, text), public.admin_rename_site(text, uuid, text),
   public.admin_set_default_site(text, uuid),
   public.admin_create_device(text, text, public.device_station, uuid),
-  public.admin_device_pairing_code(uuid), public.device_heartbeat(), public.operator_identify(text),
+  public.admin_device_pairing_code(text, uuid), public.device_heartbeat(), public.operator_identify(text),
   public.elevation_status(text)
 to authenticated;
 

@@ -55,6 +55,7 @@ describe("device pairing", { timeout: 60_000 }, () => {
 
   it("pairs a device and returns a station session for its own auth user", async () => {
     const { data: codes, error } = await manager.client.rpc("admin_device_pairing_code", {
+      p_client_action_id: randomUUID(),
       p_device_id: deviceId,
     });
     expect(error).toBeNull();
@@ -125,6 +126,7 @@ describe("device pairing", { timeout: 60_000 }, () => {
 
   it("a pairing code works once", async () => {
     const { data: codes } = await manager.client.rpc("admin_device_pairing_code", {
+      p_client_action_id: randomUUID(),
       p_device_id: deviceId,
     });
     const code = codes?.[0]?.code ?? "";
@@ -141,6 +143,7 @@ describe("device pairing", { timeout: 60_000 }, () => {
       .eq("id", deviceId)
       .single();
     const { data: codes } = await manager.client.rpc("admin_device_pairing_code", {
+      p_client_action_id: randomUUID(),
       p_device_id: deviceId,
     });
     expect((await pair(codes?.[0]?.code ?? "")).status).toBe(200);
@@ -154,8 +157,12 @@ describe("device pairing", { timeout: 60_000 }, () => {
 
   it("re-pairing revokes the previous tablet's session", async () => {
     const issue = async () =>
-      (await manager.client.rpc("admin_device_pairing_code", { p_device_id: deviceId })).data?.[0]
-        ?.code ?? "";
+      (
+        await manager.client.rpc("admin_device_pairing_code", {
+          p_client_action_id: randomUUID(),
+          p_device_id: deviceId,
+        })
+      ).data?.[0]?.code ?? "";
 
     // The old tablet holds a working session.
     const first = await pair(await issue());
@@ -180,8 +187,45 @@ describe("device pairing", { timeout: 60_000 }, () => {
     expect((await newTablet.auth.refreshSession()).error).toBeNull();
   });
 
+  it("concurrent submissions of one pairing request return the same working code", async () => {
+    const id = randomUUID();
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        manager.client.rpc("admin_device_pairing_code", {
+          p_client_action_id: id,
+          p_device_id: deviceId,
+        }),
+      ),
+    );
+    const codes = new Set(responses.map((r) => r.data?.[0]?.code));
+    expect(responses.every((r) => r.error === null && r.data?.[0]?.active)).toBe(true);
+    expect(codes.size).toBe(1);
+    // The code every submission displayed is the one that pairs.
+    expect((await pair([...codes][0] ?? "")).status).toBe(200);
+  });
+
+  it("an out-of-order replay never shows a dead code as live", async () => {
+    const first = randomUUID();
+    const second = randomUUID();
+    const issue = (id: string) =>
+      manager.client.rpc("admin_device_pairing_code", {
+        p_client_action_id: id,
+        p_device_id: deviceId,
+      });
+    const one = (await issue(first)).data?.[0];
+    const two = (await issue(second)).data?.[0];
+    // The first request's response arrives (or is retried) after the second replaced it.
+    const late = (await issue(first)).data?.[0];
+    expect(late).toMatchObject({ code: one?.code, active: false });
+    expect((await pair(one?.code ?? "")).status).toBe(400);
+    // The second request's replay is still live and pairs.
+    expect((await issue(second)).data?.[0]).toMatchObject({ code: two?.code, active: true });
+    expect((await pair(two?.code ?? "")).status).toBe(200);
+  });
+
   it("staff cannot issue pairing codes", async () => {
     const { error } = await staff.client.rpc("admin_device_pairing_code", {
+      p_client_action_id: randomUUID(),
       p_device_id: deviceId,
     });
     expect(error?.code).toBe("42501");

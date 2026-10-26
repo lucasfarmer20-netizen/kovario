@@ -51,14 +51,14 @@ isOneToOne: false
                   ]
                 },"device": {
                   Row: {
-                    "auth_user_id": string | null,"created_at": string,"id": string,"is_active": boolean,"last_seen_at": string | null,"name": string,"org_id": string,"paired_at": string | null,"pairing_expires_at": string | null,"site_id": string | null,"station": Database["public"]['Enums']["device_station"],"token_hash": string | null,"updated_at": string
+                    "auth_user_id": string | null,"created_at": string,"id": string,"is_active": boolean,"last_seen_at": string | null,"name": string,"org_id": string,"paired_at": string | null,"pairing_expires_at": string | null,"pairing_key": string,"site_id": string | null,"station": Database["public"]['Enums']["device_station"],"token_hash": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "auth_user_id"?: string | null,"created_at"?: string,"id"?: string,"is_active"?: boolean,"last_seen_at"?: string | null,"name": string,"org_id": string,"paired_at"?: string | null,"pairing_expires_at"?: string | null,"site_id"?: string | null,"station": Database["public"]['Enums']["device_station"],"token_hash"?: string | null,"updated_at"?: string
+                    "auth_user_id"?: string | null,"created_at"?: string,"id"?: string,"is_active"?: boolean,"last_seen_at"?: string | null,"name": string,"org_id": string,"paired_at"?: string | null,"pairing_expires_at"?: string | null,"pairing_key"?: string,"site_id"?: string | null,"station": Database["public"]['Enums']["device_station"],"token_hash"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "auth_user_id"?: string | null,"created_at"?: string,"id"?: string,"is_active"?: boolean,"last_seen_at"?: string | null,"name"?: string,"org_id"?: string,"paired_at"?: string | null,"pairing_expires_at"?: string | null,"site_id"?: string | null,"station"?: Database["public"]['Enums']["device_station"],"token_hash"?: string | null,"updated_at"?: string
+                    "auth_user_id"?: string | null,"created_at"?: string,"id"?: string,"is_active"?: boolean,"last_seen_at"?: string | null,"name"?: string,"org_id"?: string,"paired_at"?: string | null,"pairing_expires_at"?: string | null,"pairing_key"?: string,"site_id"?: string | null,"station"?: Database["public"]['Enums']["device_station"],"token_hash"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -237,8 +237,8 @@ isOneToOne: false
 { Args: { "p_client_action_id": string,"p_name": string }; Returns: Json
                            },
 "admin_device_pairing_code":
-{ Args: { "p_device_id": string }; Returns: {
-              "code": string,"expires_at": string
+{ Args: { "p_client_action_id": string,"p_device_id": string }; Returns: {
+              "active": boolean,"code": string,"expires_at": string
             }[]
                            },
 "admin_list_members":

@@ -79,16 +79,49 @@ create temp table t_device on commit drop as
   select (public.admin_create_device(gen_random_uuid()::text, 'Wave 1', 'wave') ->> 'device_id')::uuid as id;
 grant select on t_device to authenticated, service_role;
 
+-- Issuance is idempotent per client_action_id and never stores the plaintext code.
+create temp table t_superseded on commit drop as
+  select * from public.admin_device_pairing_code('pair-act-0001', (select id from t_device));
 create temp table t_code on commit drop as
-  select * from public.admin_device_pairing_code((select id from t_device));
-grant select on t_code to authenticated, service_role;
+  select * from public.admin_device_pairing_code('pair-act-0002', (select id from t_device));
+grant select on t_superseded, t_code to authenticated, service_role;
 
 select matches((select code from t_code), '^[A-HJKMNP-TV-Z2-9]{8}$', 'pairing code is 8 unambiguous characters');
 select ok((select expires_at from t_code) between now() + interval '9 minutes' and now() + interval '11 minutes',
   'pairing code expires in 10 minutes');
+select isnt((select code from t_code), (select code from t_superseded), 'a new action id issues a new code');
+
+select is(
+  (select row(code, expires_at, active) from public.admin_device_pairing_code('pair-act-0002', (select id from t_device))),
+  (select row(code, expires_at, true) from t_code),
+  'replaying the action id returns the same code and expiry, still active'
+);
+select is(
+  (select active from public.admin_device_pairing_code('pair-act-0001', (select id from t_device))),
+  false,
+  'replaying a superseded action id reports its code inactive'
+);
+select is(
+  (select code from public.admin_device_pairing_code('pair-act-0001', (select id from t_device))),
+  (select code from t_superseded),
+  'a replay never replaces the newer code'
+);
+reset role;
+select ok((select token_hash = app.sha256_hex((select code from t_code)) from public.device where id = (select id from t_device)),
+  'the device holds only the hash of the latest code');
+select is_empty(
+  $$ select 1 from public.action_log
+     where action = 'device.pairing_code'
+       and (result::text like '%' || (select code from t_code) || '%' or input::text like '%' || (select code from t_code) || '%') $$,
+  'action_log never contains the plaintext pairing code'
+);
+select is((select count(*)::int from public.action_log where client_action_id in ('pair-act-0001', 'pair-act-0002')), 2,
+  'each issuance is one action_log row, replays add none');
+select pg_temp.act_as('a0000000-0000-4000-8000-0000000000a2', 'manager');
+select throws_ok($$ select pairing_key from public.device $$, '42501', null, 'device.pairing_key is not readable by clients');
 
 select pg_temp.act_as('a0000000-0000-4000-8000-0000000000a3', 'cashier');
-select throws_ok($$ select public.admin_device_pairing_code((select id from t_device)) $$,
+select throws_ok($$ select public.admin_device_pairing_code(gen_random_uuid()::text, (select id from t_device)) $$,
   '42501', null, 'non-managers cannot issue pairing codes');
 select throws_ok($$ select public.device_redeem_pairing((select code from t_code)) $$,
   '42501', null, 'clients cannot redeem pairing codes directly');
@@ -124,10 +157,16 @@ select is((select count(*)::int from auth.sessions where user_id = 'a0000000-000
 select is((select count(*)::int from auth.refresh_tokens where token = 'old-tablet-refresh-token'), 0,
   're-pairing removes the old tablet''s refresh token');
 
--- Expired codes fail.
 select pg_temp.act_as('a0000000-0000-4000-8000-0000000000a2', 'manager');
+select is(
+  (select active from public.admin_device_pairing_code('pair-act-0002', (select id from t_device))),
+  false,
+  'replaying a redeemed code''s action id reports it inactive'
+);
+
+-- Expired codes fail.
 create temp table t_code2 on commit drop as
-  select * from public.admin_device_pairing_code((select id from t_device));
+  select * from public.admin_device_pairing_code('pair-act-0003', (select id from t_device));
 grant select on t_code2 to authenticated, service_role;
 reset role;
 update public.device set pairing_expires_at = now() - interval '1 second' where id = (select id from t_device);
