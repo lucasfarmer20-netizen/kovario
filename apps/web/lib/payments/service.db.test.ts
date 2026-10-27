@@ -474,4 +474,59 @@ describe("payments route flow (fake provider)", { timeout: 60_000 }, () => {
     expect(r.status).toBe("error");
     expect(r.payment).toMatchObject({ state: "approved", reverse_pending_kind: null });
   });
+  it("partial refund on an open split-payment cart keeps the rest captured; the remainder can be refunded later", async () => {
+    fake = new FakeProvider();
+    await settleAll();
+    const orderId = await cart(20);
+    const card = res(
+      await chargePayment(deps(), {
+        clientActionId: cid("sale"),
+        orderId,
+        amount: 10,
+        terminalId,
+        tender: "card",
+      }),
+    );
+    const cash = res(
+      await chargePayment(deps(), {
+        clientActionId: cid("cash"),
+        orderId,
+        amount: 5,
+        tender: "cash",
+      }),
+    );
+    expect(cash.order).toMatchObject({ state: "open", totals: { paid: 15, due: 5 } });
+
+    type Refunded = {
+      status: string;
+      payment: Payment & { reversed_amount: number; refundable: number };
+    };
+    const refund = async (amount: number) =>
+      (await reversePayment(deps(manager), {
+        clientActionId: cid("rf"),
+        paymentId: card.payment.id,
+        kind: "refund",
+        amount,
+        reason: "partial",
+      })) as unknown as Refunded;
+
+    const first = await refund(2);
+    expect(first.payment).toMatchObject({ state: "approved", reversed_amount: 2, refundable: 8 });
+    expect(await order(orderId)).toMatchObject({ state: "open", totals: { paid: 13, due: 7 } });
+
+    await expect(refund(9)).rejects.toMatchObject({
+      status: 400,
+    } satisfies Partial<PaymentRequestError>);
+
+    const rest = await refund(8);
+    expect(rest.payment).toMatchObject({ state: "refunded", reversed_amount: 10, refundable: 0 });
+    expect(await order(orderId)).toMatchObject({ state: "open", totals: { paid: 5, due: 15 } });
+    expect(fake.callsOf("refund")).toMatchObject([{ amount: 2 }, { amount: 8 }]);
+    const { data: refundOrders } = await admin
+      .from("register_order")
+      .select("refund_amount")
+      .eq("refund_payment_id", card.payment.id)
+      .order("refund_amount");
+    expect(refundOrders).toEqual([{ refund_amount: 2 }, { refund_amount: 8 }]);
+  });
 });

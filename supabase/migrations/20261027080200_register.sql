@@ -130,6 +130,9 @@ alter table public.payment
   add column if not exists message text,
   add column if not exists approved_at timestamptz,
   add column if not exists reversed_at timestamptz,
+  -- CUMULATIVE amount returned by voids / refunds. A partial refund keeps the payment approved
+  -- for the rest (amount − reversed_amount is still captured); only when everything has gone
+  -- back does the state become refunded / voided.
   add column if not exists reversed_amount numeric(12,2) check (reversed_amount >= 0),
   add column if not exists reverse_reason text,
   add column if not exists reverse_txn text,
@@ -152,6 +155,11 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   alter table public.payment add constraint payment_reverse_unresolved_pending check (
     not reverse_unresolved or reverse_pending_at is not null);
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  alter table public.payment add constraint payment_reversed_within_amount
+    check (coalesce(reversed_amount, 0) <= amount);
 exception when duplicate_object then null; end $$;
 
 do $$ begin
@@ -209,7 +217,8 @@ as $$
   with s as (
     select o.tax,
            coalesce((select sum(l.amount) from public.register_order_line l where l.register_order_id = o.id), 0) as subtotal,
-           coalesce((select sum(p.amount) from public.payment p
+           -- net of partial refunds: what is still captured
+           coalesce((select sum(p.amount - coalesce(p.reversed_amount, 0)) from public.payment p
                      where p.register_order_id = o.id and p.state = 'approved'), 0) as paid
     from public.register_order o where o.id = p_order_id
   )
@@ -234,6 +243,7 @@ as $$
     'attempt', p.attempt, 'provider_ref', p.provider_ref, 'card_brand', p.card_brand, 'card_last4', p.card_last4,
     'entry_mode', p.entry_mode, 'auth_code', p.auth_code, 'decline_reason', p.decline_reason,
     'message', p.message, 'approved_at', p.approved_at, 'reversed_amount', p.reversed_amount,
+    'refundable', case when p.state = 'approved' then p.amount - coalesce(p.reversed_amount, 0) else 0 end,
     'reverse_pending_kind', p.reverse_pending_kind,
     'reverse_unresolved', p.reverse_unresolved or p.reverse_pending_at <= now() - interval '6 minutes',
     'created_at', p.created_at)
@@ -1224,9 +1234,13 @@ begin
     raise exception '% is %; only an approved payment can be voided or refunded', v_pay.number, v_pay.state
       using errcode = '55000';
   end if;
-  v_amount := case when p_kind = 'reverse' then v_pay.amount else p_amount end;
-  if v_amount is null or v_amount <= 0 or v_amount > v_pay.amount or v_amount * 100 <> trunc(v_amount * 100) then
-    raise exception 'refund amount must be more than 0 and at most %', v_pay.amount using errcode = '22023';
+  -- A void returns everything still captured; a refund at most that (earlier partial refunds
+  -- already went back).
+  v_amount := case when p_kind = 'reverse' then v_pay.amount - coalesce(v_pay.reversed_amount, 0) else p_amount end;
+  if v_amount is null or v_amount <= 0 or v_amount > v_pay.amount - coalesce(v_pay.reversed_amount, 0)
+     or v_amount * 100 <> trunc(v_amount * 100) then
+    raise exception 'refund amount must be more than 0 and at most % (still captured on %)',
+      v_pay.amount - coalesce(v_pay.reversed_amount, 0), v_pay.number using errcode = '22023';
   end if;
   if v_pay.reverse_pending_at is not null then
     if v_pay.reverse_unresolved or v_pay.reverse_pending_at <= now() - interval '6 minutes' then
@@ -1257,8 +1271,9 @@ end;
 $$;
 
 -- Settles a reserved reversal with a definite outcome. The caller holds the order and payment
--- locks and has logged the event. Clears the reservation; voided | refunded → the payment's
--- state plus a refund register_order (kind refund, inserted as paid) recording amount and
+-- locks and has logged the event. Clears the reservation; voided | refunded → the amount is
+-- added to reversed_amount (the payment becomes refunded / voided only once everything captured
+-- has gone back; a partial refund keeps it approved for the rest), plus a refund register_order (kind refund, inserted as paid) recording amount and
 -- reason — the paid hook sees a refund and never releases (S11); anything else leaves the
 -- payment approved.
 create or replace function app.payment_reverse_settle(p_payment_id uuid, p_outcome text, p_txn text)
@@ -1271,6 +1286,7 @@ declare
   v_pay public.payment;
   v_amount numeric;
   v_reason text;
+  v_total numeric;
   v_refund public.register_order;
   v_hook jsonb;
 begin
@@ -1283,9 +1299,10 @@ begin
   where id = v_pay.id
   returning * into v_pay;
   if p_outcome in ('voided', 'refunded') and v_pay.state = 'approved' then
+    v_total := coalesce(v_pay.reversed_amount, 0) + v_amount;
     update public.payment
-    set state = p_outcome::public.payment_state, reversed_amount = v_amount, reverse_reason = v_reason,
-        reverse_txn = p_txn
+    set state = case when v_total >= amount then p_outcome::public.payment_state else state end,
+        reversed_amount = v_total, reverse_reason = v_reason, reverse_txn = p_txn
     where id = v_pay.id
     returning * into v_pay;
     insert into public.register_order (org_id, customer_id, kind, state, refund_of_id, refund_payment_id,

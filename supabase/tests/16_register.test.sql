@@ -518,6 +518,60 @@ select pg_temp.chk('S11', 'a refund order with a batch line: hook status refund;
   'refund|pending|t');
 set local role authenticated;
 
+-- Partial refunds keep the rest captured ----------------------------------------------------------
+
+-- Sam's open cart (22.26 due) is paid in two lines: card 10 + cash 5 → 7.26 still due.
+insert into t_ids select 'P9', public.payment_begin('wp16-pay-9', pg_temp.id('o2'), 10, 'a1600000-0000-4000-8000-000000000702') ->> 'id';
+select pg_temp.record('P9', 'sale_result', '{"outcome":"approved","providerTxn":"TX-9","card":{"last4":"9999"}}');
+insert into t_ids select 'P10', public.payment_begin('wp16-pay-10', pg_temp.id('o2'), 5, null, 'cash') ->> 'id';
+select pg_temp.record('P10', 'sale_result', '{"outcome":"approved"}');
+select pg_temp.chk('PARTIAL-REFUND', 'split-payment cart: card 10 + cash 5 paid, the rest still due',
+  pg_temp.totals(pg_temp.cart('o2')), '21.00+1.26=22.26 paid 15.00 due 7.26');
+reset role;  -- owned by the superuser: it plays the route (service role) between manager calls
+create function pg_temp.refund(p_id text, p_pay text, p_kind text, p_amount numeric, p_reason text) returns jsonb
+language plpgsql security definer as $$
+declare v_r jsonb;
+begin
+  perform pg_temp.as_role('manager');
+  v_r := public.payment_reverse_begin(p_id, pg_temp.id(p_pay), p_kind, p_reason, p_amount);
+  perform public.payment_reverse_record(pg_temp.id(p_pay), p_kind, (v_r ->> 'reverse_amount')::numeric, p_reason,
+    jsonb_build_object('outcome', case when p_kind = 'reverse' then 'voided' else 'refunded' end));
+  perform pg_temp.as_role('cashier');
+  return v_r;
+end;
+$$;
+create function pg_temp.refundable(p_payment uuid) returns text language sql security definer as $$
+  select app.payment_json(p) ->> 'refundable' from public.payment p where p.id = p_payment;
+$$;
+grant execute on function pg_temp.refund(text, text, text, numeric, text), pg_temp.refundable(uuid) to authenticated;
+set local role authenticated;
+
+select pg_temp.refund('wp16-prf-1', 'P9', 'refund', 2, 'one bag short');
+select pg_temp.chk('PARTIAL-REFUND', 'refunding 2 of 10: the payment stays approved with 8 still captured and refundable',
+  (select format('%s|%s|%s', p.state, p.reversed_amount, pg_temp.refundable(p.id)) from pg_temp.pay('P9') p),
+  'approved|2.00|8.00');
+select pg_temp.chk('PARTIAL-REFUND', '… the open cart loses exactly the refunded 2, not the whole 10',
+  pg_temp.totals(pg_temp.cart('o2')), '21.00+1.26=22.26 paid 13.00 due 9.26');
+select pg_temp.as_role('manager');
+select pg_temp.chk('PARTIAL-REFUND', 'a later refund is limited to what is still captured (8)',
+  pg_temp.err($$select public.payment_reverse_begin('wp16-prf-2', pg_temp.id('P9'), 'refund', 'too much', 9)$$), '22023');
+select pg_temp.as_role('cashier');
+select pg_temp.refund('wp16-prf-3', 'P9', 'refund', 8, 'rest of it');
+select pg_temp.chk('PARTIAL-REFUND', 'refunding the remaining 8: the payment is now refunded (10 back in total)',
+  (select format('%s|%s|%s', p.state, p.reversed_amount, pg_temp.refundable(p.id)) from pg_temp.pay('P9') p),
+  'refunded|10.00|0');
+select pg_temp.chk('PARTIAL-REFUND', 'one refund order per refund: 2 then 8',
+  (select string_agg(refund_amount::text, ',' order by refund_amount) from public.register_order
+   where refund_payment_id = pg_temp.id('P9')), '2.00,8.00');
+-- A void after a partial refund returns only what is still captured.
+select pg_temp.refund('wp16-prf-4', 'P10', 'refund', 1, 'change');
+insert into t_ids values ('PV', pg_temp.refund('wp16-prf-5', 'P10', 'reverse', null, 'void the rest')::text);
+select pg_temp.chk('PARTIAL-REFUND', 'void after refunding 1 of 5: reverses the remaining 4; payment voided, 5 back',
+  (select format('%s|%s|%s', pg_temp.res('PV') ->> 'reverse_amount', p.state, p.reversed_amount) from pg_temp.pay('P10') p),
+  '4.00|voided|5.00');
+select pg_temp.chk('PARTIAL-REFUND', 'the cart is back to the full amount due',
+  pg_temp.totals(pg_temp.cart('o2')), '21.00+1.26=22.26 paid 0 due 22.26');
+
 -- Cash: insert-as-paid (the CSP lesson: cash orders are paid on create) ---------------------------
 
 reset role;

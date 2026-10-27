@@ -43,7 +43,10 @@ export type CartPayment = {
   auth_code: string | null;
   decline_reason: string | null;
   message: string | null;
+  /** cumulative amount returned; a partial refund keeps the payment approved */
   reversed_amount: number | null;
+  /** still captured, so still refundable (amount − reversed_amount) */
+  refundable?: number;
   /** a void / refund is in flight (one at a time; the server refuses another) */
   reverse_pending_kind?: "reverse" | "refund" | null;
   /** that void / refund has no confirmed outcome: a manager must resolve it */

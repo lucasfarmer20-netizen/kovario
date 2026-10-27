@@ -685,7 +685,7 @@ export function Register({ session }: { session: StationSession }) {
                               setGateDraft({
                                 kind: "reverse",
                                 payment: p,
-                                amount: String(p.amount),
+                                amount: String(p.refundable ?? p.amount),
                                 reason: "",
                               })
                             }
@@ -699,7 +699,7 @@ export function Register({ session }: { session: StationSession }) {
                               setGateDraft({
                                 kind: "refund",
                                 payment: p,
-                                amount: String(p.amount),
+                                amount: String(p.refundable ?? p.amount),
                                 reason: "",
                               })
                             }

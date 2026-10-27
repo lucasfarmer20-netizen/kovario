@@ -105,9 +105,12 @@ export function PaymentReceipt({ receipt }: { receipt: ReceiptData }) {
         </p>
       ))}
       <p>{receipt.due > 0 ? `Balance due ${money(receipt.due)}` : "Paid in full"}</p>
-      {(receipt.state === "voided" || receipt.state === "refunded") && (
+      {(receipt.reversed_amount ?? 0) > 0 && (
         <p className="station-feedback station-rejected">
-          {receipt.state.toUpperCase()} {money(receipt.reversed_amount)} — {receipt.reverse_reason}
+          {receipt.state === "voided" || receipt.state === "refunded"
+            ? receipt.state.toUpperCase()
+            : "PARTIALLY REFUNDED"}{" "}
+          {money(receipt.reversed_amount)} — {receipt.reverse_reason}
         </p>
       )}
       {receipt.org.footer && <p>{receipt.org.footer}</p>}

@@ -67,3 +67,17 @@ it("a reversed payment's receipt says so", () => {
   );
   expect(screen.getByText("REFUNDED $27.70 — wrong card")).toBeTruthy();
 });
+
+it("a partly refunded payment's receipt says how much went back", () => {
+  render(
+    <PaymentReceipt
+      receipt={{
+        ...RECEIPT,
+        state: "approved",
+        reversed_amount: 2,
+        reverse_reason: "one bag short",
+      }}
+    />,
+  );
+  expect(screen.getByText("PARTIALLY REFUNDED $2.00 — one bag short")).toBeTruthy();
+});
