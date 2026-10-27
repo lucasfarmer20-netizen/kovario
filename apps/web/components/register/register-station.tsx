@@ -20,6 +20,7 @@ import {
   readCart,
   removeLine,
   resolvePayment,
+  resolveReversal,
   voidCart,
   type RetailProduct,
   type Terminal,
@@ -33,6 +34,7 @@ import {
   chargeView,
   money,
   paymentLabel,
+  reversalUnresolved,
   reversible,
   unresolved,
   type Cart,
@@ -85,6 +87,12 @@ type Gate =
       kind: "resolve";
       payment: CartPayment;
       outcome: "approved" | "declined" | "cancelled";
+      reason: string;
+    }
+  | {
+      kind: "reverse_resolve";
+      payment: CartPayment;
+      outcome: "voided" | "refunded" | "not_reversed";
       reason: string;
     };
 
@@ -265,6 +273,24 @@ export function Register({ session }: { session: StationSession }) {
       if (r.order) show(r.order);
       return;
     }
+    if (g.kind === "reverse_resolve") {
+      const r = await resolveReversal(
+        client,
+        intent(`rr:${g.payment.id}`),
+        g.payment.id,
+        g.outcome,
+        g.reason,
+        token,
+      );
+      done(`rr:${g.payment.id}`);
+      setView({
+        phase: "idle",
+        tone: "ok",
+        message: `${r.payment.number} resolved: ${g.outcome.replace("_", " ")} (${r.payment.state}).`,
+      });
+      await refresh();
+      return;
+    }
     const key = `${g.kind}:${g.payment.id}`;
     const r = await postPayments(client, g.kind, {
       clientActionId: intent(key),
@@ -274,6 +300,15 @@ export function Register({ session }: { session: StationSession }) {
       ...(g.kind === "refund" ? { amount: Number(g.amount) } : {}),
     });
     done(key);
+    if (r.status === "indeterminate") {
+      setView({
+        phase: "idle",
+        tone: "bad",
+        message: `${r.payment.number}: the provider did not confirm the ${g.kind} — the money may already be back. Check the processor; a manager must resolve it before another void or refund.`,
+      });
+      await refresh();
+      return;
+    }
     setView({
       phase: "idle",
       tone: r.payment.state === "approved" ? "bad" : "ok",
@@ -618,6 +653,29 @@ export function Register({ session }: { session: StationSession }) {
                           Receipt
                         </Link>
                       )}
+                      {reversalUnresolved(p) && (
+                        <>
+                          <span className="station-badge">
+                            {p.reverse_pending_kind === "refund" ? "REFUND" : "VOID"} UNCONFIRMED
+                          </span>
+                          <button
+                            type="button"
+                            disabled={busy || charging}
+                            onClick={() =>
+                              setGateDraft({
+                                kind: "reverse_resolve",
+                                payment: p,
+                                outcome:
+                                  p.reverse_pending_kind === "refund" ? "refunded" : "voided",
+                                reason: "",
+                              })
+                            }
+                          >
+                            Manager: resolve{" "}
+                            {p.reverse_pending_kind === "refund" ? "refund" : "void"}…
+                          </button>
+                        </>
+                      )}
                       {reversible(p) && (
                         <>
                           <button
@@ -661,7 +719,9 @@ export function Register({ session }: { session: StationSession }) {
                 <h3>
                   {gateDraft.kind === "resolve"
                     ? `Mark ${gateDraft.payment.number}`
-                    : `${gateDraft.kind === "reverse" ? "Void" : "Refund"} ${gateDraft.payment.number}`}
+                    : gateDraft.kind === "reverse_resolve"
+                      ? `Resolve the unconfirmed ${gateDraft.payment.reverse_pending_kind === "refund" ? "refund" : "void"} of ${gateDraft.payment.number}`
+                      : `${gateDraft.kind === "reverse" ? "Void" : "Refund"} ${gateDraft.payment.number}`}
                 </h3>
                 {gateDraft.kind === "resolve" && (
                   <label>
@@ -678,6 +738,24 @@ export function Register({ session }: { session: StationSession }) {
                       <option value="declined">Declined (not charged)</option>
                       <option value="cancelled">Cancelled (not charged)</option>
                       <option value="approved">Approved (money captured)</option>
+                    </select>
+                  </label>
+                )}
+                {gateDraft.kind === "reverse_resolve" && (
+                  <label>
+                    What the processor shows{" "}
+                    <select
+                      value={gateDraft.outcome}
+                      onChange={(e) =>
+                        setGateDraft({
+                          ...gateDraft,
+                          outcome: e.target.value as "voided" | "refunded" | "not_reversed",
+                        })
+                      }
+                    >
+                      <option value="refunded">Refunded (money returned)</option>
+                      <option value="voided">Voided (money returned)</option>
+                      <option value="not_reversed">Not reversed (still charged)</option>
                     </select>
                   </label>
                 )}

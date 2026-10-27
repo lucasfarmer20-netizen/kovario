@@ -63,8 +63,11 @@ export interface SaleRequest {
   tender?: Tender;
 }
 
-export type ReverseOutcome = "voided" | "refunded" | "declined" | "error";
-export type RefundOutcome = "refunded" | "declined" | "error";
+// `indeterminate` (additive to docs/05 §1): the adapter cannot tell whether the money went
+// back (e.g. a timeout after the request was sent). The register then blocks every new void /
+// refund of the payment until a manager establishes the outcome — never refund twice.
+export type ReverseOutcome = "voided" | "refunded" | "declined" | "error" | "indeterminate";
+export type RefundOutcome = "refunded" | "declined" | "error" | "indeterminate";
 
 export interface ReverseResult {
   outcome: ReverseOutcome;

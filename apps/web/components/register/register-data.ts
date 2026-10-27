@@ -103,6 +103,29 @@ export function resolvePayment(
   );
 }
 
+/**
+ * Manager remedy for a void / refund with no confirmed outcome: after checking the processor,
+ * record what happened (the money went back, or it did not).
+ */
+export function resolveReversal(
+  client: FilletryClient,
+  clientActionId: string,
+  paymentId: string,
+  outcome: "voided" | "refunded" | "not_reversed",
+  reason: string,
+  elevationToken: string,
+): Promise<{ status: string; payment: { number: string; state: string } }> {
+  return act(client, clientActionId, (id) =>
+    client.rpc("payment_reverse_resolve", {
+      p_client_action_id: id,
+      p_payment_id: paymentId,
+      p_outcome: outcome,
+      p_reason: reason,
+      p_elevation_token: elevationToken,
+    }),
+  );
+}
+
 export type RetailProduct = { id: string; name: string; unit_price: number };
 export type Terminal = { id: string; name: string; provider: string };
 

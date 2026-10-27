@@ -46,6 +46,8 @@ export type CartPayment = {
   reversed_amount: number | null;
   /** a void / refund is in flight (one at a time; the server refuses another) */
   reverse_pending_kind?: "reverse" | "refund" | null;
+  /** that void / refund has no confirmed outcome: a manager must resolve it */
+  reverse_unresolved?: boolean;
 };
 
 export type Cart = {
@@ -221,6 +223,11 @@ export function chargeInputError(input: {
 }
 
 /** A payment a manager may void / refund from the register. */
+/** A void / refund with no confirmed outcome (the provider call failed mid-way, or died). */
+export function reversalUnresolved(p: CartPayment): boolean {
+  return Boolean(p.reverse_pending_kind && p.reverse_unresolved);
+}
+
 export function reversible(p: CartPayment): boolean {
   return p.state === "approved" && !p.reverse_pending_kind;
 }

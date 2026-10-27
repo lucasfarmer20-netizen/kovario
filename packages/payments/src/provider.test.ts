@@ -110,6 +110,15 @@ describe("fake provider (test harness)", () => {
     );
   });
 
+  it("a reversal can be performed and then throw (a transport failure after the money moved)", async () => {
+    const p = new FakeProvider()
+      .queueRefund({ outcome: "refunded", throwsAfter: "socket hang up" })
+      .queueReverse({ outcome: "voided", throwsAfter: "timeout" });
+    await expect(p.refund({ terminal, amount: 1, ref: "r" })).rejects.toThrow("socket hang up");
+    await expect(p.reverse({ terminal, originalRef: "r" })).rejects.toThrow("timeout");
+    expect(p.performed).toBe(2);
+  });
+
   it("scrubs the terminal secret from recorded calls", async () => {
     const p = new FakeProvider();
     await p.sale({

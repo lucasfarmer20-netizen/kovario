@@ -410,17 +410,16 @@ select pg_temp.chk('REVERSAL', 'a competing void / refund (another action id) is
   pg_temp.err($$select public.payment_reverse_begin('wp16-rv-3b', pg_temp.id('P5'), 'refund', 'second manager', 2)$$) || ':'
   || pg_temp.err($$select public.payment_reverse_begin('wp16-rv-3c', pg_temp.id('P5'), 'reverse', 'second manager')$$),
   '55000:55000');
--- The request died without recording (older than the route's lifetime): only the same intent
--- resumes, with the same provider ref.
+-- The request died without recording (older than the route's lifetime): its outcome is unknown,
+-- so nothing new may start — not even the same intent — until it is recorded or resolved.
 reset role;
 update public.payment set reverse_pending_at = now() - interval '10 minutes' where id = pg_temp.id('P5');
 set local role authenticated;
-select pg_temp.chk('REVERSAL', 'a stale reservation refuses a different intent',
-  pg_temp.err($$select public.payment_reverse_begin('wp16-rv-3d', pg_temp.id('P5'), 'refund', 'retry', 4)$$), '55000');
-insert into t_ids values ('RV2', public.payment_reverse_begin('wp16-rv-3e', pg_temp.id('P5'), 'refund', 'retry', 5)::text);
-select pg_temp.chk('REVERSAL', '… and resumes the same intent with the SAME ref (the provider dedupes it)',
-  format('%s|%s', pg_temp.res('RV2') ->> 'resumed', pg_temp.res('RV2') ->> 'refund_ref' = pg_temp.res('RV') ->> 'refund_ref'),
-  'true|t');
+select pg_temp.chk('REVERSAL', 'a reservation whose request died is unresolved: every new void / refund is refused',
+  pg_temp.err($$select public.payment_reverse_begin('wp16-rv-3d', pg_temp.id('P5'), 'refund', 'retry', 5)$$) || ':'
+  || pg_temp.err($$select public.payment_reverse_begin('wp16-rv-3e', pg_temp.id('P5'), 'refund', 'retry', 4)$$) || ':'
+  || (pg_temp.cart('o2') -> 'payments' -> 0 ->> 'reverse_unresolved'),
+  '55000:55000:true');
 reset role;
 select pg_temp.chk('REVERSAL', 'recording a result that does not match the reservation is refused',
   pg_temp.err($$select public.payment_reverse_record(pg_temp.id('P5'), 'refund', 2, 'x', '{"outcome":"refunded"}')$$) || ':'
@@ -439,7 +438,7 @@ set local role authenticated;
 select pg_temp.chk('REFUND', 'refund order: kind refund, paid, records amount + reason; its hook never releases',
   (select format('%s|%s|%s|%s|%s', o.kind, o.state, o.refund_amount, o.reason, o.paid_hook_result ->> 'status')
    from public.register_order o where o.refund_payment_id = pg_temp.id('P5')),
-  'refund|paid|5.00|retry|refund');  -- the reason of the (resumed) reservation
+  'refund|paid|5.00|customer changed mind|refund');
 select pg_temp.chk('REFUND', 'the refunded payment: state refunded, amount + txn stored; nothing released or settled',
   format('%s|%s|%s|%s|%s', (pg_temp.pay('P5')).state, (pg_temp.pay('P5')).reversed_amount, (pg_temp.pay('P5')).reverse_txn,
          (select state from public.storage_pickup_batch where id = pg_temp.id('B5')),
@@ -450,6 +449,57 @@ select pg_temp.chk('REFUND', 'the original cart is open again with the full amou
 select pg_temp.as_role('manager');
 select pg_temp.chk('REFUND', 'a refunded payment cannot be reversed again',
   pg_temp.err($$select public.payment_reverse_begin('wp16-rv-4', pg_temp.id('P5'), 'reverse', 'again')$$), '55000');
+select pg_temp.as_role('cashier');
+
+-- A provider call that throws (the money may already be back) leaves the reversal UNRESOLVED -----
+
+select pg_temp.as_role('manager');
+insert into t_ids values ('RU', public.payment_reverse_begin('wp16-rv-u1', pg_temp.id('P2'), 'refund', 'wrong card', 6)::text);
+reset role;
+insert into t_ids values ('RUr', public.payment_reverse_record(pg_temp.id('P2'), 'refund', 6, 'wrong card',
+  '{"outcome":"indeterminate","raw":{"error":"socket hang up"}}')::text);
+select pg_temp.chk('UNRESOLVED', 'indeterminate keeps the reservation (original ref), flags it unresolved, alerts; the payment stays approved',
+  (select format('%s|%s|%s|%s|%s', pg_temp.res('RUr') ->> 'status', p.state, p.reverse_unresolved,
+                 p.reverse_pending_ref = pg_temp.res('RU') ->> 'refund_ref',
+                 (select count(*) from public.domain_event where kind = 'payment_alert' and subject_id = p.id
+                    and payload ->> 'code' = 'reversal_unresolved'))
+   from pg_temp.pay('P2') p),
+  'indeterminate|approved|t|t|1');
+select pg_temp.as_role('manager');
+select pg_temp.chk('UNRESOLVED', 'every new void / refund is refused until it is resolved (never refund twice)',
+  pg_temp.err($$select public.payment_reverse_begin('wp16-rv-u2', pg_temp.id('P2'), 'refund', 'try again', 6)$$) || ':'
+  || pg_temp.err($$select public.payment_reverse_begin('wp16-rv-u3', pg_temp.id('P2'), 'reverse', 'try again')$$),
+  '55000:55000');
+select pg_temp.as_role('cashier');
+select pg_temp.chk('UNRESOLVED', 'only a manager resolves it',
+  pg_temp.err($$select public.payment_reverse_resolve('wp16-rr-0', pg_temp.id('P2'), 'refunded', 'processor shows it')$$),
+  '42501');
+select pg_temp.as_role('manager');
+select pg_temp.chk('UNRESOLVED', 'resolve needs a reason and a known outcome; nothing to resolve on a payment without one',
+  pg_temp.err($$select public.payment_reverse_resolve('wp16-rr-1', pg_temp.id('P2'), 'refunded', ' ')$$) || ':'
+  || pg_temp.err($$select public.payment_reverse_resolve('wp16-rr-2', pg_temp.id('P2'), 'maybe', 'x')$$) || ':'
+  || pg_temp.err($$select public.payment_reverse_resolve('wp16-rr-3', pg_temp.id('P3'), 'refunded', 'x')$$),
+  '22023:22023:55000');
+insert into t_ids values ('RRv', public.payment_reverse_resolve('wp16-rr-4', pg_temp.id('P2'), 'refunded',
+  'processor portal shows the refund')::text);
+select pg_temp.chk('UNRESOLVED', 'manager resolves "refunded": payment refunded, one refund order with the reservation''s amount + reason, event logged',
+  (select format('%s|%s|%s|%s|%s', p.state, p.reversed_amount, p.reverse_pending_at is null,
+                 (select format('%s:%s', count(*), max(o.refund_amount)) from public.register_order o
+                  where o.refund_payment_id = p.id and o.reason = 'wrong card'),
+                 (select count(*) from public.payment_event where payment_id = p.id and kind = 'manual_resolve'))
+   from pg_temp.pay('P2') p),
+  'refunded|6.00|t|1:6.00|1');
+-- 'not_reversed': the money did not go back — the payment stays approved and may be reversed again.
+insert into t_ids values ('RU3', public.payment_reverse_begin('wp16-rv-u4', pg_temp.id('P3'), 'reverse', 'void it')::text);
+reset role;
+select public.payment_reverse_record(pg_temp.id('P3'), 'reverse', 81.98, 'void it', '{"outcome":"indeterminate"}');
+set local role authenticated;
+select public.payment_reverse_resolve('wp16-rr-5', pg_temp.id('P3'), 'not_reversed', 'processor shows no void');
+select pg_temp.chk('UNRESOLVED', 'manager resolves "not_reversed": still approved, reservation cleared, reversible again',
+  (select format('%s|%s|%s', p.state, p.reverse_pending_at is null,
+                 (public.payment_reverse_begin('wp16-rv-u5', p.id, 'refund', 'second try', 1) ->> 'refund_ref') is not null)
+   from pg_temp.pay('P3') p),
+  'approved|t|t');
 select pg_temp.as_role('cashier');
 -- Even a refund order carrying a batch line (any writer) never enters the release path.
 reset role;

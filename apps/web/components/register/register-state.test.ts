@@ -5,6 +5,7 @@ import {
   chargeInputError,
   chargeView,
   paymentLabel,
+  reversalUnresolved,
   reversible,
   unresolved,
   type Cart,
@@ -155,6 +156,10 @@ describe("what the cashier may do", () => {
     expect(reversible(payment())).toBe(true);
     expect(reversible(payment({ state: "refunded" }))).toBe(false);
     expect(reversible(payment({ reverse_pending_kind: "refund" }))).toBe(false);
+    expect(reversalUnresolved(payment({ reverse_pending_kind: "refund" }))).toBe(false);
+    expect(
+      reversalUnresolved(payment({ reverse_pending_kind: "refund", reverse_unresolved: true })),
+    ).toBe(true);
     expect(unresolved(payment({ state: "pending" }))).toBe(true);
     expect(unresolved(payment({ state: "indeterminate" }))).toBe(true);
     expect(unresolved(payment())).toBe(false);

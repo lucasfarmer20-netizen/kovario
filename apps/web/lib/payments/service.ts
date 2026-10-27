@@ -321,7 +321,11 @@ export type ReverseInput = {
 };
 
 /**
- * Manager void / refund (docs/04 §11). `reverse` sends the provider a reverse intent for the
+ * Manager void / refund (docs/04 §11).
+ * A failure BEFORE the provider is asked (adapter or terminal setup) is a safe `error`; an
+ * exception FROM the provider call is `indeterminate` — the money may already be back — which
+ * keeps the reservation with its original ref and blocks every new void / refund until a
+ * manager resolves it (payment_reverse_resolve). `reverse` sends the provider a reverse intent for the
  * whole payment and stores what it actually did (void or refund); `refund` returns an amount.
  * A refund never releases anything (S11).
  */
@@ -340,27 +344,40 @@ export async function reversePayment(deps: PaymentsDeps, input: ReverseInput): P
   );
   if (p.replayed) return current(deps, p.id, "replayed");
 
-  let outcome: { outcome: string; providerTxn?: string; raw: unknown };
+  let outcome: { outcome: string; providerTxn?: string; raw: unknown } = {
+    outcome: "error",
+    raw: { stage: "setup" },
+  };
   let provider: PaymentProvider | null = null;
+  let terminal: TerminalConfig | null = null;
   try {
     provider = deps.providerFor(p.provider);
-    const terminal = await terminalFor(deps, p);
-    outcome =
-      p.kind === "reverse"
-        ? await provider.reverse({
-            terminal,
-            originalRef: p.provider_ref,
-            originalTxn: p.provider_txn ?? undefined,
-            amount: p.reverse_amount,
-          })
-        : await provider.refund({
-            terminal,
-            amount: p.reverse_amount,
-            ref: p.refund_ref,
-            originalTxn: p.provider_txn ?? undefined,
-          });
+    terminal = await terminalFor(deps, p);
   } catch (e) {
-    outcome = { outcome: "error", raw: { error: message(e) } };
+    // Nothing reached the provider.
+    provider = null;
+    terminal = null;
+    outcome = { outcome: "error", raw: { stage: "setup", error: message(e) } };
+  }
+  if (provider && terminal) {
+    try {
+      outcome =
+        p.kind === "reverse"
+          ? await provider.reverse({
+              terminal,
+              originalRef: p.provider_ref,
+              originalTxn: p.provider_txn ?? undefined,
+              amount: p.reverse_amount,
+            })
+          : await provider.refund({
+              terminal,
+              amount: p.reverse_amount,
+              ref: p.refund_ref,
+              originalTxn: p.provider_txn ?? undefined,
+            });
+    } catch (e) {
+      outcome = { outcome: "indeterminate", raw: { error: message(e) } };
+    }
   }
   return unwrap(
     deps.service.rpc("payment_reverse_record", {

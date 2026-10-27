@@ -388,4 +388,90 @@ describe("payments route flow (fake provider)", { timeout: 60_000 }, () => {
       .eq("refund_payment_id", paid.payment.id);
     expect(refundOrders).toEqual([{ refund_amount: 8 }]);
   });
+  it("the provider refunds and THEN the call throws: unresolved, every new refund refused, a manager resolves it", async () => {
+    fake = new FakeProvider()
+      .queueSale({ outcome: "approved" })
+      .queueRefund({ outcome: "refunded", throwsAfter: "socket hang up" });
+    await settleAll();
+    const orderId = await cart(7);
+    const paid = res(
+      await chargePayment(deps(), {
+        clientActionId: cid("sale"),
+        orderId,
+        amount: 7,
+        terminalId,
+        tender: "card",
+      }),
+    );
+    const refund = () =>
+      reversePayment(deps(manager), {
+        clientActionId: cid("rf"),
+        paymentId: paid.payment.id,
+        kind: "refund",
+        amount: 7,
+        reason: "wrong card",
+      });
+    const first = (await refund()) as unknown as {
+      status: string;
+      payment: Payment & { reverse_unresolved: boolean };
+    };
+    expect(fake.performed).toBe(1); // the money went back…
+    expect(first.status).toBe("indeterminate"); // …but the register cannot know it
+    expect(first.payment).toMatchObject({ state: "approved", reverse_unresolved: true });
+
+    // A retry (new intent, as the UI would send) never reaches the provider again.
+    await expect(refund()).rejects.toMatchObject({
+      status: 409,
+    } satisfies Partial<PaymentRequestError>);
+    expect(fake.callsOf("refund")).toHaveLength(1);
+    expect(fake.performed).toBe(1);
+
+    // The manager checks the processor and records what happened.
+    const { data, error } = await manager.client.rpc("payment_reverse_resolve", {
+      p_client_action_id: cid("rr"),
+      p_payment_id: paid.payment.id,
+      p_outcome: "refunded",
+      p_reason: "processor portal shows the refund",
+    });
+    expect(error).toBeNull();
+    expect((data as unknown as { payment: Payment }).payment.state).toBe("refunded");
+    const { data: refundOrders } = await admin
+      .from("register_order")
+      .select("refund_amount")
+      .eq("refund_payment_id", paid.payment.id);
+    expect(refundOrders).toEqual([{ refund_amount: 7 }]);
+  });
+
+  it("a setup failure before the provider is asked is a plain error: nothing reserved stays behind", async () => {
+    fake = new FakeProvider().queueSale({ outcome: "approved" });
+    await settleAll();
+    const orderId = await cart(4);
+    const paid = res(
+      await chargePayment(deps(), {
+        clientActionId: cid("sale"),
+        orderId,
+        amount: 4,
+        terminalId,
+        tender: "card",
+      }),
+    );
+    const broken: PaymentsDeps = {
+      ...deps(manager),
+      providerFor: () => {
+        throw new Error("adapter not available");
+      },
+    };
+    const r = (await reversePayment(broken, {
+      clientActionId: cid("rf"),
+      paymentId: paid.payment.id,
+      kind: "refund",
+      amount: 4,
+      reason: "x",
+    })) as unknown as {
+      status: string;
+      payment: Payment & { reverse_pending_kind: string | null };
+    };
+    expect(r.status).toBe("error");
+    expect(r.payment).toMatchObject({ state: "approved", reverse_pending_kind: null });
+  });
 });

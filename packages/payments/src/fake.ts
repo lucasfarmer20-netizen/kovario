@@ -34,6 +34,8 @@ export interface FakeReverseStep<O> {
   outcome: O;
   providerTxn?: string;
   delayMs?: number;
+  /** perform the reversal (counted in `performed`), then throw — a transport failure after the money moved */
+  throwsAfter?: string;
 }
 
 export interface FakeCall {
@@ -52,6 +54,8 @@ export class FakeProvider implements PaymentProvider {
   private readonly seenRefs = new Set<string>();
   private readonly held = new Map<string, () => void>();
   private txn = 0;
+  /** reversals / refunds the fake actually performed (a throwsAfter step still counts) */
+  performed = 0;
 
   constructor(readonly kind: ProviderKind = "dejavoo_spin") {}
 
@@ -135,15 +139,19 @@ export class FakeProvider implements PaymentProvider {
 
   async reverse(req: Parameters<PaymentProvider["reverse"]>[0]): Promise<ReverseResult> {
     this.calls.push({ op: "reverse", req: this.scrub(req) });
-    const { delayMs, ...step } = this.reverses.shift() ?? { outcome: "voided" };
+    const { delayMs, throwsAfter, ...step } = this.reverses.shift() ?? { outcome: "voided" };
     if (delayMs) await sleep(delayMs);
+    if (step.outcome === "voided" || step.outcome === "refunded") this.performed++;
+    if (throwsAfter) throw new Error(throwsAfter);
     return { ...step, raw: { fake: true, outcome: step.outcome } };
   }
 
   async refund(req: Parameters<PaymentProvider["refund"]>[0]): Promise<RefundResult> {
     this.calls.push({ op: "refund", req: this.scrub(req) });
-    const { delayMs, ...step } = this.refunds.shift() ?? { outcome: "refunded" };
+    const { delayMs, throwsAfter, ...step } = this.refunds.shift() ?? { outcome: "refunded" };
     if (delayMs) await sleep(delayMs);
+    if (step.outcome === "refunded") this.performed++;
+    if (throwsAfter) throw new Error(throwsAfter);
     return { ...step, raw: { fake: true, outcome: step.outcome } };
   }
 
