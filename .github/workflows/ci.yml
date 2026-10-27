@@ -30,7 +30,14 @@ jobs:
         with: { version: 2.122.0 }               # the CLI version packages/db/src/types.ts was generated with
       - name: Apply migrations on a fresh local database
         run: |
-          supabase start -x studio,imgproxy,logflare,vector
+          # ghcr.io briefly throttles burst pulls ("toomanyrequests: retry-after: <1ms"), and a
+          # failed pull fails the start; retry, cleaning up a half-started stack in between
+          for i in 1 2 3; do
+            supabase start -x studio,imgproxy,logflare,vector && break
+            [ "$i" = 3 ] && exit 1
+            supabase stop --no-backup || true
+            sleep $((i * 15))
+          done
           supabase db reset
       - run: pnpm db:types                      # regenerates packages/db/src/types.ts; drift is a reviewer check, not a CI gate
       - name: Report types drift (non-blocking)
