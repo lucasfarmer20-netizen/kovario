@@ -163,7 +163,7 @@ select throws_ok(
 reset role;
 select throws_ok(
   format('update public.intake_line set lb = 1 where intake_id = %L', (select v from t_ids where k = 'i1')),
-  '55000', 'intake is locked; a manager must unlock it first', 'even a direct write cannot touch a locked intake''s lines');
+  '55000', 'intake is locked; a manager must unlock it first', 'any write for an end-user session (even definer code) cannot touch a locked intake''s lines');
 set local role authenticated;
 
 -- Unlock (manager) ------------------------------------------------------------------------

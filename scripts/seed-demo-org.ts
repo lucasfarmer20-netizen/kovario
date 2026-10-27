@@ -227,9 +227,10 @@ const reds = (condition: string, method: string, lb: number): Line => ({
   lb,
 });
 
+// INT-0001 is the WP-05 station gallery fixture in supabase/seed.sql; the demo starts at 0002.
 const INTAKES: DemoIntake[] = [
   {
-    number: "INT-0001",
+    number: "INT-0002",
     state: "draft",
     customer: "alice",
     hoursAgo: 1,
@@ -237,7 +238,7 @@ const INTAKES: DemoIntake[] = [
     lines: [reds("filleted", "fillets", 22)],
   },
   {
-    number: "INT-0002",
+    number: "INT-0003",
     state: "holding",
     customer: "bob",
     hoursAgo: 6,
@@ -248,7 +249,7 @@ const INTAKES: DemoIntake[] = [
     ],
   },
   {
-    number: "INT-0003",
+    number: "INT-0004",
     state: "processing",
     customer: "carol",
     hoursAgo: 30,
@@ -257,7 +258,7 @@ const INTAKES: DemoIntake[] = [
     lines: [reds("filleted", "smoking", 18)],
   },
   {
-    number: "INT-0004",
+    number: "INT-0005",
     state: "rollstock",
     customer: "dave",
     hoursAgo: 40,
@@ -265,7 +266,7 @@ const INTAKES: DemoIntake[] = [
     lines: [{ species: "salmon_kings", condition: "gutted", method: "fillets", lb: 60 }],
   },
   {
-    number: "INT-0005",
+    number: "INT-0006",
     state: "reconcile",
     customer: "erin",
     hoursAgo: 50,
@@ -274,7 +275,7 @@ const INTAKES: DemoIntake[] = [
     vessels: [{ tag: "001", weight: 24 }],
   },
   {
-    number: "INT-0006",
+    number: "INT-0007",
     state: "blast_freezer",
     customer: "frank",
     hoursAgo: 60,
@@ -289,7 +290,7 @@ const INTAKES: DemoIntake[] = [
     ],
   },
   {
-    number: "INT-0007",
+    number: "INT-0008",
     state: "stored",
     customer: "gina",
     hoursAgo: 80,
@@ -298,7 +299,7 @@ const INTAKES: DemoIntake[] = [
     vessels: [{ tag: "003", weight: 27, location: "IF-A-01-1-F" }],
   },
   {
-    number: "INT-0008",
+    number: "INT-0009",
     state: "done",
     customer: "hank",
     hoursAgo: 120,
@@ -307,7 +308,7 @@ const INTAKES: DemoIntake[] = [
     vessels: [{ tag: null, weight: 40, emptied: true }],
   },
   {
-    number: "INT-0009",
+    number: "INT-0010",
     state: "cancelled",
     customer: "alice",
     hoursAgo: 96,

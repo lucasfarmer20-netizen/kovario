@@ -20,6 +20,9 @@ alter table public.charge
 create index if not exists charge_intake_line_id on public.charge (intake_line_id);
 
 -- A saved intake is read-only until a manager unlocks it ---------------------------------
+-- Applies to every write made for an end-user session (stations, staff — including inside
+-- definer functions such as save_intake). service_role / ops paths (the demo seed, data
+-- fixes) are not end-user sessions and may write lines of a locked intake.
 create or replace function app.intake_line_guard_locked()
 returns trigger
 language plpgsql
@@ -27,6 +30,9 @@ security definer
 set search_path = ''
 as $$
 begin
+  if not app.is_end_user() then
+    return coalesce(new, old);
+  end if;
   -- A cascaded delete (org or intake removed) runs inside the FK trigger: let it through.
   if tg_op = 'DELETE' and pg_trigger_depth() > 1 then
     return old;
