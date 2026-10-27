@@ -23,6 +23,13 @@ select is(public.station_scan('scan-reject-001','unknown','wave',null,'unknown_f
 select is((select reason from public.scan_log where raw='unknown'),'unknown_format','reject reason is audited');
 select is(public.station_scan('scan-phantom-001','KV:TOTE:INT-9999:1','wave','{"kind":"TOTE","intakeNumber":"INT-9999","toteNo":1}',null,null)->>'reason','unknown_tote','phantom tote is rejected against master');
 select is(public.station_scan('scan-extra-001','KV:TOTE:INT-0001:2','wave','{"kind":"TOTE","intakeNumber":"INT-0001","toteNo":2}',null,null)->>'ok','false','out-of-range tote is rejected');
+-- Canonical QR safe integers extend beyond Postgres int4; rejects must commit, not poison replay.
+select is(public.station_scan('scan-large-tote-001','KV:TOTE:INT-0001:2147483648','wave','{"kind":"TOTE","intakeNumber":"INT-0001","toteNo":2147483648}',null,null)->>'reason','unknown_tote','int4-overflow tote is an audited business rejection');
+select is((select result::text from public.scan_log where raw='KV:TOTE:INT-0001:2147483648'),'rejected','large tote writes rejected scan_log row');
+select ok((select completed_at is not null from public.action_log where client_action_id='scan-large-tote-001'),'large tote completes action_log instead of retrying forever');
+select is(public.station_scan('scan-max-safe-tote-001','KV:TOTE:INT-0001:9007199254740991','wave','{"kind":"TOTE","intakeNumber":"INT-0001","toteNo":9007199254740991}',null,null)->>'reason','unknown_tote','maximum parser-safe integer is rejected without overflow');
+select is(public.station_scan('scan-after-large-001','KV:TOTE:INT-0001:1','wave','{"kind":"TOTE","intakeNumber":"INT-0001","toteNo":1}',null,null)->>'ok','true','valid scan after large totes is accepted');
+select is((select result::text from public.scan_log where id=(select (result->>'scan_id')::uuid from public.action_log where client_action_id='scan-after-large-001')),'ok','valid scan after large totes is audited');
 reset role;
 select set_config('request.jwt.claims','{"sub":"b0000000-0000-4000-8000-0000000000b1","role":"authenticated","org_id":"b0000000-0000-4000-8000-00000000000b","app_role":"manager"}',true);
 set local role authenticated;

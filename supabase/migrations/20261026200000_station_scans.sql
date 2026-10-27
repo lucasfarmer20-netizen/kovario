@@ -64,7 +64,8 @@ begin
     if p_parsed->>'kind' = 'TOTE' then
       select id into v_intake from public.intake where org_id = app.org_id()
         and number = p_parsed->>'intakeNumber'
-        and (p_parsed->>'toteNo' is null or tote_count >= (p_parsed->>'toteNo')::int);
+        -- bigint covers every positive safe integer emitted by rules/qr.parse.
+        and (p_parsed->>'toteNo' is null or tote_count >= (p_parsed->>'toteNo')::bigint);
       if v_intake is null then v_reason := 'unknown_tote'; end if;
     else
       v_reason := 'demo_requires_tote';

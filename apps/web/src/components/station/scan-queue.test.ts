@@ -1,4 +1,5 @@
 import { expect, it, vi } from "vitest";
+import { parse } from "rules";
 import {
   ScanQueue,
   retryDelay,
@@ -146,4 +147,18 @@ it("preserves scans appended during a failed send when recording backoff", async
   expect(rows.map((row) => row.request.client_action_id)).toEqual(["first", "second"]);
   expect(rows[0]).toMatchObject({ attempts: 1, nextAt: 1000 });
   expect(rows[1]).toMatchObject({ attempts: 0, nextAt: 0 });
+});
+
+it("delivers a valid scan after an audited large-tote rejection without retrying the head", async () => {
+  const large = { ...request("large-tote"), raw: "KV:TOTE:INT-0001:2147483648" };
+  expect(parse(large.raw)).toMatchObject({ ok: true, value: { toteNo: 2147483648 } });
+  const s = setup();
+  s.send.mockResolvedValueOnce({ ok: false, reason: "unknown_tote" });
+  await s.queue.enqueue(large);
+  await s.queue.enqueue(request("valid-after-large"));
+  await s.queue.drain();
+  expect(s.send.mock.calls.map(([row]) => row.raw)).toEqual([large.raw, "KV:TOTE:INT-0001:1"]);
+  expect(s.replied.mock.calls.map(([reply]) => reply.ok)).toEqual([false, true]);
+  expect(await s.store.read()).toEqual([]);
+  expect(s.changed).toHaveBeenLastCalledWith(0);
 });
