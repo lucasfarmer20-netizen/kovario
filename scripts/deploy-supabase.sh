@@ -39,14 +39,24 @@ rm -rf "$work/supabase/.temp" "$work/supabase/.env"
 sb() { supabase --workdir "$work" "$@"; }
 ref=(--project-ref "$SUPABASE_PROJECT_REF")
 # GitHub runners have no IPv6, so db push needs the IPv4 pooler address, which the CLI reads
-# from the API. Without that scope it falls back to the IPv6 host and suggests `link`.
-pool_hint() {
-  echo "::error::db push failed. 'IPv6 is not supported' means the token lacks the database pooling config read scope (docs/11-DEPLOY.md §1)"
+# from GET /v1/projects/<ref>/config/database/pooler. When that call fails the CLI falls back
+# to the IPv6 host and suggests `link`. db_push re-asks the API and reports only the HTTP
+# status and missing permissions (never the body: it holds connection details).
+db_push() {
+  local log="$work/db-push.log" status missing
+  if sb db push "${ref[@]}" "$@" 2>&1 | tee "$log"; then return 0; fi
+  if grep -q "IPv6 is not supported" "$log"; then
+    printf 'Authorization: Bearer %s\n' "$SUPABASE_ACCESS_TOKEN" >"$work/auth.h"
+    status=$(curl -sS -o "$work/pooler.json" -w '%{http_code}' -H @"$work/auth.h" \
+      "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/config/database/pooler" || echo "none")
+    missing=$(grep -o '"missing_permissions":\[[^]]*\]' "$work/pooler.json" 2>/dev/null || true)
+    echo "::error::db push cannot reach the IPv4 pooler: pooler config API returned HTTP $status ${missing:-} (docs/11-DEPLOY.md §1)"
+  fi
   exit 1
 }
 
 if [ "$mode" = "--dry-run" ]; then
-  sb db push "${ref[@]}" --dry-run || pool_hint
+  db_push --dry-run
   exit 0
 elif [ -n "$mode" ]; then
   echo "unknown option $mode" >&2
@@ -72,7 +82,7 @@ additional_redirect_urls = [$urls]
 EOF
 fi
 
-sb db push "${ref[@]}" --yes || pool_hint
+db_push --yes
 # --prune: a function that is not in supabase/functions on this commit does not stay deployed.
 sb functions deploy "${ref[@]}" --use-api --prune --yes
 if [ -n "${SITE_URL:-}" ]; then
