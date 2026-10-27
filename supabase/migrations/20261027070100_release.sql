@@ -461,9 +461,23 @@ begin
   -- I8: finalising a box is a hard block when fish has not moved for the party — no tote
   -- acted on this run and no net `moved` row for the session — unless a manager overrides.
   if cardinality(v_boxes) > 0 and v_moves = '{}'::jsonb and app.party_net_movement(v_session.id) <= 0 then
+    -- DECISION-23 authorises the override only for the dead end: no tote is left in the
+    -- party's pooled intakes (another party or an unattributed Release-by-Tag emptied them).
+    -- Occupancy from lifecycle_state only. A read-committed read under the session lock; no
+    -- lock is added to the envelope.
+    select string_agg(x.label, ', ' order by x.label) into v_bad
+    from (select app.vessel_label(v) as label from public.vessel v
+          where v.intake_id = any (v_pooled) and v.lifecycle_state = 'occupied'
+          order by v.id limit 5) x;
     if v_override_by is null then
-      raise exception 'no fish has moved for % yet: tick the totes being handed over before finalising boxes, or ask a manager to override (I8)',
-        v_session.number using errcode = '55000';
+      raise exception 'no fish has moved for % yet: tick the totes being handed over before finalising boxes%(I8)',
+        v_session.number,
+        case when v_bad is null then ', or ask a manager to override ' else ' ' end
+        using errcode = '55000';
+    end if;
+    if v_bad is not null then
+      raise exception '% still has a tote to tick (%); the I8 override applies only when none is left (DECISION-23)',
+        v_session.number, v_bad using errcode = '55000';
     end if;
     v_override := jsonb_build_object(
       'reason', v_override_reason, 'approved_by', v_override_by, 'requested_by', v_op,

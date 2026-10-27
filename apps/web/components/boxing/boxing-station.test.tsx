@@ -116,9 +116,10 @@ function setup(
   },
   appRole = "staff",
   releaseErrors: string[] = [],
+  wizard: Wizard = WIZARD,
 ) {
   const rpc = vi.fn(async (name: string) => {
-    if (name === "boxing_wizard") return { data: WIZARD, error: null };
+    if (name === "boxing_wizard") return { data: wizard, error: null };
     if (name === "release_party") {
       const message = releaseErrors.shift();
       return message ? { data: null, error: { message } } : { data: release, error: null };
@@ -226,10 +227,13 @@ it("WP15 scanning a tag ticks its tote; another party's boxing QR is refused (I1
   expect(await screen.findByText(/belongs to another party; one party per Complete/)).toBeTruthy();
 });
 
-it("WP15 I8 refusal offers a manager override that resends with the reason", async () => {
-  const { rpc } = setup(undefined, "manager", [
-    "no fish has moved for ALC-0001 yet: tick the totes being handed over before finalising boxes, or ask a manager to override (I8)",
-  ]);
+const I8_NO_TOTE =
+  "no fish has moved for ALC-0001 yet: tick the totes being handed over before finalising boxes, or ask a manager to override (I8)";
+const I8_TOTE_LEFT =
+  "no fish has moved for ALC-0001 yet: tick the totes being handed over before finalising boxes (I8)";
+
+it("WP15 I8 refusal with no tote left offers a manager override that resends with the reason (DECISION-23)", async () => {
+  const { rpc } = setup(undefined, "manager", [I8_NO_TOTE], { ...WIZARD, vessels: [] });
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
   fireEvent.click(screen.getByText("Complete"));
   expect(await screen.findByText(/ask a manager to override/)).toBeTruthy();
@@ -247,4 +251,22 @@ it("WP15 I8 refusal offers a manager override that resends with the reason", asy
     ),
   );
   expect(await screen.findByText(/Released: 0 box\(es\)/)).toBeTruthy();
+});
+
+it("WP15 I8 refusal with totes left points at the pick list, never the override", async () => {
+  setup(undefined, "manager", [I8_TOTE_LEFT]);
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  fireEvent.click(screen.getByText("Complete"));
+  expect(await screen.findByText(/2 basket\(s\) of this party/)).toBeTruthy();
+  expect(screen.queryByText("Manager override")).toBeNull();
+});
+
+it("WP15 changing a tick hides a stale I8 override", async () => {
+  setup(undefined, "manager", [I8_NO_TOTE], { ...WIZARD, vessels: [] });
+  const box = await screen.findByLabelText(/BOX-0001/);
+  fireEvent.click(box);
+  fireEvent.click(screen.getByText("Complete"));
+  expect(await screen.findByText("Manager override")).toBeTruthy();
+  fireEvent.click(box);
+  expect(screen.queryByText("Manager override")).toBeNull();
 });

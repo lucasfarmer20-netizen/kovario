@@ -596,6 +596,22 @@ select lives_ok($$select pg_temp.override('s_two_b', '{b_two_b}', 'released by t
 select is(pg_temp.istate('i_two'), 'done', 'I8 OVERRIDE — the shared intake closes once both parties are clear');
 select pg_temp.as_user('staff');
 
+-- DECISION-23 covers only the dead end: with a tote still in the freezer, I8 stays hard.
+reset role;
+select pg_temp.intake('i_left'); select pg_temp.vessel('v_left', 'i_left', 6, '7401');
+select pg_temp.session('s_left', '{i_left}'); select pg_temp.box('b_left', 's_left', 'Ann');
+set local role authenticated;
+select pg_temp.as_user('staff');
+select matches(pg_temp.err($$select pg_temp.release('s_left', '{b_left}')$$), '^55000 .*tick the totes being handed over before finalising boxes \(I8\)',
+  'I8 OVERRIDE — with a tote left, the refusal does not offer an override');
+select pg_temp.as_user('manager');
+select matches(pg_temp.err($$select pg_temp.override('s_left', '{b_left}', 'forgot to tick')$$),
+  '^55000 .*still has a tote to tick \(Tag 7401 .*DECISION-23',
+  'I8 OVERRIDE — refused while the party still has an occupied tote');
+select is(pg_temp.bstate('b_left') || '/' || pg_temp.vstate('v_left') || '/' || cardinality(pg_temp.audit('{i_left}')),
+  'planned/occupied:6.00:-/0', 'I8 OVERRIDE — the refused override writes nothing');
+select pg_temp.as_user('staff');
+
 -- I8 override from a station: staff + a manager's PIN elevation (the grant is recorded).
 reset role;
 select pg_temp.intake('i_el'); select pg_temp.vessel('v_el', 'i_el', 8, '7301');

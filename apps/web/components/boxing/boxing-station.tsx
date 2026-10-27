@@ -161,6 +161,12 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   const [i8Blocked, setI8Blocked] = useState(false);
   const [i8Reason, setI8Reason] = useState("");
 
+  /** Any tick change or refresh makes an earlier I8 refusal stale: hide its override. */
+  function updateTicks(next: Ticks) {
+    setTicks(next);
+    setI8Blocked(false);
+  }
+
   const typing = {
     onFocus: () => setEditing(true),
     onBlur: () => setEditing(false),
@@ -170,11 +176,11 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   async function refresh(reset: boolean) {
     const next = await loadWizard(client, sessionId);
     if (reset) {
-      setTicks(emptyTicks());
+      updateTicks(emptyTicks());
       setNotices([]);
     } else {
       const r = reproject(wizard, ticks, next);
-      setTicks(r.ticks);
+      updateTicks(r.ticks);
       setNotices(r.notices);
     }
     setWizard(next);
@@ -209,7 +215,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     if (!wizard) return;
     const outcome = scanTick(wizard, ticks, raw);
     if (outcome.kind === "ticked") {
-      setTicks(outcome.ticks);
+      updateTicks(outcome.ticks);
       setFeedback({ tone: "ok", text: outcome.message });
     } else if (outcome.kind === "rejected") {
       setFeedback({ tone: "error", text: outcome.message });
@@ -368,7 +374,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
                         <input
                           type="checkbox"
                           checked={tickedBoxes.has(b.box_id)}
-                          onChange={() => setTicks(toggleBox(ticks, b.box_id))}
+                          onChange={() => updateTicks(toggleBox(ticks, b.box_id))}
                         />
                         {b.number} · {b.method === "willcall" ? "will-call" : b.method} ·{" "}
                         {b.size ?? "box"} · {b.weight_lb} lb
@@ -411,7 +417,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
                         type="checkbox"
                         aria-label={`Tick ${label}`}
                         checked={l?.ticked ?? false}
-                        onChange={() => setTicks(toggleVessel(ticks, v))}
+                        onChange={() => updateTicks(toggleVessel(ticks, v))}
                       />
                     </td>
                     <td>{label}</td>
@@ -425,7 +431,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
                         aria-invalid={issues.has(v.vessel_id)}
                         placeholder="0 = all"
                         value={l?.lbsLeft ?? ""}
-                        onChange={(e) => setTicks(setLbsLeft(ticks, v, e.target.value))}
+                        onChange={(e) => updateTicks(setLbsLeft(ticks, v, e.target.value))}
                         {...typing}
                       />
                     </td>
@@ -480,11 +486,18 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
           </button>
           <Link href="/boxing">Queue</Link>
         </div>
-        {i8Blocked && (
+        {i8Blocked && wizard.vessels.length > 0 && (
+          <p className="station-hint" role="status">
+            Tick the totes you are handing over: {wizard.vessels.length} basket(s) of this party are
+            still in the freezer (see the pick list).
+          </p>
+        )}
+        {/* DECISION-23: only when no tote is left (the server checks the same). */}
+        {i8Blocked && wizard.vessels.length === 0 && (
           <div aria-label="I8 override">
             <p className="station-hint">
-              No tote is left to tick for this party (another party or a tag release took the last
-              basket)? A manager can finalise the ticked boxes with a reason.
+              No tote is left to tick for this party: another party or a tag release took the last
+              basket. A manager can finalise the ticked boxes with a reason.
             </p>
             <label>
               Override reason
