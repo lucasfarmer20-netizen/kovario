@@ -13,7 +13,7 @@ type PairResponse = {
 /**
  * Exchanges a pairing code for the device's own session and stores it on this tablet.
  * The input stays focused for the station scanner, which types the admin page's
- * `KV:PAIR:<code>` QR followed by Enter; a person can type the bare code instead.
+ * `FL:PAIR:<code>` QR followed by Enter; a person can type the bare code instead.
  */
 export function PairDevice({ initialCode }: { initialCode: string }) {
   const router = useRouter();

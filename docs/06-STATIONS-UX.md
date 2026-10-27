@@ -33,7 +33,7 @@ cooler.
 
 ## Storage intake (keyboard)
 Customer → location → boxes (weight, description) → **Confirm** → storage box labels
-(QR `KV:SBOX`) + receipt.
+(QR `FL:SBOX`) + receipt.
 
 ## Wave (scan + a few taps)
 Left: holding intakes FIFO with age, lb, species summary, tote count, FAST PASS / DIRTY /

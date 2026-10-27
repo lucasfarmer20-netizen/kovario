@@ -121,7 +121,7 @@ rule (`04-BUSINESS-RULES.md`), never by hand.
 
 ### tote_tag
 One row per printed tote: `intake_id`, `tote_no int`, `of_count int`, `qr text`
-(= `KV:TOTE:<intake_number>:<tote_no>`), `printed_at`, `print_job_id`. Scanning any
+(= `FL:TOTE:<intake_number>:<tote_no>`), `printed_at`, `print_job_id`. Scanning any
 tote of an intake identifies the intake; tote completeness gates reconcile.
 
 ---
@@ -163,7 +163,7 @@ Written for **every** scan.
 ### asset_tag  (← cs.asset.tag)
 Permanent reusable tag on a physical basket. `code text` (canonical **3-digit**, unique
 per org; scanner input normalised: `42`/`042`/`0042` → `042`), `qr text`
-(= `KV:TAG:<org_slug>:<code>`), `state enum(available, in_use, retired)`,
+(= `FL:TAG:<org_slug>:<code>`), `state enum(available, in_use, retired)`,
 `current_vessel_id`, `retired_reason`.
 
 ### vessel  (← cs.reconcile.vessel)
@@ -189,7 +189,7 @@ stable reading for its device's scale and lets the operator accept it into a ves
 ### location  (← cs.freezer.location)
 `zone text` (IF/OF…), `kind enum(rack, pallet)`, `row text`, `bay int`, `level int`,
 `depth enum(F, R)` (null for pallet), `code text` (`IF-A-01-1-F` or `IF-PALLET-01`,
-unique per org), `qr text` (= `KV:LOC:<org_slug>:<code>`), `is_active bool`
+unique per org), `qr text` (= `FL:LOC:<org_slug>:<code>`), `is_active bool`
 (archived locations **cannot** be bound — `_check_location_is_live`), `capacity int`
 (display only — **never gate on capacity**), `sort_key` (row → bay → level → F before R:
 drives the boxing pick-list walk path).
@@ -325,12 +325,12 @@ DECISION-07 covers whether tax is computed in v1 or recorded as a note.
 
 | Thing | QR text |
 |---|---|
-| Tote tag | `KV:TOTE:<INT-0001>:<n>` |
-| Asset tag | `KV:TAG:<org_slug>:<042>` |
-| Location | `KV:LOC:<org_slug>:<IF-A-01-1-F>` |
-| Boxing token | `KV:BOX:<settlement.boxing_token>` |
-| Storage box | `KV:SBOX:<STG-0001>:<n>` |
-| Device pairing | `KV:PAIR:<code>` (one-time 8-character code, scanned at `/pair`) |
+| Tote tag | `FL:TOTE:<INT-0001>:<n>` |
+| Asset tag | `FL:TAG:<org_slug>:<042>` |
+| Location | `FL:LOC:<org_slug>:<IF-A-01-1-F>` |
+| Boxing token | `FL:BOX:<settlement.boxing_token>` |
+| Storage box | `FL:SBOX:<STG-0001>:<n>` |
+| Device pairing | `FL:PAIR:<code>` (one-time 8-character code, scanned at `/pair`) |
 
 `packages/rules/src/qr.ts` exports `encode(kind, …)` and `parse(raw)`; every label
 template and every scan handler imports from it. A scan handler must also accept bare
