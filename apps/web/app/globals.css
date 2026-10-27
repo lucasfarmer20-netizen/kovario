@@ -272,3 +272,110 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Intake desk (docs/06-STATIONS-UX.md Intake): keyboard station on the station tokens. */
+.intake-workspace {
+  grid-template-columns: 1.6fr 1fr;
+}
+.intake-station select,
+.intake-station textarea {
+  min-height: 56px;
+  font-size: 20px;
+  border: 2px solid #406575;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: white;
+}
+.intake-station input[type="checkbox"] {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  min-width: 32px;
+}
+.intake-station h3 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 24px 0 12px;
+}
+.intake-customer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 22px;
+}
+.intake-lines,
+.intake-price-lines {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+}
+.intake-lines th {
+  text-align: left;
+  font-size: 16px;
+  padding: 4px;
+}
+.intake-lines td,
+.intake-price-lines td {
+  padding: 6px 4px;
+  border-bottom: 1px solid #cbd8dc;
+  vertical-align: middle;
+}
+.intake-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+  margin: 24px 0;
+}
+.intake-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.intake-fields label.intake-toggle {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+}
+.intake-save {
+  width: 100%;
+  font-size: 26px !important;
+  min-height: 80px !important;
+}
+.intake-total {
+  font-size: 32px;
+  font-weight: 750;
+}
+.intake-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.intake-number {
+  font-size: clamp(64px, 10vw, 120px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.intake-timeline li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid #cbd8dc;
+}
+.intake-filter {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+@media (max-width: 1100px) {
+  .intake-workspace {
+    grid-template-columns: 1fr;
+  }
+}
