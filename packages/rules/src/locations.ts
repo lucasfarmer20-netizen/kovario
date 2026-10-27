@@ -62,7 +62,13 @@ export function normalizeRow(raw: string): string | null {
   return /^\d+$/.test(row) ? row.replace(/^0+(?=\d)/, "").padStart(2, "0") : row;
 }
 
-export function rackCode(zone: string, row: string, bay: number, level: number, depth: LocationDepth) {
+export function rackCode(
+  zone: string,
+  row: string,
+  bay: number,
+  level: number,
+  depth: LocationDepth,
+) {
   return `${zone}-${row}-${String(bay).padStart(2, "0")}-${level}-${depth}`;
 }
 
@@ -95,7 +101,11 @@ export function generateRackLocations(spec: RackSpec): GeneratedRackLocation[] {
       throw new RangeError(`Row ${JSON.stringify(r.row)} must be 1–4 letters/digits, not PALLET`);
     if (seen.has(row)) throw new RangeError(`Row ${row} is listed twice`);
     seen.add(row);
-    return { row, bays: count("Bays", r.bays, MAX_BAYS), levels: count("Levels", r.levels, MAX_LEVELS) };
+    return {
+      row,
+      bays: count("Bays", r.bays, MAX_BAYS),
+      levels: count("Levels", r.levels, MAX_LEVELS),
+    };
   });
   const total = rows.reduce((n, r) => n + r.bays * r.levels * depths.length, 0);
   if (total > MAX_GENERATED_LOCATIONS)
@@ -105,7 +115,15 @@ export function generateRackLocations(spec: RackSpec): GeneratedRackLocation[] {
     for (let bay = 1; bay <= bays; bay++)
       for (let level = 1; level <= levels; level++)
         for (const depth of depths)
-          out.push({ kind: "rack", zone, row, bay, level, depth, code: rackCode(zone, row, bay, level, depth) });
+          out.push({
+            kind: "rack",
+            zone,
+            row,
+            bay,
+            level,
+            depth,
+            code: rackCode(zone, row, bay, level, depth),
+          });
   return out;
 }
 
