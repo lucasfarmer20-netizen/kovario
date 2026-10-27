@@ -7,6 +7,7 @@ export * from "./matrix.ts";
 export * from "./yield.ts";
 export * from "./charges.ts";
 export * from "./pricing.ts";
+export * from "./intake.ts";
 export * from "./qr.ts";
 export * from "./phone.ts";
 export * from "./hold.ts";

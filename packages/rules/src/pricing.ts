@@ -7,8 +7,11 @@ import type { ChargeKind, ChargeState } from "./charges.ts";
 import { METHODS, type MethodCode } from "./methods.ts";
 import { isNonNegativeFinite } from "./num.ts";
 
+/** The ribbing rate (`ribbing_per_lb`): never capped or floored (DECISION-19). */
+export const RIBBING_ITEM = "ribbing";
+
 /** A method rate, or `ribbing` (`ribbing_per_lb`), which is never capped or floored. */
-export type PricedItem = MethodCode | "ribbing";
+export type PricedItem = MethodCode | typeof RIBBING_ITEM;
 
 export interface PriceInput {
   method: PricedItem;
@@ -31,7 +34,7 @@ function assertRate(name: string, value: number): void {
 export function pricePerLb(input: PriceInput): number {
   const { method, listPrice } = input;
   assertRate("listPrice", listPrice);
-  if (method === "ribbing") return listPrice;
+  if (method === RIBBING_ITEM) return listPrice;
   if (input.fastPass) {
     const floor = input.fastPassRate;
     if (floor === null || floor === undefined) {
