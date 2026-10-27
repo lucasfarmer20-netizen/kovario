@@ -95,6 +95,8 @@ export const defaultDeps: MakeDeps = async (req) => {
     service: serviceClient(),
     orgId,
     deviceId,
+    devFallbackKey:
+      process.env.NODE_ENV === "production" ? null : (process.env.SHIPPO_API_KEY ?? null),
     shippoFor: (apiKey) => shippoClient({ apiKey }),
   };
 };

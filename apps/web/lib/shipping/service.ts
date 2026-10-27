@@ -38,6 +38,8 @@ export type ShippingDeps = {
   orgId: string;
   /** The paired station's device (its site's ship-from), null for a staff session. */
   deviceId: string | null;
+  /** Local dev only (.env.example): SHIPPO_API_KEY when the org has no Vault key. Null in prod. */
+  devFallbackKey?: string | null;
   /** Builds the Shippo client for the org's key (tests pass a fixture-backed fake). */
   shippoFor: (apiKey: string) => ShippoClient;
 };
@@ -89,9 +91,10 @@ async function detail(deps: ShippingDeps, shipmentId: string): Promise<ShipmentD
 }
 
 async function shippo(deps: ShippingDeps): Promise<ShippoClient> {
-  const key = await rpc<string | null>(
+  const vaultKey = await rpc<string | null>(
     deps.service.rpc("shipping_api_key", { p_org_id: deps.orgId }),
   );
+  const key = vaultKey ?? deps.devFallbackKey ?? null;
   if (!key) {
     throw new ShippingRequestError(
       "Shipping is not set up for this plant (no Shippo key in Vault)",

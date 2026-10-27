@@ -13,9 +13,6 @@ export type BoxSizeDims = {
   dry_ice_lb?: number;
 };
 
-/** Blocker code when a parcel cannot be quoted (no box size dims, no weight). */
-export const BLOCKER_PARCEL_INCOMPLETE = "parcel_incomplete";
-
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 function positive(n: unknown): n is number {
