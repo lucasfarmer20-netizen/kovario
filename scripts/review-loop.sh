@@ -7,10 +7,13 @@
 # squash merge. Branch protection on main (required "check" + 1 approval) gates both; an
 # approved PR that didn't merge is retried on the next pass.
 # AO's own autoReview is complementary: its findings go back to the worker session; this
-# loop is what produces the GitHub approval and the merge, which AO does not do.
+# loop is what produces the GitHub approval and the merge, which AO does not do. AO does not
+# forward this loop's GitHub reviews, so after requesting changes (or, on a critical PR,
+# posting findings) the loop sends the owning AO session a pointer to the review.
 # AO gate: for a PR whose branch belongs to an AO session, wait until AO's reviewer has a
 # completed, non-"changes requested" verdict on the exact head commit (read from AO's
-# local DB). Otherwise an approval here can merge over a review AO is still running.
+# local DB). Otherwise an approval here can merge over a review AO is still running. If
+# every AO run on the commit failed, nothing is running, so the loop reviews without it.
 # AO_GATE=0 disables it; PRs not opened by an AO session are not gated.
 #
 # Usage:  REVIEWER_PAT=ghp_... scripts/review-loop.sh            # loop forever, every 3 min
@@ -33,7 +36,8 @@ the docs the issue names, and the diff (gh pr diff $num). Do not edit files.
 When CRITICAL=false finish by running exactly one of (do not merge; the loop does that):
   gh pr review $num --approve --body \"<summary>\"
   gh pr review $num --request-changes --body \"<numbered findings>\"
-When CRITICAL=true post findings with: gh pr comment $num --body \"...\" and do NOT approve."
+When CRITICAL=true post findings with: gh pr review $num --comment --body \"...\" and do NOT approve
+(a review comment, not gh pr comment: it records the commit, so this commit is not reviewed again)."
   echo "== PR #$num ($head) critical=$critical"
   # stdin from /dev/null: otherwise claude reads the rest of the PR list off the pass's pipe
   GH_TOKEN="$REVIEWER_PAT" claude -p "$prompt" \
@@ -75,13 +79,42 @@ c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
 s = (c.execute("select session_id from pr where url = ? and session_id != ''", (url,)).fetchone()
      or c.execute("select id from sessions where branch = ? order by created_at desc", (branch,)).fetchone())
 if not s: print("none"); sys.exit()
-rows = c.execute("select status, verdict from review_run where session_id = ? and target_sha = ?"
+rows = c.execute("select status, verdict, created_at from review_run where session_id = ? and target_sha = ?"
                  " order by created_at desc", (s[0], sha)).fetchall()
-done = [v for st, v in rows if st == "complete"]
-if done: print(done[0] or "approved")
-elif any(st not in ("failed",) for st, _ in rows) or not rows: print("pending")
-else: print("failed")
+done = [v for st, v, _ in rows if st == "complete"]
+if done: print(done[0] or "approved"); sys.exit()
+if any(st != "failed" for st, _, _ in rows) or not rows: print("pending"); sys.exit()
+# All runs failed. AO retries a few times about a minute apart, so only call it final after
+# 3 failures with the newest over 5 minutes old; until then a retry may still be on its way.
+import datetime
+newest = datetime.datetime.strptime(rows[0][2][:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
+age = (datetime.datetime.now(datetime.timezone.utc) - newest).total_seconds()
+print("failed" if len(rows) >= 3 and age > 300 else "pending")
 PY
+}
+
+# The AO session that owns a PR (same lookup as ao_verdict), or nothing.
+ao_session() {
+  "$PY" -I - "$1" "$2" <<'PY'
+import os, sqlite3, sys
+url, branch = sys.argv[1], sys.argv[2]
+db = os.path.expanduser(os.environ.get("AO_DB", "~/.ao/data/ao.db"))
+if not os.path.exists(db): sys.exit()
+c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+s = (c.execute("select session_id from pr where url = ? and session_id != ''", (url,)).fetchone()
+     or c.execute("select id from sessions where branch = ? order by created_at desc", (branch,)).fetchone())
+if s: print(s[0])
+PY
+}
+
+# AO forwards its own reviewer's findings to the worker, but not this loop's GitHub review, so
+# a worker otherwise sits idle on a change request. Tell the owning session where to read it.
+notify_worker() {
+  local num="$1" branch="$2" head="$3" what="$4" sid
+  sid=$(ao_session "https://github.com/$REPO/pull/$num" "$branch" | tr -d '\r') || return 0
+  [ -z "$sid" ] && return 0
+  timeout 120 ao send --session "$sid" --message "The GitHub reviewer ($REVIEWER_LOGIN) $what on PR #$num at ${head:0:7}. Read it with: gh pr view $num --json reviews,comments, then address any required findings, re-run the checks in AGENTS.md, and push." \
+    </dev/null >/dev/null 2>&1 && echo "-- #$num: told $sid about the review" || echo "!! could not notify $sid about #$num"
 }
 
 pass() {
@@ -95,7 +128,9 @@ pass() {
     [[ "$labels" == *area:critical* ]] && critical=true
     if [ -n "$issue" ] && gh issue view "$issue" -R "$REPO" --json labels -q '.labels[].name' | grep -q area:critical; then critical=true; fi
     # already reviewed this exact commit by the reviewer account?
-    mine=$(my_review "$num" "$head")
+    # a transient API error skips this PR for this pass (under set -e it would end the pass,
+    # and treating it as "not reviewed" would review the same commit twice)
+    mine=$(my_review "$num" "$head") || { echo "-- #$num: could not read reviews, skip"; continue; }
     if [ -n "$mine" ]; then
       # approved but not merged or queued (e.g. an earlier merge call failed): merge now
       if [ "$mine" = APPROVED ] && [ "$critical" = false ] && [ "$(jq -r '.autoMergeRequest == null' <<<"$pr")" = true ]; then
@@ -108,16 +143,31 @@ pass() {
     state=$(gh api "repos/$REPO/commits/$head/check-runs" -q '[.check_runs[]|select(.name=="check")|.conclusion][0]' 2>/dev/null || echo null)
     [ "$state" = "null" ] && { echo "-- #$num: CI still running, skip"; continue; }
     if [ "${AO_GATE:-1}" != 0 ]; then
-      verdict=$(ao_verdict "https://github.com/$REPO/pull/$num" "$branch" "$head" | tr -d '\r')
+      verdict=$(ao_verdict "https://github.com/$REPO/pull/$num" "$branch" "$head" | tr -d '\r') || verdict=pending
       case "$verdict" in
         none) ;;
         pending) echo "-- #$num: AO review of ${head:0:7} not finished, skip"; continue ;;
-        failed) echo "-- #$num: AO review of ${head:0:7} FAILED; check AO, skip"; continue ;;
+        # every AO run on this commit failed (AO gives up after a few and the CLI can't
+        # re-trigger one): nothing is still running, so review without AO's verdict
+        failed) echo "-- #$num: AO review of ${head:0:7} failed; reviewing without it" ;;
         changes_requested) echo "-- #$num: AO requested changes on ${head:0:7}, skip"; continue ;;
       esac
     fi
     review_one "$num" "$head" "$critical"
-    if [ "$critical" = false ] && [ "$(my_review "$num" "$head")" = APPROVED ]; then merge_approved "$num"; fi
+    result=$(my_review "$num" "$head") || result=
+    if [ "$critical" = true ]; then
+      # only when the review comment actually landed on this commit
+      # an if, not `[ ] && notify`: a false && list would end the pass under set -e
+      if [ "$result" = COMMENTED ]; then
+        notify_worker "$num" "$branch" "$head" "posted review findings as a review comment (area:critical: a human merges)"
+      else
+        echo "!! #$num: critical review left no review comment on ${head:0:7}; retrying next pass"
+      fi
+    elif [ "$result" = APPROVED ]; then
+      merge_approved "$num"
+    elif [ "$result" = CHANGES_REQUESTED ]; then
+      notify_worker "$num" "$branch" "$head" "requested changes"
+    fi
   done
 }
 
