@@ -324,3 +324,19 @@ it("WP15 a refused override (a tote reappeared) points at the freezer", async ()
   expect(await screen.findByText(/still has baskets in the freezer/)).toBeTruthy();
   expect(screen.queryByText("Manager override")).toBeNull();
 });
+
+it("WP15 a tote-left refusal re-projects so the stale pick list shows the tote", async () => {
+  // The screen loaded an empty pick list (setup's first load); the server still sees a tote.
+  const { rpc } = setup(undefined, "manager", [I8_TOTE_LEFT], { ...WIZARD, vessels: [] });
+  await screen.findByLabelText(/BOX-0001/);
+  rpc.mockImplementation(async (name: string) =>
+    name === "boxing_wizard"
+      ? { data: WIZARD, error: null } // the re-projection now lists the tote
+      : { data: null, error: I8_TOTE_LEFT },
+  );
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  fireEvent.click(screen.getByText("Complete"));
+  expect(await screen.findByText("Tag 042 (INT-0001)")).toBeTruthy(); // the tote now shows
+  expect(screen.getByText(/still has baskets in the freezer/)).toBeTruthy(); // pointer kept
+  expect((screen.getByLabelText(/BOX-0001/) as HTMLInputElement).checked).toBe(true); // I15
+});

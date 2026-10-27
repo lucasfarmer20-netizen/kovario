@@ -283,13 +283,17 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       if (text.includes("operator_pin_required")) op.expire();
       // The SQL HINT is the contract (never the English message).
       const hint = err instanceof RpcError ? err.hint : null;
-      setI8Blocked(
+      const blocked =
         hint === "i8_override_available"
           ? "override"
           : hint === "i8_tote_left"
             ? "tote_left"
-            : "none",
-      );
+            : "none";
+      // A tote the server still sees may be missing from a stale pick list: re-project
+      // (ticks kept for eligible lines, I15) so the operator sees which tote to pick. The
+      // refresh clears the panel, so set it afterwards.
+      if (blocked === "tote_left") await refresh(false).catch(() => undefined);
+      setI8Blocked(blocked);
       setFeedback({ tone: "error", text });
     } finally {
       setBusy(false);
