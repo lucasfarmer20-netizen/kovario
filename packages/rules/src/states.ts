@@ -1,6 +1,7 @@
 // State machines (docs/03-STATE-MACHINES.md) as allowed-transition tables. The DB guard
-// trigger reads the same table from `supabase/seed/state_transitions.sql`, generated from
-// this file by `pnpm --filter rules gen:states` — never edit the SQL by hand.
+// trigger reads the same table, filled by the migration
+// `supabase/migrations/20261026100100_state_transitions.sql`, generated from this file by
+// `pnpm --filter rules gen:states` — never edit the SQL by hand.
 //
 // Guards that need data (tote completeness, close gate I10, wave parity) live in the SQL
 // functions that perform the transition; this table only says which edges exist.

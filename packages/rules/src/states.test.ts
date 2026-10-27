@@ -19,17 +19,30 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const edges = (e: Entity) => TRANSITIONS[e] as readonly Transition<Entity>[];
 
 describe("generated SQL", () => {
-  it("supabase/seed/state_transitions.sql is up to date (run `pnpm --filter rules gen:states`)", () => {
+  it(`${STATE_TRANSITIONS_SQL_PATH} is up to date (run \`pnpm --filter rules gen:states\`)`, () => {
     const committed = readFileSync(resolve(repoRoot, STATE_TRANSITIONS_SQL_PATH), "utf8");
     expect(committed.replaceAll("\r\n", "\n")).toBe(renderStateTransitionsSql());
   });
 
-  it("has one row per transition", () => {
+  it("has one row per transition, carrying the manager flag", () => {
     const rows = renderStateTransitionsSql()
       .split("\n")
       .filter((l) => l.startsWith("  ("));
     expect(rows).toHaveLength(ENTITIES.reduce((n, e) => n + edges(e).length, 0));
-    expect(rows.at(-1)).toMatch(/\);$/);
+    expect(rows.slice(0, -1).every((r) => r.endsWith("),"))).toBe(true);
+    expect(rows.at(-1)).toMatch(/\)$/);
+    const managerRows = ENTITIES.reduce((n, e) => n + edges(e).filter((t) => t.manager).length, 0);
+    expect(rows.filter((r) => r.endsWith("true),") || r.endsWith("true)"))).toHaveLength(
+      managerRows,
+    );
+  });
+
+  it("is an idempotent upsert that prunes edges no longer in states.ts", () => {
+    const sql = renderStateTransitionsSql();
+    expect(sql).toContain("delete from app.state_transitions");
+    expect(sql).toContain(
+      "on conflict (entity, from_state, to_state) do update set manager = excluded.manager;",
+    );
   });
 });
 
