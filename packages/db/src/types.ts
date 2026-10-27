@@ -91,6 +91,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "allocation_session_fulfillment"
       referencedColumns: ["session_id"]
+    },{
+      foreignKeyName: "allocation_intake_session_id_fkey"
+      columns: ["session_id"]
+isOneToOne: false
+      referencedRelation: "allocation_session_list"
+      referencedColumns: ["session_id"]
     }
                   ]
                 },"allocation_session": {
@@ -200,6 +206,12 @@ isOneToOne: false
       columns: ["session_id"]
 isOneToOne: false
       referencedRelation: "allocation_session_fulfillment"
+      referencedColumns: ["session_id"]
+    },{
+      foreignKeyName: "box_plan_session_id_fkey"
+      columns: ["session_id"]
+isOneToOne: false
+      referencedRelation: "allocation_session_list"
       referencedColumns: ["session_id"]
     },{
       foreignKeyName: "box_plan_settlement_id_session_id_fkey"
@@ -1114,6 +1126,12 @@ isOneToOne: false
       referencedRelation: "allocation_session_fulfillment"
       referencedColumns: ["session_id"]
     },{
+      foreignKeyName: "release_audit_session_id_fkey"
+      columns: ["session_id"]
+isOneToOne: false
+      referencedRelation: "allocation_session_list"
+      referencedColumns: ["session_id"]
+    },{
       foreignKeyName: "release_audit_vessel_id_fkey"
       columns: ["vessel_id"]
 isOneToOne: false
@@ -1296,6 +1314,12 @@ isOneToOne: false
       columns: ["session_id"]
 isOneToOne: false
       referencedRelation: "allocation_session_fulfillment"
+      referencedColumns: ["session_id"]
+    },{
+      foreignKeyName: "settlement_session_id_fkey"
+      columns: ["session_id"]
+isOneToOne: false
+      referencedRelation: "allocation_session_list"
       referencedColumns: ["session_id"]
     }
                   ]
@@ -1800,6 +1824,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"allocation_session_list": {
+                  Row: {
+                    "amount_total": number | null,"angler_names": (string)[] | null,"box_count": number | null,"created_at": string,"fulfillment_status": Database["public"]['Enums']["allocation_session_fulfillment_status"] | null,"intake_numbers": (string)[] | null,"number": string,"org_id": string,"paid_count": number | null,"party_customer_id": string | null,"party_name": string | null,"planned_count": number | null,"search_text": string | null,"session_id": string,"settlement_count": number | null,"split_method": Database["public"]['Enums']["allocation_session_split_method"],"state": Database["public"]['Enums']["allocation_session_state"]
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "allocation_session_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "allocation_session_party_customer_id_fkey"
+      columns: ["party_customer_id"]
+isOneToOne: false
+      referencedRelation: "customer"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"reconcile_variance": {
                   Row: {
                     "actual_lb": number,"expected_lb": number,"intake_id": string,"intake_line_id": string,"org_id": string,"reconcile_line_id": string,"variance_pct": number | null
@@ -1937,6 +1981,9 @@ isOneToOne: false
 "admin_rename_site":
 { Args: { "p_client_action_id": string,"p_name": string,"p_site_id": string }; Returns: Json
                            },
+"admin_save_box_size":
+{ Args: { "p_box_size_id": string,"p_client_action_id": string,"p_dims"?: Json,"p_fee": number,"p_is_active"?: boolean,"p_max_lb": number,"p_name": string }; Returns: Json
+                           },
 "admin_save_printer":
 { Args: { "p_address": string,"p_agent_id": string,"p_client_action_id": string,"p_kind": Database["public"]['Enums']["printer_kind"],"p_name": string,"p_printer_id"?: string,"p_site_id"?: string }; Returns: Json
                            },
@@ -1984,6 +2031,9 @@ isOneToOne: false
                            },
 "bind_tag":
 { Args: { "p_client_action_id": string,"p_code": string,"p_intake_id": string,"p_operator_session"?: string }; Returns: Json
+                           },
+"cancel_allocation_session":
+{ Args: { "p_client_action_id": string,"p_reason"?: string,"p_session_id": string }; Returns: Json
                            },
 "cancel_pickup_batch":
 { Args: { "p_batch_id": string,"p_client_action_id": string }; Returns: Json
@@ -2052,6 +2102,9 @@ isOneToOne: false
 "operator_identify":
 { Args: { "p_pin": string }; Returns: Json
                            },
+"price_session":
+{ Args: { "p_client_action_id": string,"p_session_id": string }; Returns: Json
+                           },
 "print_agent_bind_auth_user":
 { Args: { "p_agent_id": string,"p_user_id": string }; Returns: undefined
                            },
@@ -2065,6 +2118,9 @@ isOneToOne: false
                            },
 "print_intake_receipt":
 { Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
+                           },
+"print_settlement_receipt":
+{ Args: { "p_client_action_id": string,"p_settlement_id": string }; Returns: Json
                            },
 "queue_storage_labels":
 { Args: { "p_client_action_id": string,"p_labels": Json,"p_storage_intake_id": string }; Returns: Json
@@ -2080,6 +2136,9 @@ isOneToOne: false
                            },
 "rollstock_scan_advance":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_open_intake_id": string,"p_operator_session"?: string,"p_override_reason"?: string,"p_raw": string }; Returns: Json
+                           },
+"save_allocation_session":
+{ Args: { "p_client_action_id": string,"p_payload": Json }; Returns: Json
                            },
 "save_intake":
 { Args: { "p_client_action_id": string,"p_payload": Json }; Returns: Json
@@ -2103,6 +2162,9 @@ isOneToOne: false
                            },
 "set_lodge_guest":
 { Args: { "p_client_action_id": string,"p_customer_id": string,"p_is_lodge_guest": boolean,"p_lodge_id"?: string }; Returns: Json
+                           },
+"settlement_receipt":
+{ Args: { "p_settlement_id": string }; Returns: Json
                            },
 "station_identify":
 { Args: { "p_pin": string }; Returns: Json
