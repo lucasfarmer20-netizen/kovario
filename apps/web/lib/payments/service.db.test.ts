@@ -529,4 +529,39 @@ describe("payments route flow (fake provider)", { timeout: 60_000 }, () => {
       .order("refund_amount");
     expect(refundOrders).toEqual([{ refund_amount: 2 }, { refund_amount: 8 }]);
   });
+  it("an unresolved refund on an open cart blocks the balance payment: nothing completes on credit that may be gone", async () => {
+    fake = new FakeProvider()
+      .queueSale({ outcome: "approved" })
+      .queueRefund({ outcome: "refunded", throwsAfter: "socket hang up" });
+    await settleAll();
+    const orderId = await cart(20);
+    const card = res(
+      await chargePayment(deps(), {
+        clientActionId: cid("sale"),
+        orderId,
+        amount: 10,
+        terminalId,
+        tender: "card",
+      }),
+    );
+    const refund = (await reversePayment(deps(manager), {
+      clientActionId: cid("rf"),
+      paymentId: card.payment.id,
+      kind: "refund",
+      amount: 10,
+      reason: "customer left",
+    })) as unknown as { status: string };
+    expect(refund.status).toBe("indeterminate");
+    const blocked = (await order(orderId)) as Order & { reversal_payment_id: string | null };
+    expect(blocked).toMatchObject({
+      state: "open",
+      reversal_payment_id: card.payment.id,
+      totals: { due: 10 },
+    });
+
+    await expect(
+      chargePayment(deps(), { clientActionId: cid("cash"), orderId, amount: 10, tender: "cash" }),
+    ).rejects.toMatchObject({ status: 409 } satisfies Partial<PaymentRequestError>);
+    expect((await order(orderId)).state).toBe("open");
+  });
 });

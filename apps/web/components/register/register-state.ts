@@ -63,6 +63,8 @@ export type Cart = {
   totals: { subtotal: number; tax: number; total: number; paid: number; due: number };
   payments: CartPayment[];
   blocking_payment_id: string | null;
+  /** a payment of this cart has a void / refund in flight or unconfirmed: no charging until settled */
+  reversal_payment_id?: string | null;
   tax_setting: { mode: string; rate: number; cap_amount: number | null };
   notices?: Notice[];
 };
@@ -189,6 +191,10 @@ export function chargeBlocker(cart: Cart | null): string | null {
   if (cart.blocking_payment_id) {
     const p = cart.payments.find((x) => x.id === cart.blocking_payment_id);
     return `${p?.number ?? "A payment"} is still ${p?.state ?? "unresolved"} — check its status first.`;
+  }
+  if (cart.reversal_payment_id) {
+    const p = cart.payments.find((x) => x.id === cart.reversal_payment_id);
+    return `${p?.number ?? "A payment"} has a ${p?.reverse_pending_kind ?? "void / refund"} in progress or unconfirmed — settle it before taking another payment.`;
   }
   if (cart.totals.due < 0) return "This cart is a credit; refund at the register instead.";
   return null;

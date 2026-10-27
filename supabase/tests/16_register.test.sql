@@ -121,6 +121,12 @@ create function pg_temp.events(p_k text) returns text language sql security defi
   -- one transaction stamps every event with the same now(): order by the enum (the lifecycle order)
   select string_agg(kind::text, ',' order by kind) from public.payment_event where payment_id = pg_temp.id(p_k);
 $$;
+create function pg_temp.force_paid(p_k text) returns jsonb language plpgsql security definer as $$
+begin
+  update public.register_order set state = 'paid' where id = pg_temp.id(p_k);
+  return public.apply_paid_register_order(pg_temp.id(p_k), null);
+end;
+$$;
 grant execute on all functions in schema pg_temp to authenticated;
 
 select pg_temp.as_role('staff');
@@ -571,6 +577,83 @@ select pg_temp.chk('PARTIAL-REFUND', 'void after refunding 1 of 5: reverses the 
   '4.00|voided|5.00');
 select pg_temp.chk('PARTIAL-REFUND', 'the cart is back to the full amount due',
   pg_temp.totals(pg_temp.cart('o2')), '21.00+1.26=22.26 paid 0 due 22.26');
+
+-- A reserved reversal blocks completing the cart (its money may already be back) ---------------
+
+-- Sam's cart is open again (22.26 due). Card 10 approved; a second card sale (12.26) is in flight.
+insert into t_ids select 'P11', public.payment_begin('wp16-pay-11', pg_temp.id('o2'), 10, 'a1600000-0000-4000-8000-000000000702') ->> 'id';
+select pg_temp.record('P11', 'sale_result', '{"outcome":"approved","providerTxn":"TX-11"}');
+insert into t_ids select 'P12', public.payment_begin('wp16-pay-12', pg_temp.id('o2'), 12.26, 'a1600000-0000-4000-8000-000000000702') ->> 'id';
+select pg_temp.as_role('manager');
+select pg_temp.chk('REVERSAL-BLOCK', 'no void / refund on a cart while one of its sales is still in flight (same cart lock)',
+  pg_temp.err($$select public.payment_reverse_begin('wp16-rvb-0', pg_temp.id('P11'), 'refund', 'x', 10)$$), '55000');
+select pg_temp.as_role('cashier');
+select pg_temp.record('P12', 'sale_result', '{"outcome":"cancelled"}');
+-- The 10 refund reaches the provider, which returns the money, then the call throws.
+select pg_temp.as_role('manager');
+insert into t_ids values ('RV11', public.payment_reverse_begin('wp16-rvb-1', pg_temp.id('P11'), 'refund', 'customer left', 10)::text);
+reset role;
+select public.payment_reverse_record(pg_temp.id('P11'), 'refund', 10, 'customer left', '{"outcome":"indeterminate"}');
+set local role authenticated;
+select pg_temp.as_role('cashier');
+select pg_temp.chk('REVERSAL-BLOCK', 'the cart shows the reversal blocker; the displayed balance cannot be charged',
+  format('%s|%s', pg_temp.cart('o2') ->> 'reversal_payment_id' = pg_temp.id('P11')::text,
+         pg_temp.err($$select public.payment_begin('wp16-pay-13', pg_temp.id('o2'), 12.26, null, 'cash')$$)),
+  't|55000');
+-- A late approval of the cancelled 12.26 sale arrives meanwhile: it is kept, but the cart does
+-- not complete on credit that may already have been refunded.
+select pg_temp.record('P12', 'status_check', '{"outcome":"approved","approvedAmount":12.26}');
+select pg_temp.chk('REVERSAL-BLOCK', 'a late approval never completes a cart with a reserved reversal: still open, nothing released',
+  format('%s|%s|%s', (pg_temp.pay('P12')).state, pg_temp.cart('o2') ->> 'state',
+         (select state from public.storage_pickup_batch where id = pg_temp.id('B5'))),
+  'approved|open|pending');
+reset role;
+select pg_temp.chk('REVERSAL-BLOCK', 'the paid hook refuses a cart with a reserved reversal (any writer)',
+  pg_temp.err($$select pg_temp.force_paid('o2')$$), '55000');
+set local role authenticated;
+-- The manager finds the refund went through.
+select pg_temp.as_role('manager');
+select public.payment_reverse_resolve('wp16-rvb-2', pg_temp.id('P11'), 'refunded', 'processor shows the refund');
+select pg_temp.as_role('cashier');
+select pg_temp.chk('REVERSAL-BLOCK', 'after resolving "refunded": the cart is still open with 10 due, storage not released',
+  format('%s|%s|%s', pg_temp.cart('o2') ->> 'state', pg_temp.totals(pg_temp.cart('o2')),
+         (select state from public.storage_pickup_batch where id = pg_temp.id('B5'))),
+  'open|21.00+1.26=22.26 paid 12.26 due 10.00|pending');
+insert into t_ids select 'P14', public.payment_begin('wp16-pay-14', pg_temp.id('o2'), 10, null, 'cash') ->> 'id';
+select pg_temp.record('P14', 'sale_result', '{"outcome":"approved"}');
+select pg_temp.chk('REVERSAL-BLOCK', 'paying the real balance completes the cart and runs the hook',
+  format('%s|%s|%s', pg_temp.cart('o2') ->> 'state', pg_temp.cart('o2') -> 'paid_hook' ->> 'status',
+         (select state from public.storage_pickup_batch where id = pg_temp.id('B5'))),
+  'paid|applied|released');
+
+-- Resolving "not reversed" completes a cart the reservation was holding open.
+reset role;
+insert into public.charge (id, org_id, number, customer_id, kind, source_type, qty, unit, unit_price) values
+  ('a1600000-0000-4000-8000-000000000c06', 'a1600000-0000-4000-8000-00000000000a', 'CHG-9006',
+   'a1600000-0000-4000-8000-0000000002a1', 'adjustment', 'manual', 1, 'each', 10.00);
+set local role authenticated;
+insert into t_ids select 'o4', public.register_load_outstanding('wp16-load-7', 'a1600000-0000-4000-8000-0000000002a1') ->> 'id';
+insert into t_ids select 'P15', public.payment_begin('wp16-pay-15', pg_temp.id('o4'), 5, 'a1600000-0000-4000-8000-000000000702') ->> 'id';
+select pg_temp.record('P15', 'sale_result', '{"outcome":"approved"}');
+insert into t_ids select 'P16', public.payment_begin('wp16-pay-16', pg_temp.id('o4'), 5.60, 'a1600000-0000-4000-8000-000000000702') ->> 'id';
+select pg_temp.record('P16', 'sale_result', '{"outcome":"cancelled"}');
+select pg_temp.as_role('manager');
+select public.payment_reverse_begin('wp16-rvb-3', pg_temp.id('P15'), 'refund', 'mistake', 5);
+reset role;
+select public.payment_reverse_record(pg_temp.id('P15'), 'refund', 5, 'mistake', '{"outcome":"indeterminate"}');
+set local role authenticated;
+select pg_temp.as_role('cashier');
+select pg_temp.record('P16', 'status_check', '{"outcome":"approved","approvedAmount":5.60}');
+select pg_temp.chk('REVERSAL-BLOCK', 'covered by captured payments but held open by the reserved refund',
+  format('%s|%s', pg_temp.cart('o4') ->> 'state', pg_temp.cart('o4') -> 'totals' ->> 'due'), 'open|0.00');
+select pg_temp.as_role('manager');
+insert into t_ids values ('NR', public.payment_reverse_resolve('wp16-rvb-4', pg_temp.id('P15'), 'not_reversed',
+  'processor shows no refund')::text);
+select pg_temp.as_role('cashier');
+select pg_temp.chk('REVERSAL-BLOCK', 'resolving "not reversed": the money is still captured, so the cart completes and the hook runs',
+  format('%s|%s|%s', pg_temp.cart('o4') ->> 'state', pg_temp.res('NR') -> 'order_paid_hook' ->> 'status',
+         (select state from public.charge where id = 'a1600000-0000-4000-8000-000000000c06')),
+  'paid|applied|settled');
 
 -- Cash: insert-as-paid (the CSP lesson: cash orders are paid on create) ---------------------------
 

@@ -282,6 +282,11 @@ as $$
     'blocking_payment_id', (select p.id from public.payment p
                             where p.register_order_id = o.id and p.state in ('pending', 'indeterminate')
                             order by p.created_at limit 1),
+    -- a void / refund in flight or unresolved on this cart: no payment and no completion until
+    -- it is settled (its money may already be back)
+    'reversal_payment_id', (select p.id from public.payment p
+                            where p.register_order_id = o.id and p.reverse_pending_at is not null
+                            order by p.created_at limit 1),
     'paid_hook', o.paid_hook_result,
     'refund_of_id', o.refund_of_id, 'refund_amount', o.refund_amount, 'reason', o.reason,
     'paid_at', o.paid_at, 'created_at', o.created_at)
@@ -603,6 +608,13 @@ begin
     raise exception '% is still %: check its status before charging again', v_open.number, v_open.state
       using errcode = '55000', hint = 'payment_unresolved';
   end if;
+  select * into v_open from public.payment
+  where register_order_id = v_order.id and reverse_pending_at is not null
+  order by created_at limit 1;
+  if found then
+    raise exception '% has a % in progress or unconfirmed — its money may already be back. Settle it before taking another payment',
+      v_open.number, v_open.reverse_pending_kind using errcode = '55000', hint = 'reversal_pending';
+  end if;
   if not exists (select 1 from public.register_order_line where register_order_id = v_order.id) then
     raise exception 'the cart is empty' using errcode = '22023';
   end if;
@@ -838,7 +850,9 @@ begin
         update public.payment set receipt = app.payment_receipt_data(v_pay.id) where id = v_pay.id
         returning * into v_pay;
         v_totals := app.register_totals(v_order.id);
-        if v_order.state = 'open' and (v_totals ->> 'due')::numeric <= 0 then
+        if v_order.state = 'open' and (v_totals ->> 'due')::numeric <= 0
+           and not exists (select 1 from public.payment q
+                           where q.register_order_id = v_order.id and q.reverse_pending_at is not null) then
           update public.register_order set state = 'paid' where id = v_order.id;
           v_hook := public.apply_paid_register_order(v_order.id, v_pay.id);
           -- the receipt shows the cart as paid in full
@@ -1011,6 +1025,11 @@ begin
   if v_order.state <> 'paid' then
     raise exception '% is %; only a paid order runs the paid hook', v_order.number, v_order.state
       using errcode = '55000';
+  end if;
+  if exists (select 1 from public.payment q
+             where q.register_order_id = v_order.id and q.reverse_pending_at is not null) then
+    raise exception '% has a void / refund in progress or unconfirmed; it cannot complete until that is settled',
+      v_order.number using errcode = '55000', hint = 'reversal_pending';
   end if;
   if p_payment_id is null then
     select * into v_pay from public.payment
@@ -1206,6 +1225,9 @@ declare
   v_amount numeric;
   v_n int;
   v_ref text;
+  v_order_id uuid;
+  v_order public.register_order;
+  v_other public.payment;
   v_result jsonb;
 begin
   if p_elevation_token is not null then
@@ -1226,10 +1248,23 @@ begin
     return (v_action -> 'result') || '{"replayed": true}'::jsonb;
   end if;
 
-  select * into v_pay from public.payment where id = p_payment_id and org_id = app.org_id() for update;
+  -- Lock order: the cart row, then the payment (as payment_begin and the record functions do),
+  -- so a reservation and a charge on the same cart serialize.
+  select register_order_id into v_order_id from public.payment where id = p_payment_id and org_id = app.org_id();
   if not found then
     raise exception 'payment not found' using errcode = 'P0002';
   end if;
+  if v_order_id is not null then
+    select * into v_order from public.register_order where id = v_order_id for update;
+    select * into v_other from public.payment
+    where register_order_id = v_order_id and state in ('pending', 'indeterminate')
+    order by created_at limit 1;
+    if v_order.state = 'open' and v_other.id is not null then
+      raise exception '% is still % on %; wait for its outcome before a void or refund',
+        v_other.number, v_other.state, v_order.number using errcode = '55000', hint = 'payment_unresolved';
+    end if;
+  end if;
+  select * into v_pay from public.payment where id = p_payment_id for update;
   if v_pay.state <> 'approved' then
     raise exception '% is %; only an approved payment can be voided or refunded', v_pay.number, v_pay.state
       using errcode = '55000';
@@ -1289,6 +1324,9 @@ declare
   v_total numeric;
   v_refund public.register_order;
   v_hook jsonb;
+  v_order public.register_order;
+  v_last uuid;
+  v_order_hook jsonb;
 begin
   select * into v_pay from public.payment where id = p_payment_id;
   v_amount := v_pay.reverse_pending_amount;
@@ -1312,9 +1350,23 @@ begin
     returning * into v_refund;
     v_hook := public.apply_paid_register_order(v_refund.id, null);
   end if;
+  -- A cart held open by this reservation (e.g. a late approval arrived meanwhile) completes now
+  -- if what is STILL captured covers it.
+  select * into v_order from public.register_order where id = v_pay.register_order_id;
+  if v_order.kind = 'sale' and v_order.state = 'open'
+     and not exists (select 1 from public.payment q
+                     where q.register_order_id = v_order.id and q.reverse_pending_at is not null)
+     and (app.register_totals(v_order.id) ->> 'due')::numeric <= 0
+     and (app.register_totals(v_order.id) ->> 'paid')::numeric > 0 then
+    select q.id into v_last from public.payment q
+    where q.register_order_id = v_order.id and q.state = 'approved'
+    order by q.approved_at desc nulls last, q.created_at desc limit 1;
+    update public.register_order set state = 'paid' where id = v_order.id;
+    v_order_hook := public.apply_paid_register_order(v_order.id, v_last);
+  end if;
   return jsonb_build_object('status', p_outcome, 'payment', app.payment_json(v_pay),
     'refund_order', case when v_refund.id is not null then app.register_order_json(v_refund.id) end,
-    'paid_hook', v_hook);
+    'paid_hook', v_hook, 'order_paid_hook', v_order_hook);
 end;
 $$;
 

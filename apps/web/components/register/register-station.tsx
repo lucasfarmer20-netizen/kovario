@@ -509,7 +509,7 @@ export function Register({ session }: { session: StationSession }) {
           <section className="station-card" aria-label="Payment">
             <h2>Payment</h2>
             {blocker && cart.state === "open" && <p className="station-hint">{blocker}</p>}
-            {cart.state === "open" && !cart.blocking_payment_id && (
+            {cart.state === "open" && !cart.blocking_payment_id && !cart.reversal_payment_id && (
               <div className="intake-fields">
                 <label>
                   Tender{" "}

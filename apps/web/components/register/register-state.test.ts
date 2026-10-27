@@ -121,6 +121,14 @@ describe("what the cashier may do", () => {
     expect(
       chargeBlocker(cart({ totals: { subtotal: -5, tax: 0, total: -5, paid: 0, due: -5 } })),
     ).toMatch(/credit/);
+    expect(
+      chargeBlocker(
+        cart({
+          reversal_payment_id: "p-1",
+          payments: [payment({ reverse_pending_kind: "refund", reverse_unresolved: true })],
+        }),
+      ),
+    ).toMatch(/PAY-0001 has a refund in progress or unconfirmed/);
     expect(chargeBlocker(cart())).toBeNull();
   });
 
