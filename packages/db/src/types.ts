@@ -753,14 +753,14 @@ isOneToOne: false
                   ]
                 },"print_agent": {
                   Row: {
-                    "capabilities": NonNullable<Json>,"created_at": string,"id": string,"last_seen_at": string | null,"name": string,"org_id": string,"site_id": string | null,"token_hash": string | null,"updated_at": string
+                    "auth_user_id": string | null,"capabilities": NonNullable<Json>,"created_at": string,"id": string,"last_seen_at": string | null,"name": string,"org_id": string,"pairing_expires_at": string | null,"pairing_key": string,"site_id": string | null,"token_hash": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "capabilities"?: NonNullable<Json>,"created_at"?: string,"id"?: string,"last_seen_at"?: string | null,"name": string,"org_id": string,"site_id"?: string | null,"token_hash"?: string | null,"updated_at"?: string
+                    "auth_user_id"?: string | null,"capabilities"?: NonNullable<Json>,"created_at"?: string,"id"?: string,"last_seen_at"?: string | null,"name": string,"org_id": string,"pairing_expires_at"?: string | null,"pairing_key"?: string,"site_id"?: string | null,"token_hash"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "capabilities"?: NonNullable<Json>,"created_at"?: string,"id"?: string,"last_seen_at"?: string | null,"name"?: string,"org_id"?: string,"site_id"?: string | null,"token_hash"?: string | null,"updated_at"?: string
+                    "auth_user_id"?: string | null,"capabilities"?: NonNullable<Json>,"created_at"?: string,"id"?: string,"last_seen_at"?: string | null,"name"?: string,"org_id"?: string,"pairing_expires_at"?: string | null,"pairing_key"?: string,"site_id"?: string | null,"token_hash"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -779,17 +779,23 @@ isOneToOne: false
                   ]
                 },"print_job": {
                   Row: {
-                    "copies": number,"created_at": string,"error": string | null,"id": string,"kind": Database["public"]['Enums']["print_job_kind"],"org_id": string,"payload": string,"payload_type": Database["public"]['Enums']["print_job_payload_type"],"printer_id": string,"source": NonNullable<Json>,"state": Database["public"]['Enums']["print_job_state"],"updated_at": string
+                    "attempts": number,"claimed_by": string | null,"copies": number,"created_at": string,"error": string | null,"id": string,"kind": Database["public"]['Enums']["print_job_kind"],"org_id": string,"payload": string,"payload_type": Database["public"]['Enums']["print_job_payload_type"],"printer_id": string,"source": NonNullable<Json>,"state": Database["public"]['Enums']["print_job_state"],"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "copies"?: number,"created_at"?: string,"error"?: string | null,"id"?: string,"kind": Database["public"]['Enums']["print_job_kind"],"org_id": string,"payload": string,"payload_type": Database["public"]['Enums']["print_job_payload_type"],"printer_id": string,"source"?: NonNullable<Json>,"state"?: Database["public"]['Enums']["print_job_state"],"updated_at"?: string
+                    "attempts"?: number,"claimed_by"?: string | null,"copies"?: number,"created_at"?: string,"error"?: string | null,"id"?: string,"kind": Database["public"]['Enums']["print_job_kind"],"org_id": string,"payload": string,"payload_type": Database["public"]['Enums']["print_job_payload_type"],"printer_id": string,"source"?: NonNullable<Json>,"state"?: Database["public"]['Enums']["print_job_state"],"updated_at"?: string
                   }
                   Update: {
-                    "copies"?: number,"created_at"?: string,"error"?: string | null,"id"?: string,"kind"?: Database["public"]['Enums']["print_job_kind"],"org_id"?: string,"payload"?: string,"payload_type"?: Database["public"]['Enums']["print_job_payload_type"],"printer_id"?: string,"source"?: NonNullable<Json>,"state"?: Database["public"]['Enums']["print_job_state"],"updated_at"?: string
+                    "attempts"?: number,"claimed_by"?: string | null,"copies"?: number,"created_at"?: string,"error"?: string | null,"id"?: string,"kind"?: Database["public"]['Enums']["print_job_kind"],"org_id"?: string,"payload"?: string,"payload_type"?: Database["public"]['Enums']["print_job_payload_type"],"printer_id"?: string,"source"?: NonNullable<Json>,"state"?: Database["public"]['Enums']["print_job_state"],"updated_at"?: string
                   }
                   Relationships: [
                     {
+      foreignKeyName: "print_job_claimed_by_fkey"
+      columns: ["claimed_by"]
+isOneToOne: false
+      referencedRelation: "print_agent"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "print_job_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
@@ -1786,6 +1792,9 @@ isOneToOne: false
 "admin_create_lodge":
 { Args: { "p_client_action_id": string,"p_contact"?: Json,"p_name": string,"p_pricing_cap": number }; Returns: Json
                            },
+"admin_create_print_agent":
+{ Args: { "p_client_action_id": string,"p_name": string,"p_site_id"?: string }; Returns: Json
+                           },
 "admin_create_rate_card":
 { Args: { "p_client_action_id": string,"p_copy_from"?: string,"p_ends_on": string,"p_name": string,"p_starts_on": string }; Returns: Json
                            },
@@ -1813,8 +1822,16 @@ isOneToOne: false
 "admin_merge_customers":
 { Args: { "p_client_action_id": string,"p_keep_id": string,"p_merge_id": string }; Returns: Json
                            },
+"admin_print_agent_pairing_code":
+{ Args: { "p_agent_id": string,"p_client_action_id": string }; Returns: {
+              "active": boolean,"code": string,"expires_at": string
+            }[]
+                           },
 "admin_rename_site":
 { Args: { "p_client_action_id": string,"p_name": string,"p_site_id": string }; Returns: Json
+                           },
+"admin_save_printer":
+{ Args: { "p_address": string,"p_agent_id": string,"p_client_action_id": string,"p_kind": Database["public"]['Enums']["printer_kind"],"p_name": string,"p_printer_id"?: string,"p_site_id"?: string }; Returns: Json
                            },
 "admin_seed_reference":
 { Args: { "p_client_action_id": string,"p_reference": Json }; Returns: Json
@@ -1855,6 +1872,9 @@ isOneToOne: false
 "billing_link_customer":
 { Args: { "p_customer_id": string,"p_org_id": string }; Returns: string
                            },
+"claim_print_job":
+{ Args: { "p_client_action_id": string }; Returns: Json
+                           },
 "create_customer":
 { Args: { "p_client_action_id": string,"p_email"?: string,"p_name": string,"p_phone": string }; Returns: Json
                            },
@@ -1878,6 +1898,12 @@ isOneToOne: false
 "elevation_status":
 { Args: { "p_token": string }; Returns: Json
                            },
+"enqueue_print_job":
+{ Args: { "p_client_action_id": string,"p_copies"?: number,"p_kind": Database["public"]['Enums']["print_job_kind"],"p_payload": string,"p_payload_type": Database["public"]['Enums']["print_job_payload_type"],"p_printer_id": string,"p_source"?: Json }; Returns: Json
+                           },
+"finish_print_job":
+{ Args: { "p_client_action_id": string,"p_error"?: string,"p_job_id": string }; Returns: Json
+                           },
 "force_transition":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_entity": string,"p_id": string,"p_reason": string,"p_to_state": string }; Returns: Json
                            },
@@ -1894,6 +1920,17 @@ isOneToOne: false
                            },
 "operator_identify":
 { Args: { "p_pin": string }; Returns: Json
+                           },
+"print_agent_bind_auth_user":
+{ Args: { "p_agent_id": string,"p_user_id": string }; Returns: undefined
+                           },
+"print_agent_heartbeat":
+{ Args: { "p_client_action_id": string }; Returns: Json
+                           },
+"print_agent_redeem_pairing":
+{ Args: { "p_code": string }; Returns: {
+              "agent_id": string,"auth_user_id": string,"org_id": string
+            }[]
                            },
 "print_intake_receipt":
 { Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
