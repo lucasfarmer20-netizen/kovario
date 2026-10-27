@@ -379,3 +379,8 @@
     grid-template-columns: 1fr;
   }
 }
+.storage-notes {
+  white-space: pre-wrap;
+  font-size: 14px;
+  margin: 8px 0 0;
+}

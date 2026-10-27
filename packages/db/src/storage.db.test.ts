@@ -133,17 +133,21 @@ describe("storage pickup batches under concurrency", { timeout: 60_000 }, () => 
     const probe = await pool.connect();
     try {
       await holder.query("begin");
-      await holder.query("select 1 from public.storage_intake where id = $1 for update", [intakeId]);
-      const pid = (await actor.query<{ pid: number }>("select pg_backend_pid() as pid")).rows[0]!.pid;
+      await holder.query("select 1 from public.storage_intake where id = $1 for update", [
+        intakeId,
+      ]);
+      const pid = (await actor.query<{ pid: number }>("select pg_backend_pid() as pid")).rows[0]!
+        .pid;
       const pending = act(actor);
       pending.catch(() => undefined); // observed below
       expect(await waitingOnLock(pool, pid)).toBe(true);
       if (batchId) {
         await probe.query("begin");
         // The waiting transaction has not locked the batch: it reads/guards only after the intake.
-        await probe.query("select 1 from public.storage_pickup_batch where id = $1 for update nowait", [
-          batchId,
-        ]);
+        await probe.query(
+          "select 1 from public.storage_pickup_batch where id = $1 for update nowait",
+          [batchId],
+        );
         await probe.query("rollback");
       }
       await holder.query("commit");
@@ -162,7 +166,11 @@ describe("storage pickup batches under concurrency", { timeout: 60_000 }, () => 
     const old = await pendingBatch(intakeId, boxIds.slice(0, 1));
     await expectIntakeLockedFirst(intakeId, old, async (c) => {
       await begin(c, org, "staff");
-      return c.query("select public.create_pickup_batch($1, $2, $3)", [randomUUID(), intakeId, boxIds]);
+      return c.query("select public.create_pickup_batch($1, $2, $3)", [
+        randomUUID(),
+        intakeId,
+        boxIds,
+      ]);
     });
     const { rows } = await pool.query<{ state: string }>(
       "select state from public.storage_pickup_batch where id = $1",
