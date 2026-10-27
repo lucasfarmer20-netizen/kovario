@@ -16,3 +16,4 @@ export * from "./states.ts";
 export * from "./reference-seed.ts";
 export * from "./reconcile";
 export * from "./allocation.ts";
+export * from "./locations";

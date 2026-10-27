@@ -57,6 +57,32 @@ export function locationTag(v: { orgSlug: string; rearCode: string; frontCode: s
     qr(25, 750, encode("LOC", { orgSlug: v.orgSlug, code: v.frontCode })),
   );
 }
+/** One existing location master code: a pallet / quarantine location or an unpaired shelf. */
+export function singleLocationTag(v: { orgSlug: string; code: string }): string {
+  return label(
+    text(25, 20, v.code, 62, 38),
+    qr(25, 140, encode("LOC", { orgSlug: v.orgSlug, code: v.code })),
+  );
+}
+/**
+ * Tag sheet for existing location master codes, in the order given (walk order). A shelf
+ * whose F and R positions are both listed shares one rear-over-front label; every other
+ * code prints alone. Never invents a code that was not passed in.
+ */
+export function locationTagSheet(v: { orgSlug: string; codes: string[] }): string {
+  const listed = new Set(v.codes);
+  const labels: string[] = [];
+  for (const code of v.codes) {
+    const base = code.slice(0, -1);
+    if (code.endsWith("-R") && listed.has(`${base}F`)) continue;
+    labels.push(
+      code.endsWith("-F") && listed.has(`${base}R`)
+        ? locationTag({ orgSlug: v.orgSlug, rearCode: `${base}R`, frontCode: code })
+        : singleLocationTag({ orgSlug: v.orgSlug, code }),
+    );
+  }
+  return labels.join("\n");
+}
 export function assetTagSheet(v: { orgSlug: string; codes: string[] }): string {
   return v.codes
     .map((raw) => {
