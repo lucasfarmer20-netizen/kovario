@@ -27,7 +27,7 @@ PC, Raspberry Pi). It replaces the Odoo IoT box.
 
 ## 2. Labels (`packages/labels/`)
 
-- **Tote tag** (4×6 ZPL): intake number ≥ 100 pt, QR `KV:TOTE`, species/lb lines with
+- **Tote tag** (4×6 ZPL): intake number ≥ 100 pt, QR `FL:TOTE`, species/lb lines with
   shorthand, customer name, date, "Tote X of Y", banners FAST PASS / DIRTY / RIBBING /
   SMOKED EXCHANGE.
 - **Storage box label**, **box/pick label**, **location tag** (one tag per shelf

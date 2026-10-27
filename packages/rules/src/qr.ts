@@ -1,12 +1,12 @@
 // QR payloads (docs/02-DOMAIN-MODEL.md §13). The ONLY producer and parser of QR text:
 // every label template and every scan handler imports from here.
 //
-//   Tote tag     KV:TOTE:<INT-0001>:<n>
-//   Asset tag    KV:TAG:<org_slug>:<042>
-//   Location     KV:LOC:<org_slug>:<IF-A-01-1-F>
-//   Boxing token KV:BOX:<settlement.boxing_token>
-//   Storage box  KV:SBOX:<STG-0001>:<n>
-//   Pairing      KV:PAIR:<code>   one-time device pairing code (8 chars, see PAIRING_ALPHABET),
+//   Tote tag     FL:TOTE:<INT-0001>:<n>
+//   Asset tag    FL:TAG:<org_slug>:<042>
+//   Location     FL:LOC:<org_slug>:<IF-A-01-1-F>
+//   Boxing token FL:BOX:<settlement.boxing_token>
+//   Storage box  FL:SBOX:<STG-0001>:<n>
+//   Pairing      FL:PAIR:<code>   one-time device pairing code (8 chars, see PAIRING_ALPHABET),
 //                                 scanned at /pair by the station tablet's scanner
 //
 // Scan handlers also accept the bare legacy forms `INT-0001` (a tote of that intake) and
@@ -14,7 +14,7 @@
 // legacy form: only /pair accepts a typed code (via normalizePairingCode), so an 8-character
 // scan at a station is never mistaken for one.
 
-export const QR_PREFIX = "KV";
+export const QR_PREFIX = "FL";
 export const QR_KINDS = ["TOTE", "TAG", "LOC", "BOX", "SBOX", "PAIR"] as const;
 export type QrKind = (typeof QR_KINDS)[number];
 
