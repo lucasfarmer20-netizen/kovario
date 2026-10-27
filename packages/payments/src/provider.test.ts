@@ -170,6 +170,13 @@ describe("scrub", () => {
     expect(out.error).toContain("ref=abc-1");
   });
 
+  it("redacts secrets in escaped JSON inside a string (a double-encoded body)", () => {
+    const raw = 'upstream said {\\"Authkey\\":\\"SECRET-789\\",\\"Tpn\\":\\"T1\\"}';
+    const out = scrubSecrets({ error: raw }) as { error: string };
+    expect(out.error).not.toContain("SECRET-789");
+    expect(out.error).toBe('upstream said {\\"Authkey\\":\\"[redacted]\\",\\"Tpn\\":\\"T1\\"}');
+  });
+
   it("takes adapter-specific keys and survives cycles", () => {
     const a: Record<string, unknown> = { RegisterSecret: "x", n: 1 };
     a.self = a;

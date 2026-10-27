@@ -31,9 +31,12 @@ function isSecretKey(key: string, extra: ReadonlySet<string>): boolean {
   return SECRET_KEYS.has(k) || extra.has(k);
 }
 
-/** `key=value`, `key: value`, `"key":"value"` inside a string. */
+/**
+ * `key=value`, `key: value`, `"key":"value"` inside a string — also escaped JSON
+ * (`{\"key\":\"value\"}`, a body double-encoded into an exception message).
+ */
 const INLINE_PAIR =
-  /(["']?)([A-Za-z][A-Za-z0-9_-]*)\1(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s"',;&}\]]+)/g;
+  /(\\?["']?)([A-Za-z][A-Za-z0-9_-]*)\1(\s*[:=]\s*)(\\?"(?:[^"\\]|\\(?!"))*\\?"|'[^']*'|[^\s"'\\,;&}\]]+)/g;
 const BEARER = /\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi;
 
 function redactInline(s: string, extra: ReadonlySet<string>): string {
@@ -41,7 +44,11 @@ function redactInline(s: string, extra: ReadonlySet<string>): string {
     .replace(BEARER, `Bearer ${REDACTED}`)
     .replace(INLINE_PAIR, (match, q: string, key: string, sep: string, value: string) => {
       if (!isSecretKey(key, extra)) return match;
-      const vq = value[0] === '"' || value[0] === "'" ? value[0] : "";
+      const vq = value.startsWith('\\"')
+        ? '\\"'
+        : value[0] === '"' || value[0] === "'"
+          ? value[0]
+          : "";
       return `${q}${key}${q}${sep}${vq}${REDACTED}${vq}`;
     });
 }

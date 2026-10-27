@@ -126,6 +126,15 @@ export function Register({ session }: { session: StationSession }) {
   const [lastPaymentId, setLastPaymentId] = useState<string | null>(null);
   const [gate, setGate] = useState<Gate | null>(null);
   const [gateDraft, setGateDraft] = useState<Gate | null>(null);
+  // markable() depends on the clock: re-check it while a payment is still pending, so
+  // "Manager: mark…" appears once the in-flight window has passed without another action.
+  const [now, setNow] = useState(() => Date.now());
+  const hasPending = cart?.payments.some((p) => p.state === "pending") ?? false;
+  useEffect(() => {
+    if (!hasPending) return;
+    const t = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(t);
+  }, [hasPending]);
   const sale = useRef<AbortController | null>(null);
   // One client_action_id per intent, reused on retry until it succeeds.
   const intents = useRef<Record<string, string>>({});
@@ -623,7 +632,7 @@ export function Register({ session }: { session: StationSession }) {
                 >
                   Check status
                 </button>
-                {markable(p) ? (
+                {markable(p, now) ? (
                   <button
                     type="button"
                     disabled={busy || charging}
