@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { adminPageSession } from "@/lib/auth";
+import { fetchAllPages } from "@/lib/locations";
 import { ActionForm } from "@/components/admin/action-form";
 import { addPallet, generateLocations, printLocationTags, setArchived } from "./actions";
 
@@ -12,19 +13,29 @@ export default async function LocationsPage({
   const session = await adminPageSession();
   if (!session) return null;
   const { zone: zoneParam } = await searchParams;
-  const zones = await session.supabase.from("location").select("zone").order("zone");
-  const zoneList = [...new Set((zones.data ?? []).map((z) => z.zone))];
+  const { supabase } = session;
+  // Every read pages past the PostgREST row cap: one generator run can exceed it.
+  const zoneRows = await fetchAllPages((from, to) =>
+    supabase.from("location").select("zone,id").order("zone").order("id").range(from, to),
+  ).catch(() => null);
+  const zoneList = [...new Set((zoneRows ?? []).map((z) => z.zone))];
   const zone = zoneParam && zoneList.includes(zoneParam) ? zoneParam : zoneList[0];
-  const [locations, printers] = await Promise.all([
+  const [locationRows, printers] = await Promise.all([
     zone
-      ? session.supabase
-          .from("location")
-          .select("id,code,kind,is_active,capacity")
-          .eq("zone", zone)
-          .order("sort_key")
-      : Promise.resolve({ data: [], error: null }),
-    session.supabase.from("printer").select("id,name").eq("kind", "label_zpl"),
+      ? fetchAllPages((from, to) =>
+          supabase
+            .from("location")
+            .select("id,code,kind,is_active,capacity")
+            .eq("zone", zone)
+            .order("sort_key")
+            .order("id")
+            .range(from, to),
+        ).catch(() => null)
+      : [],
+    supabase.from("printer").select("id,name").eq("kind", "label_zpl"),
   ]);
+  const loadError = zoneRows === null || locationRows === null;
+  const locations = locationRows ?? [];
   return (
     <div className="space-y-6">
       <h1>Freezer locations</h1>
@@ -82,10 +93,10 @@ export default async function LocationsPage({
           </Link>
         ))}
       </nav>
-      {(zones.error || locations.error) && <p role="alert">Unable to load locations</p>}
+      {loadError && <p role="alert">Unable to load locations</p>}
       {!zone && <p>No locations yet. Generate the first rack above.</p>}
       <ul>
-        {locations.data?.map((l) => (
+        {locations.map((l) => (
           <li key={l.id} className="flex items-center gap-4 border-b py-2">
             <strong className={l.is_active ? "" : "line-through"}>{l.code}</strong>
             <span>

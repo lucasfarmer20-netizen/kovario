@@ -6,7 +6,22 @@ import { locationTagSheet } from "labels/zpl";
 import { enqueuePrintJob } from "db";
 import { adminMutation, unwrap, type ActionState } from "@/lib/admin-action";
 import type { ManagerSession } from "@/lib/auth";
-import { parseRackRows } from "@/lib/locations";
+import { fetchAllPages, parseRackRows } from "@/lib/locations";
+
+/** Every active code in the zone, in walk order (paged past the PostgREST row cap). */
+async function activeZoneCodes(supabase: ManagerSession["supabase"], zone: string) {
+  const rows = await fetchAllPages((from, to) =>
+    supabase
+      .from("location")
+      .select("code")
+      .eq("zone", zone)
+      .eq("is_active", true)
+      .order("sort_key")
+      .order("id")
+      .range(from, to),
+  );
+  return rows.map((l) => l.code);
+}
 
 async function orgSlug({ supabase, claims }: ManagerSession): Promise<string> {
   const org = unwrap(await supabase.from("org").select("slug").eq("id", claims.orgId).single());
@@ -57,11 +72,19 @@ export async function addPallet(_: ActionState, form: FormData): Promise<ActionS
         const { supabase } = session;
         const [slug, existing] = await Promise.all([
           orgSlug(session),
-          supabase.from("location").select("code").eq("kind", "pallet"),
+          fetchAllPages((from, to) =>
+            supabase
+              .from("location")
+              .select("code")
+              .eq("kind", "pallet")
+              .order("code")
+              .order("id")
+              .range(from, to),
+          ),
         ]);
         const pallet = nextPalletLocation(
           String(form.get("zone") ?? ""),
-          (unwrap(existing) ?? []).map((l) => l.code),
+          existing.map((l) => l.code),
         );
         return unwrap(
           await supabase.rpc("admin_locations", {
@@ -106,16 +129,10 @@ export async function printLocationTags(_: ActionState, form: FormData): Promise
       async (session, id) => {
         const { supabase } = session;
         const zone = String(form.get("zone") ?? "");
-        const [slug, locations] = await Promise.all([
+        const [slug, codes] = await Promise.all([
           orgSlug(session),
-          supabase
-            .from("location")
-            .select("code")
-            .eq("zone", zone)
-            .eq("is_active", true)
-            .order("sort_key"),
+          activeZoneCodes(supabase, zone),
         ]);
-        const codes = (unwrap(locations) ?? []).map((l) => l.code);
         if (codes.length === 0) throw new Error("No active locations in that zone.");
         return enqueuePrintJob(supabase, id, {
           printerId: String(form.get("printer_id")),
