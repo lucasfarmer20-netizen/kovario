@@ -106,7 +106,7 @@ PY
 # a worker otherwise sits idle on a change request. Tell the owning session where to read it.
 notify_worker() {
   local num="$1" branch="$2" head="$3" what="$4" sid
-  sid=$(ao_session "https://github.com/$REPO/pull/$num" "$branch" | tr -d '\r')
+  sid=$(ao_session "https://github.com/$REPO/pull/$num" "$branch" | tr -d '\r') || return 0
   [ -z "$sid" ] && return 0
   timeout 120 ao send --session "$sid" --message "The GitHub reviewer ($REVIEWER_LOGIN) $what on PR #$num at ${head:0:7}. Read it with: gh pr view $num --json reviews,comments, then address every required finding, re-run the checks in AGENTS.md, and push." \
     </dev/null >/dev/null 2>&1 && echo "-- #$num: told $sid about the review" || echo "!! could not notify $sid about #$num"
@@ -123,7 +123,9 @@ pass() {
     [[ "$labels" == *area:critical* ]] && critical=true
     if [ -n "$issue" ] && gh issue view "$issue" -R "$REPO" --json labels -q '.labels[].name' | grep -q area:critical; then critical=true; fi
     # already reviewed this exact commit by the reviewer account?
-    mine=$(my_review "$num" "$head")
+    # a transient API error skips this PR for this pass (under set -e it would end the pass,
+    # and treating it as "not reviewed" would review the same commit twice)
+    mine=$(my_review "$num" "$head") || { echo "-- #$num: could not read reviews, skip"; continue; }
     if [ -n "$mine" ]; then
       # approved but not merged or queued (e.g. an earlier merge call failed): merge now
       if [ "$mine" = APPROVED ] && [ "$critical" = false ] && [ "$(jq -r '.autoMergeRequest == null' <<<"$pr")" = true ]; then
@@ -136,7 +138,7 @@ pass() {
     state=$(gh api "repos/$REPO/commits/$head/check-runs" -q '[.check_runs[]|select(.name=="check")|.conclusion][0]' 2>/dev/null || echo null)
     [ "$state" = "null" ] && { echo "-- #$num: CI still running, skip"; continue; }
     if [ "${AO_GATE:-1}" != 0 ]; then
-      verdict=$(ao_verdict "https://github.com/$REPO/pull/$num" "$branch" "$head" | tr -d '\r')
+      verdict=$(ao_verdict "https://github.com/$REPO/pull/$num" "$branch" "$head" | tr -d '\r') || verdict=pending
       case "$verdict" in
         none) ;;
         pending) echo "-- #$num: AO review of ${head:0:7} not finished, skip"; continue ;;
@@ -147,9 +149,10 @@ pass() {
       esac
     fi
     review_one "$num" "$head" "$critical"
-    result=$(my_review "$num" "$head")
+    result=$(my_review "$num" "$head") || result=
     if [ "$critical" = true ]; then
-      notify_worker "$num" "$branch" "$head" "posted review findings as a PR comment (area:critical: a human merges)"
+      # only when the review comment actually landed on this commit
+      [ "$result" = COMMENTED ] && notify_worker "$num" "$branch" "$head" "posted review findings as a review comment (area:critical: a human merges)"
     elif [ "$result" = APPROVED ]; then
       merge_approved "$num"
     elif [ "$result" = CHANGES_REQUESTED ]; then
