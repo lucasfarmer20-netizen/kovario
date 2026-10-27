@@ -63,6 +63,7 @@ export type ReleaseReply = {
   stale: ReleaseStale[];
   closed_intakes: string[];
   shipping: { box_number: string; notice: string }[];
+  i8_override?: boolean;
 };
 
 export function completeRelease(
@@ -72,6 +73,8 @@ export function completeRelease(
   payload: CompletePayload,
   paymentRef: string,
   operatorSession: string | null,
+  /** I8 manager override: reason + elevation token (null when a manager is signed in). */
+  override?: { reason: string; token: string | null },
 ) {
   return act<ReleaseReply>(client, clientActionId, (id) =>
     client.rpc("release_party", {
@@ -81,6 +84,8 @@ export function completeRelease(
       p_vessel_ticks: payload.vessel_ticks as unknown as Json,
       p_payment_ref: paymentRef.trim() || undefined,
       p_operator_session: operatorSession ?? undefined,
+      p_i8_override_reason: override?.reason,
+      p_elevation_token: override?.token ?? undefined,
     }),
   );
 }

@@ -138,7 +138,9 @@ export function BoxingStation({ sessionId }: { sessionId: string }) {
 
 type ManagerAction =
   | { kind: "tag"; tag: string; lbsLeft: number | null; reason: string }
-  | { kind: "restore"; vessel: EmptiedVessel; reason: string };
+  | { kind: "restore"; vessel: EmptiedVessel; reason: string }
+  /** I8 manager override: finalise boxes when no tote is left for this party to tick. */
+  | { kind: "i8"; reason: string };
 
 function BoxingParty({ session, sessionId }: { session: StationSession; sessionId: string }) {
   const { client, claims, siteName } = session;
@@ -156,6 +158,8 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   const [tagForm, setTagForm] = useState({ tag: "", lbsLeft: "", reason: "" });
   const [restoreReason, setRestoreReason] = useState("");
   const [pending, setPending] = useState<ManagerAction | null>(null);
+  const [i8Blocked, setI8Blocked] = useState(false);
+  const [i8Reason, setI8Reason] = useState("");
 
   const typing = {
     onFocus: () => setEditing(true),
@@ -225,7 +229,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     }
   }
 
-  async function complete() {
+  async function complete(override?: { reason: string; token: string | null }) {
     if (!wizard || busy || !op.allowed()) return;
     const issues = lineIssues(wizard, ticks);
     if (issues.length > 0) {
@@ -246,8 +250,11 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
         payload,
         paymentRef,
         op.proof,
+        override,
       );
       setReply(r);
+      setI8Blocked(false);
+      setI8Reason("");
       if (r.noop) {
         setFeedback({ tone: "warn", text: r.message ?? "Nothing to release." });
         await refresh(false); // stay on the form (I7)
@@ -262,6 +269,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     } catch (err) {
       const text = err instanceof Error ? err.message : "Complete failed";
       if (text.includes("operator_pin_required")) op.expire();
+      setI8Blocked(text.includes("(I8)"));
       setFeedback({ tone: "error", text });
     } finally {
       setBusy(false);
@@ -269,6 +277,10 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   }
 
   async function runManager(action: ManagerAction, token: string | null) {
+    if (action.kind === "i8") {
+      await complete({ reason: action.reason, token });
+      return;
+    }
     if (action.kind === "tag") {
       const r = await releaseByTag(client, action.tag, action.lbsLeft, action.reason, token);
       setFeedback({
@@ -468,6 +480,25 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
           </button>
           <Link href="/boxing">Queue</Link>
         </div>
+        {i8Blocked && (
+          <div aria-label="I8 override">
+            <p className="station-hint">
+              No tote is left to tick for this party (another party or a tag release took the last
+              basket)? A manager can finalise the ticked boxes with a reason.
+            </p>
+            <label>
+              Override reason
+              <input value={i8Reason} onChange={(e) => setI8Reason(e.target.value)} {...typing} />
+            </label>
+            <button
+              type="button"
+              disabled={busy || !i8Reason.trim()}
+              onClick={() => void manager({ kind: "i8", reason: i8Reason.trim() })}
+            >
+              Manager override
+            </button>
+          </div>
+        )}
         {reply && !reply.noop && (
           <ul aria-label="Last Complete">
             {reply.finalized.map((b) => (

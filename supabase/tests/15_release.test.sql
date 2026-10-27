@@ -546,6 +546,55 @@ select matches(pg_temp.err($$select pg_temp.release('s8b', '{b8b1}')$$), '^55000
 select is(pg_temp.release('s8b', '{b8b1}', '[["v8b", 0]]') ->> 'noop', 'false', 'I8 — ticking a tote unblocks');
 select is(pg_temp.release('s8b', '{b8b2}') ->> 'noop', 'false', 'I8 — later box-only trips ride the net movement');
 
+-- I8 manager override (decided on PR #67): a co-pooling party whose shared intake's last
+-- basket was released by another party, or by an unattributed tag release, has no tote left.
+reset role;
+create function pg_temp.override(p_session text, p_boxes text[], p_reason text) returns jsonb language sql as $$
+  select public.release_party(gen_random_uuid()::text, pg_temp.id(p_session),
+    (select array_agg(pg_temp.id(b)) from unnest(p_boxes) b), '[]', null, null, p_reason)
+$$;
+grant execute on function pg_temp.override(text, text[], text) to authenticated;
+set local role authenticated;
+select pg_temp.as_user('staff');
+select is((select count(*)::int from public.vessel where intake_id = pg_temp.id('i1s') and lifecycle_state = 'occupied'),
+  0, 'I8 OVERRIDE — s1s released i1s''s only basket: s1o has no tote left to tick');
+select matches(pg_temp.err($$select pg_temp.release('s1o', '{b1o}')$$), '^55000 .*ask a manager to override',
+  'I8 OVERRIDE — without the override s1o''s box is blocked (I8 as written)');
+select matches(pg_temp.err($$select pg_temp.override('s1o', '{b1o}', 'fish left with ALC s1s')$$), '^42501',
+  'I8 OVERRIDE — staff cannot override');
+select pg_temp.as_user('manager');
+select matches(pg_temp.err($$select pg_temp.override('s1o', '{b1o}', '  ')$$), '^22023 .*reason',
+  'I8 OVERRIDE — needs a reason');
+select is(pg_temp.override('s1o', '{b1o}', 'fish left with the other party') ->> 'i8_override', 'true',
+  'I8 OVERRIDE — a manager completes the remaining co-pooling party');
+select is(pg_temp.bstate('b1o') || '/' || pg_temp.istate('i1s'), 'picked_up/done',
+  'I8 OVERRIDE — the box finalises and the shared intake closes (I10)');
+select is((select detail -> 'i8_override' ->> 'reason' || '/' || (detail -> 'i8_override' ->> 'approved_by')
+           from public.release_audit where session_id = pg_temp.id('s1o') and event_kind = 'finalized'),
+  'fish left with the other party/a1500000-0000-4000-8000-0000000000e1',
+  'I8 OVERRIDE — the reason and approving manager are on the finalized audit row');
+
+reset role;
+select pg_temp.intake('i_two'); select pg_temp.vessel('v_two', 'i_two', 9, '7201');
+select pg_temp.session('s_two_a', '{i_two}'); select pg_temp.box('b_two_a', 's_two_a', 'Ann');
+select pg_temp.session('s_two_b', '{i_two}'); select pg_temp.box('b_two_b', 's_two_b', 'Bea');
+set local role authenticated;
+select pg_temp.as_user('manager');
+select ok((pg_temp.by_tag('7201') ->> 'warnings') ~ 'pooled in ALC-.*, ALC-',
+  'I8 OVERRIDE — tag release with two active pooling parties warns and attributes no session');
+select is(pg_temp.audit('{i_two}'), '{moved:i_two:v_two:-}', 'I8 OVERRIDE — the movement row has no session');
+select pg_temp.as_user('staff');
+select matches(pg_temp.err($$select pg_temp.release('s_two_a', '{b_two_a}')$$), '^55000 .*I8',
+  'I8 OVERRIDE — after an unattributed tag release both parties are blocked');
+select pg_temp.as_user('manager');
+select lives_ok($$select pg_temp.override('s_two_a', '{b_two_a}', 'released by tag')$$,
+  'I8 OVERRIDE — the manager completes the first party');
+select is(pg_temp.istate('i_two'), 'stored', 'I8 OVERRIDE — still open while the second party has a planned box (I10 d)');
+select lives_ok($$select pg_temp.override('s_two_b', '{b_two_b}', 'released by tag')$$,
+  'I8 OVERRIDE — and the second');
+select is(pg_temp.istate('i_two'), 'done', 'I8 OVERRIDE — the shared intake closes once both parties are clear');
+select pg_temp.as_user('staff');
+
 -- Restore -----------------------------------------------------------------------------------------
 select is(pg_temp.audit('{i8b}'), '{finalized:i8b:-:s8b,finalized:i8b:-:s8b,moved:i8b:v8b:s8b,moved:i8b:v8b:s8b,restored:i8b:v8b:s8b}',
   'RESTORE — append-only: the restore is its own row, attributed to the netting party');

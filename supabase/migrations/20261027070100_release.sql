@@ -255,13 +255,20 @@ $$;
 -- and split the selection: input faults abort everything, stale-but-was-valid selections are
 -- dropped (reported in `stale`), the actionable remainder applies; empty remainder → no-op
 -- (I7). Then I8, vessels, boxes, audit (I9), session done, I10.
+-- p_i8_override_reason: manager remedy for an I8 block (decided on PR #67): when another
+--   party sharing the intake, or an unattributed Release-by-Tag, already emptied the last
+--   basket, this party has no tote left to tick. A manager (signed in, or p_elevation_token
+--   from a station) may finalise its boxes anyway; the reason and approver ride the
+--   `finalized` audit rows. Without it I8 stays a hard block.
 create or replace function public.release_party(
   p_client_action_id text,
   p_session_id uuid,
   p_box_ticks uuid[] default '{}',
   p_vessel_ticks jsonb default '[]'::jsonb,
   p_payment_ref text default null,
-  p_operator_session uuid default null
+  p_operator_session uuid default null,
+  p_i8_override_reason text default null,
+  p_elevation_token text default null
 )
 returns jsonb
 language plpgsql
@@ -270,6 +277,9 @@ set search_path = ''
 as $$
 declare
   v_org uuid := app.org_id();
+  v_override_reason text := nullif(btrim(p_i8_override_reason), '');
+  v_override_by uuid;
+  v_override jsonb;
   v_boxes_in uuid[] := coalesce(p_box_ticks, '{}');
   v_lines jsonb := coalesce(p_vessel_ticks, '[]'::jsonb);
   v_ref text := nullif(btrim(p_payment_ref), '');
@@ -301,9 +311,15 @@ begin
   perform app.require_role('{owner,manager,staff,cashier,station}');
   v_action := app.action_begin(p_client_action_id, 'release.party', jsonb_build_object(
     'session_id', p_session_id, 'box_ticks', to_jsonb(v_boxes_in), 'vessel_ticks', v_lines,
-    'payment_ref', v_ref));
+    'payment_ref', v_ref, 'i8_override_reason', v_override_reason));
   if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
   v_op := app.boxing_operator(p_operator_session);
+  if p_i8_override_reason is not null then
+    if v_override_reason is null then
+      raise exception 'an I8 override needs a reason' using errcode = '22023';
+    end if;
+    v_override_by := app.release_manager(p_elevation_token);
+  end if;
 
   -- Shape ----------------------------------------------------------------------------------
   if exists (select 1 from unnest(v_boxes_in) b where b is null)
@@ -438,10 +454,13 @@ begin
   end if;
 
   -- I8: finalising a box is a hard block when fish has not moved for the party — no tote
-  -- acted on this run and no net `moved` row for the session.
+  -- acted on this run and no net `moved` row for the session — unless a manager overrides.
   if cardinality(v_boxes) > 0 and v_moves = '{}'::jsonb and app.party_net_movement(v_session.id) <= 0 then
-    raise exception 'no fish has moved for % yet: tick the totes being handed over before finalising boxes (I8)',
-      v_session.number using errcode = '55000';
+    if v_override_by is null then
+      raise exception 'no fish has moved for % yet: tick the totes being handed over before finalising boxes, or ask a manager to override (I8)',
+        v_session.number using errcode = '55000';
+    end if;
+    v_override := jsonb_build_object('reason', v_override_reason, 'approved_by', v_override_by);
   end if;
 
   -- Vessels (I5/I6): full pull or split, sorted ids.
@@ -467,6 +486,7 @@ begin
     insert into public.release_audit (org_id, intake_id, session_id, event_kind, released_by, payment_ref, detail)
     select v_org, i, v_session.id, 'finalized', v_op, v_ref, jsonb_build_object(
       'path', 'party',
+      'i8_override', v_override,
       'box_plan_ids', (select jsonb_agg(f -> 'box_id') from jsonb_array_elements(v_finalized) f),
       'box_numbers', (select jsonb_agg(f -> 'number') from jsonb_array_elements(v_finalized) f))
     from unnest(v_pooled) i;
@@ -497,7 +517,7 @@ begin
     'session_state', v_session.state, 'finalized', v_finalized, 'moved', v_moved, 'stale', v_stale,
     'closed_intakes', (select coalesce(jsonb_agg(number order by app.number_order(number)), '[]'::jsonb)
                        from public.intake where id = any (v_closed)),
-    'shipping', v_shipping);
+    'shipping', v_shipping, 'i8_override', v_override is not null);
   perform app.emit_event(v_org, 'party_released', v_session.id, jsonb_build_object(
     'boxes', (select coalesce(jsonb_agg(f -> 'box_id'), '[]'::jsonb) from jsonb_array_elements(v_finalized) f),
     'vessels', (select coalesce(jsonb_agg(m -> 'vessel_id'), '[]'::jsonb) from jsonb_array_elements(v_moved) m),
@@ -874,14 +894,14 @@ grant execute on function app.try_close_after_release(uuid[]), app.pooling_sessi
   app.party_net_movement(uuid) to service_role;
 
 revoke all on function
-  public.release_party(text, uuid, uuid[], jsonb, text, uuid),
+  public.release_party(text, uuid, uuid[], jsonb, text, uuid, text, text),
   public.release_by_tag(text, text, numeric, text, text),
   public.restore_vessel(text, uuid, text, text),
   public.boxing_wizard(uuid),
   public.shipment_buy_check(uuid, boolean, text)
 from public, anon;
 grant execute on function
-  public.release_party(text, uuid, uuid[], jsonb, text, uuid),
+  public.release_party(text, uuid, uuid[], jsonb, text, uuid, text, text),
   public.release_by_tag(text, text, numeric, text, text),
   public.restore_vessel(text, uuid, text, text),
   public.boxing_wizard(uuid),

@@ -114,10 +114,15 @@ function setup(
     shipping: [],
     closed_intakes: [],
   },
+  appRole = "staff",
+  releaseErrors: string[] = [],
 ) {
   const rpc = vi.fn(async (name: string) => {
     if (name === "boxing_wizard") return { data: WIZARD, error: null };
-    if (name === "release_party") return { data: release, error: null };
+    if (name === "release_party") {
+      const message = releaseErrors.shift();
+      return message ? { data: null, error: { message } } : { data: release, error: null };
+    }
     return { data: null, error: null };
   });
   const settlementSession = vi.fn(() => ({ data: { session_id: "other" }, error: null }));
@@ -137,7 +142,7 @@ function setup(
   };
   mocks.session = {
     client: { rpc, from },
-    claims: { orgId: "org", userId: "u", appRole: "staff" },
+    claims: { orgId: "org", userId: "u", appRole },
     siteName: "Dock",
   };
   render(<BoxingStation sessionId="s1" />);
@@ -219,4 +224,27 @@ it("WP15 scanning a tag ticks its tote; another party's boxing QR is refused (I1
   );
   fireEvent.keyDown(scanner, { key: "Enter", target: { value: "FL:BOX:othertoken" } });
   expect(await screen.findByText(/belongs to another party; one party per Complete/)).toBeTruthy();
+});
+
+it("WP15 I8 refusal offers a manager override that resends with the reason", async () => {
+  const { rpc } = setup(undefined, "manager", [
+    "no fish has moved for ALC-0001 yet: tick the totes being handed over before finalising boxes, or ask a manager to override (I8)",
+  ]);
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  fireEvent.click(screen.getByText("Complete"));
+  expect(await screen.findByText(/ask a manager to override/)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("Override reason"), {
+    target: { value: "last basket left with ALC-0002" },
+  });
+  fireEvent.click(screen.getByText("Manager override"));
+  await waitFor(() =>
+    expect(rpc).toHaveBeenCalledWith(
+      "release_party",
+      expect.objectContaining({
+        p_box_ticks: ["b1"],
+        p_i8_override_reason: "last basket left with ALC-0002",
+      }),
+    ),
+  );
+  expect(await screen.findByText(/Released: 0 box\(es\)/)).toBeTruthy();
 });

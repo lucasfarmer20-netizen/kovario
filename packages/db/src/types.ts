@@ -2304,7 +2304,7 @@ isOneToOne: false
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_lbs_left"?: number,"p_reason"?: string,"p_tag": string }; Returns: Json
                            },
 "release_party":
-{ Args: { "p_box_ticks"?: (string)[],"p_client_action_id": string,"p_operator_session"?: string,"p_payment_ref"?: string,"p_session_id": string,"p_vessel_ticks"?: Json }; Returns: Json
+{ Args: { "p_box_ticks"?: (string)[],"p_client_action_id": string,"p_elevation_token"?: string,"p_i8_override_reason"?: string,"p_operator_session"?: string,"p_payment_ref"?: string,"p_session_id": string,"p_vessel_ticks"?: Json }; Returns: Json
                            },
 "reprint_intake_tote_tags":
 { Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
