@@ -426,3 +426,6 @@ verify_jwt = false
 
 [functions.member-invite]
 verify_jwt = false
+
+[functions.print-agent-pair]
+verify_jwt = false

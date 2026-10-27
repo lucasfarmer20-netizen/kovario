@@ -5,7 +5,8 @@
   "description": "ZPL + PDF label and receipt templates.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./zpl": "./src/zpl.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -14,7 +15,13 @@
   },
   "devDependencies": {
     "@types/node": "20.19.43",
+    "@types/qrcode": "1.5.6",
     "typescript": "5.9.3",
     "vitest": "4.1.12"
+  },
+  "dependencies": {
+    "playwright": "1.58.2",
+    "qrcode": "1.5.4",
+    "rules": "workspace:*"
   }
 }

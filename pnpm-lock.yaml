@@ -40,10 +40,26 @@ importers:
         version: 4.1.12(@types/node@20.19.43)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
   agent/print-agent:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: 2.118.0
+        version: 2.118.0
+      db:
+        specifier: workspace:*
+        version: link:../../packages/db
+      labels:
+        specifier: workspace:*
+        version: link:../../packages/labels
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: 20.19.43
         version: 20.19.43
+      bun:
+        specifier: 1.3.1
+        version: 1.3.1
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -65,6 +81,9 @@ importers:
       db:
         specifier: workspace:*
         version: link:../../packages/db
+      labels:
+        specifier: workspace:*
+        version: link:../../packages/labels
       lucide-react:
         specifier: 1.61.0
         version: 1.61.0(@types/react@19.3.0)(react@19.3.1)
@@ -144,10 +163,23 @@ importers:
         version: 4.1.12(@types/node@20.19.43)(@vitest/coverage-v8@4.1.12)(vite@8.3.5(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
   packages/labels:
+    dependencies:
+      playwright:
+        specifier: 1.58.2
+        version: 1.58.2
+      qrcode:
+        specifier: 1.5.4
+        version: 1.5.4
+      rules:
+        specifier: workspace:*
+        version: link:../rules
     devDependencies:
       '@types/node':
         specifier: 20.19.43
         version: 20.19.43
+      '@types/qrcode':
+        specifier: 1.5.6
+        version: 1.5.6
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -785,6 +817,61 @@ packages:
   '@nolyfill/is-core-module@1.0.39':
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
+
+  '@oven/bun-darwin-aarch64@1.3.1':
+    resolution: {integrity: sha512-7Rap1BHNWqgnexc4wLjjdZeVRQKtk534iGuJ7qZ42i/q1B+cxJZ6zSnrFsYmo+zreH7dUyUXL3AHuXGrl2772Q==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@oven/bun-darwin-x64-baseline@1.3.1':
+    resolution: {integrity: sha512-mJo715WvwEHmJ6khNymWyxi0QrFzU94wolsUmxolViNHrk+2ugzIkVIJhTnxf7pHnarxxHwyJ/kgatuV//QILQ==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@oven/bun-darwin-x64@1.3.1':
+    resolution: {integrity: sha512-wpqmgT/8w+tEr5YMGt1u1sEAMRHhyA2SKZddC6GCPasHxSqkCWOPQvYIHIApnTsoSsxhxP0x6Cpe93+4c7hq/w==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@oven/bun-linux-aarch64-musl@1.3.1':
+    resolution: {integrity: sha512-gKU3Wv3BTG5VMjqMMnRwqU6tipCveE9oyYNt62efy6cQK3Vo1DOBwY2SmjbFw+yzj+Um20YoFOLGxghfQET4Ng==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@oven/bun-linux-aarch64@1.3.1':
+    resolution: {integrity: sha512-ACn038SZL8del+sFnqCjf+haGB02//j2Ez491IMmPTvbv4a/D0iiNz9xiIB3ICbQd3EwQzi+Ut/om3Ba/KoHbQ==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@oven/bun-linux-x64-baseline@1.3.1':
+    resolution: {integrity: sha512-7+2aCrL81mtltZQbKdiPB58UL+Gr3DAIuPyUAKm0Ib/KG/Z8t7nD/eSMRY/q6b+NsAjYnVPiPwqSjC3edpMmmQ==}
+    cpu: [x64]
+    os: [linux]
+
+  '@oven/bun-linux-x64-musl-baseline@1.3.1':
+    resolution: {integrity: sha512-tP0WWcAqrMayvkggOHBGBoyyoK+QHAqgRUyj1F6x5/udiqc9vCXmIt1tlydxYV/NvyvUAmJ7MWT0af44Xm2kJw==}
+    cpu: [x64]
+    os: [linux]
+
+  '@oven/bun-linux-x64-musl@1.3.1':
+    resolution: {integrity: sha512-8AgEAHyuJ5Jm9MUo1L53K1SRYu0bNGqV0E0L5rB5DjkteO4GXrnWGBT8qsuwuy7WMuCMY3bj64/pFjlRkZuiXw==}
+    cpu: [x64]
+    os: [linux]
+
+  '@oven/bun-linux-x64@1.3.1':
+    resolution: {integrity: sha512-cAUeM3I5CIYlu5Ur52eCOGg9yfqibQd4lzt9G1/rA0ajqcnCBaTuekhUDZETJJf5H9QV+Gm46CqQg2DpdJzJsw==}
+    cpu: [x64]
+    os: [linux]
+
+  '@oven/bun-windows-x64-baseline@1.3.1':
+    resolution: {integrity: sha512-dcA+Kj7hGFrY3G8NWyYf3Lj3/GMViknpttWUf5pI6p6RphltZaoDu0lY5Lr71PkMdRZTwL2NnZopa/x/NWCdKA==}
+    cpu: [x64]
+    os: [win32]
+
+  '@oven/bun-windows-x64@1.3.1':
+    resolution: {integrity: sha512-xdUjOZRq6PwPbbz4/F2QEMLBZwintGp7AS50cWxgkHnyp7Omz5eJfV6/vWtN4qwZIyR3V3DT/2oXsY1+7p3rtg==}
+    cpu: [x64]
+    os: [win32]
 
   '@oxc-project/types@0.155.0':
     resolution: {integrity: sha512-SeE8JPwW1xs1tHeNycjUtUBdhorRa8o4jlvjwk49R7/Z291i+4DQa7JJIgOm/TaYQZx+QrPQbVJ/9c8dMIZN8Q==}
@@ -1436,6 +1523,12 @@ packages:
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
 
+  bun@1.3.1:
+    resolution: {integrity: sha512-enqkEb0RhNOgDzHQwv7uvnIhX3uSzmKzz779dL7kdH8SauyTdQvCz4O1UT2rU0UldQp2K9OlrJNdyDHayPEIvw==}
+    cpu: [arm64, x64]
+    os: [darwin, linux, win32]
+    hasBin: true
+
   call-bind-apply-helpers@1.0.2:
     resolution: {integrity: sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==}
     engines: {node: '>= 0.4'}
@@ -1824,6 +1917,11 @@ packages:
   for-each@0.3.5:
     resolution: {integrity: sha512-dKx12eRCVIzqCxFGplyFKJMPvLEWgmNtUrpTiJIR5u97zEhRG8ySrtboPHZXx7daLxQVrl643cTzbab2tkQjxg==}
     engines: {node: '>= 0.4'}
+
+  fsevents@2.3.2:
+    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
 
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
@@ -2527,6 +2625,16 @@ packages:
   picomatch@4.0.7:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
+
+  playwright-core@1.58.2:
+    resolution: {integrity: sha512-yZkEtftgwS8CsfYo7nm0KE8jsvm6i/PTgVtB8DL726wNf6H2IMsDuxCpJj59KDaxCtSnrWan2AeDqM7JBaultg==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.58.2:
+    resolution: {integrity: sha512-vA30H8Nvkq/cPBnNw4Q8TWz1EJyqgpuinBcHET0YVJVFldr8JDNiU9LaWAE1KqSkRYazuaBhTpB5ZzShOezQ6A==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   pngjs@5.0.0:
     resolution: {integrity: sha512-40QW5YalBNfQo5yRYmiw7Yz6TKKVr3h6970B2YE+3fQpsWcrbj1PzJgxeJ19DRQjhMbKPIuMY8rFaXc8moolVw==}
@@ -3514,6 +3622,39 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
+  '@oven/bun-darwin-aarch64@1.3.1':
+    optional: true
+
+  '@oven/bun-darwin-x64-baseline@1.3.1':
+    optional: true
+
+  '@oven/bun-darwin-x64@1.3.1':
+    optional: true
+
+  '@oven/bun-linux-aarch64-musl@1.3.1':
+    optional: true
+
+  '@oven/bun-linux-aarch64@1.3.1':
+    optional: true
+
+  '@oven/bun-linux-x64-baseline@1.3.1':
+    optional: true
+
+  '@oven/bun-linux-x64-musl-baseline@1.3.1':
+    optional: true
+
+  '@oven/bun-linux-x64-musl@1.3.1':
+    optional: true
+
+  '@oven/bun-linux-x64@1.3.1':
+    optional: true
+
+  '@oven/bun-windows-x64-baseline@1.3.1':
+    optional: true
+
+  '@oven/bun-windows-x64@1.3.1':
+    optional: true
+
   '@oxc-project/types@0.155.0': {}
 
   '@rolldown/binding-android-arm-eabi@1.2.15':
@@ -4094,6 +4235,20 @@ snapshots:
       node-releases: 2.0.60
       update-browserslist-db: 1.3.4(browserslist@4.29.4)
 
+  bun@1.3.1:
+    optionalDependencies:
+      '@oven/bun-darwin-aarch64': 1.3.1
+      '@oven/bun-darwin-x64': 1.3.1
+      '@oven/bun-darwin-x64-baseline': 1.3.1
+      '@oven/bun-linux-aarch64': 1.3.1
+      '@oven/bun-linux-aarch64-musl': 1.3.1
+      '@oven/bun-linux-x64': 1.3.1
+      '@oven/bun-linux-x64-baseline': 1.3.1
+      '@oven/bun-linux-x64-musl': 1.3.1
+      '@oven/bun-linux-x64-musl-baseline': 1.3.1
+      '@oven/bun-windows-x64': 1.3.1
+      '@oven/bun-windows-x64-baseline': 1.3.1
+
   call-bind-apply-helpers@1.0.2:
     dependencies:
       es-errors: 1.3.0
@@ -4649,6 +4804,9 @@ snapshots:
   for-each@0.3.5:
     dependencies:
       is-callable: 1.2.7
+
+  fsevents@2.3.2:
+    optional: true
 
   fsevents@2.3.3:
     optional: true
@@ -5294,6 +5452,14 @@ snapshots:
   picomatch@2.3.2: {}
 
   picomatch@4.0.7: {}
+
+  playwright-core@1.58.2: {}
+
+  playwright@1.58.2:
+    dependencies:
+      playwright-core: 1.58.2
+    optionalDependencies:
+      fsevents: 2.3.2
 
   pngjs@5.0.0: {}
 

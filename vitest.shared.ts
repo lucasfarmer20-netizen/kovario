@@ -8,6 +8,9 @@ const dbSuites = "**/*.db.test.ts";
 export default defineConfig({
   test: {
     passWithNoTests: true,
+    // Local Supabase setup shells out once per file; parallel cold starts contend
+    // on Windows. Race tests still launch concurrent transactions within a file.
+    fileParallelism: !dbMode,
     include: dbMode ? [dbSuites] : configDefaults.include,
     exclude: dbMode ? configDefaults.exclude : [...configDefaults.exclude, dbSuites],
   },

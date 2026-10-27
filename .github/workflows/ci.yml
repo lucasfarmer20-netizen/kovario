@@ -19,6 +19,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
+      - name: Install receipt renderer browser
+        run: pnpm --filter labels exec playwright install --with-deps chromium
       - run: pnpm test                         # root script: vitest run --passWithNoTests across the workspace
       - uses: supabase/setup-cli@v1
         with: { version: 2.122.0 }               # the CLI version packages/db/src/types.ts was generated with

@@ -1,0 +1,16 @@
+[Unit]
+Description=Filletry plant LAN print agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=filletry-print
+EnvironmentFile=/etc/filletry-print-agent.env
+ExecStart=/opt/filletry/filletry-print-agent
+Restart=on-failure
+RestartSec=10
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
