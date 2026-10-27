@@ -177,6 +177,15 @@ describe("scrub", () => {
     expect(out.error).toBe('upstream said {\\"Authkey\\":\\"[redacted]\\",\\"Tpn\\":\\"T1\\"}');
   });
 
+  it("a quoted value with an escaped quote, or a bare value with a backslash, is redacted whole", () => {
+    const out = scrubSecrets({
+      error: 'login {"password":"ab\\"cd","user":"sam"} then secret=ab\\cd done',
+    }) as { error: string };
+    expect(out.error).toBe(
+      'login {"password":"[redacted]","user":"sam"} then secret=[redacted] done',
+    );
+  });
+
   it("takes adapter-specific keys and survives cycles", () => {
     const a: Record<string, unknown> = { RegisterSecret: "x", n: 1 };
     a.self = a;

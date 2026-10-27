@@ -292,12 +292,12 @@ export function reversalView(
   }
 }
 
-/** A payment a manager may void / refund from the register. */
 /** A void / refund with no confirmed outcome (the provider call failed mid-way, or died). */
 export function reversalUnresolved(p: CartPayment): boolean {
   return Boolean(p.reverse_pending_kind && p.reverse_unresolved);
 }
 
+/** A payment a manager may void / refund from the register. */
 export function reversible(p: CartPayment): boolean {
   return p.state === "approved" && !p.reverse_pending_kind;
 }

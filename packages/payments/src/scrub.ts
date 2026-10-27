@@ -35,8 +35,12 @@ function isSecretKey(key: string, extra: ReadonlySet<string>): boolean {
  * `key=value`, `key: value`, `"key":"value"` inside a string — also escaped JSON
  * (`{\"key\":\"value\"}`, a body double-encoded into an exception message).
  */
+// Value alternatives, tried in order, each with a disjoint body (linear time):
+//   \"…\"   escaped-JSON string (body stops at the next \")
+//   "…" '…'  quoted string, escape-aware (\" inside does not end it)
+//   bare     anything up to whitespace / a delimiter, backslashes included
 const INLINE_PAIR =
-  /(\\?["']?)([A-Za-z][A-Za-z0-9_-]*)\1(\s*[:=]\s*)(\\?"(?:[^"\\]|\\(?!"))*\\?"|'[^']*'|[^\s"'\\,;&}\]]+)/g;
+  /(\\?["']?)([A-Za-z][A-Za-z0-9_-]*)\1(\s*[:=]\s*)(\\"(?:[^"\\]|\\(?!"))*\\"|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\s"',;&}\]]+)/g;
 const BEARER = /\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi;
 
 function redactInline(s: string, extra: ReadonlySet<string>): string {
