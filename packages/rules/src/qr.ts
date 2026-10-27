@@ -58,7 +58,8 @@ export const INTAKE_NUMBER = /^INT-\d{4,}$/;
 const STORAGE_NUMBER = /^STG-\d{4,}$/;
 const ORG_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const LOCATION_CODE = /^[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
-const BOXING_TOKEN = /^[A-Za-z0-9_-]+$/;
+/** Settlement boxing tokens (`FL:BOX:<token>`). */
+export const BOXING_TOKEN = /^[A-Za-z0-9_-]+$/;
 const POSITIVE_INT = /^[1-9]\d*$/;
 const DIGITS = /^\d+$/;
 const PAIRING_CODE = new RegExp(`^[${PAIRING_ALPHABET}]{${PAIRING_CODE_LENGTH}}$`);
