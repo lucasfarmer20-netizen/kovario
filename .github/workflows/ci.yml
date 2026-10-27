@@ -5,7 +5,8 @@ on:
     branches: [main]
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # main also deploys to staging (job `deploy`); never cancel that mid-migration
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -22,10 +23,13 @@ jobs:
       - run: pnpm test                         # root script: vitest run --passWithNoTests across the workspace
       - uses: supabase/setup-cli@v1
         with: { version: 2.122.0 }               # the CLI version packages/db/src/types.ts was generated with
-      - name: Apply migrations on a fresh local database
+      - name: Reference data comes from migrations (hosted deploys never seed)
         run: |
           supabase start -x studio,imgproxy,logflare,vector
-          supabase db reset
+          supabase db reset --no-seed
+          supabase test db supabase/tests/06_reference_data.test.sql
+      - name: Apply migrations and the demo seed on a fresh local database
+        run: supabase db reset
       - run: pnpm db:types                      # regenerates packages/db/src/types.ts; drift is a reviewer check, not a CI gate
       - name: Report types drift (non-blocking)
         run: git diff --exit-code -- packages/db/src/types.ts || echo "::warning file=packages/db/src/types.ts::generated types differ from the committed file; run pnpm db:types"
@@ -36,3 +40,40 @@ jobs:
         run: |
           pnpm --filter web exec playwright install --with-deps chromium
           pnpm e2e
+
+  # A migration that cannot apply on top of staging's real migration history (out-of-order
+  # timestamp, a remote-only version) fails here, before merge. Skipped when the staging
+  # secrets are absent (forks, or before the one-time setup in docs/11-DEPLOY.md).
+  migrations-dry-run:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
+    steps:
+      - id: secrets
+        run: |
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_REF" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::staging secrets not available; migration dry-run skipped"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.present == 'true'
+      - uses: supabase/setup-cli@v1
+        if: steps.secrets.outputs.present == 'true'
+        with: { version: 2.122.0 }               # same CLI as the check job and deploy.yml
+      - name: supabase db push --dry-run against staging
+        if: steps.secrets.outputs.present == 'true'
+        run: bash scripts/deploy-supabase.sh staging --dry-run
+
+  deploy:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      deployments: read
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
