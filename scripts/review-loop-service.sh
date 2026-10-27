@@ -27,5 +27,25 @@ one_pass() {
   if [ "$(wc -l < "$LOG")" -gt 10000 ]; then tail -n 5000 "$LOG" > "$LOG.tmp" && cat "$LOG.tmp" > "$LOG" && rm -f "$LOG.tmp"; fi
 }
 
-if [ "${1:-}" = "--once" ]; then one_pass; exit 0; fi
+# One pass at a time. When Task Scheduler kills a pass at its time limit it ends pwsh, but the
+# Git Bash and claude children can live on, and IgnoreNew only sees the task. So each --once
+# pass takes a lock dir holding its pid; a later pass skips while that pid is alive, and takes
+# over a lock older than 45 min (that pass is hung).
+LOCK="$LOG.lock"
+take_lock() {
+  if mkdir "$LOCK" 2>/dev/null; then echo $$ > "$LOCK/pid"; return 0; fi
+  local pid; pid=$(cat "$LOCK/pid" 2>/dev/null || echo)
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && [ -z "$(find "$LOCK" -maxdepth 0 -mmin +45)" ]; then
+    return 1
+  fi
+  echo "--- $(date -u +%FT%TZ) taking over stale lock (pid ${pid:-?})"
+  [ -n "$pid" ] && kill "$pid" 2>/dev/null
+  rm -rf "$LOCK" && mkdir "$LOCK" && echo $$ > "$LOCK/pid"
+}
+
+if [ "${1:-}" = "--once" ]; then
+  take_lock || exit 0
+  trap 'rm -rf "$LOCK"' EXIT
+  one_pass; exit 0
+fi
 while true; do one_pass; sleep "$INTERVAL"; done

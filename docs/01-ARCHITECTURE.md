@@ -116,7 +116,7 @@ Nothing in `apps/web` imports a vendor SDK directly.
 - `preview` — Vercel preview per PR for UI review only, pointed at `staging` Supabase
   with a throwaway demo org (Supabase per-PR branches are post-v1).
 - `staging` — long-lived; CSP trial tenant.
-- `prod` — `app.kovario.com`.
+- `prod` — `app.filletry.com` (DECISION-16).
 
 ## 9. Observability
 
