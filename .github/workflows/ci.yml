@@ -72,7 +72,8 @@ jobs:
   deploy:
     needs: check
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
+    permissions:                              # must cover deploy.yml's top-level permissions
+      actions: read
       contents: read
       deployments: read
     uses: ./.github/workflows/deploy.yml
