@@ -608,6 +608,25 @@ $$;
 
 -- Release ------------------------------------------------------------------------------------
 
+-- S9: the payment refs of an intake's released batches, distinct, in release order,
+-- ' / '-joined — the intake-level marker stamped on full release (and refreshed when a
+-- payment is adopted for a MANUAL release).
+create or replace function app.storage_intake_payment_refs(p_storage_intake_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select string_agg(r.ref, ' / ' order by r.first_at, r.first_number)
+  from (
+    select pb.payment_ref as ref, min(pb.released_at) as first_at, min(pb.number) as first_number
+    from public.storage_pickup_batch pb
+    where pb.storage_intake_id = p_storage_intake_id and pb.state = 'released' and pb.payment_ref is not null
+    group by pb.payment_ref
+  ) r
+$$;
+
 -- Releases one batch. p_mode:
 --   'payment' — the WP-16 paid hook: p_payment_id must be an APPROVED payment (S11: refunds
 --               and reversals never release); p_payment_ref is the terminal ref or the
@@ -698,6 +717,12 @@ begin
         where id = v_batch.charge_id and state = 'open';
         perform app.storage_batch_note(v_batch.id, 'error', 'adopted_payment',
           format('payment %s (%s) adopted as the original payment of this MANUAL release', v_payment.number, v_ref));
+        -- S9: a fully released intake's refs are the batches' refs — MANUAL becomes the adopted
+        -- payment's ref. The intake row is already locked (S5).
+        if v_intake.state = 'released' then
+          update public.storage_intake set payment_ref = app.storage_intake_payment_refs(v_intake.id)
+          where id = v_intake.id;
+        end if;
         return v_result || jsonb_build_object('status', 'adopted');
       end if;
       -- S2: a second payment never releases twice.
@@ -849,15 +874,7 @@ begin
   end if;
   if v_left = 0 and v_intake.state in ('stored', 'partial') then
     update public.storage_intake
-    set paid_at = now(),
-        payment_ref = (
-          select string_agg(r.ref, ' / ' order by r.first_at, r.first_number)
-          from (
-            select pb.payment_ref as ref, min(pb.released_at) as first_at, min(pb.number) as first_number
-            from public.storage_pickup_batch pb
-            where pb.storage_intake_id = v_intake.id and pb.state = 'released' and pb.payment_ref is not null
-            group by pb.payment_ref
-          ) r)
+    set paid_at = now(), payment_ref = app.storage_intake_payment_refs(v_intake.id)
     where id = v_intake.id;
   end if;
 
@@ -1045,6 +1062,7 @@ revoke all on function
   app.storage_label_data(uuid),
   app.void_pickup_batch(uuid, text),
   app.storage_paid_hold(uuid, uuid[]),
+  app.storage_intake_payment_refs(uuid),
   app.release_pickup_batch(uuid, text, text, uuid, text, uuid, numeric),
   app.release_pickup_batches(uuid[], uuid, text, jsonb)
 from public;

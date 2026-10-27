@@ -374,6 +374,10 @@ insert into t_ids values ('m6', pg_temp.force('wp09-manual-0001', 'B6', 'manual'
 select pg_temp.chk('S7', 'MANUAL with no recorded payment: ref MANUAL, charge still owed',
   (select format('%s:%s:%s', state, payment_ref, payment_id is null) from pg_temp.b('B6')) || ':' || pg_temp.charge_of('B6'),
   'released:MANUAL:t:open:-:-');
+select pg_temp.chk('S9', 'a full MANUAL release stamps the intake paid with ref MANUAL',
+  (select format('%s:%s:%s', state, paid_at is not null, payment_ref) from public.storage_intake where id = pg_temp.id('si4')),
+  'released:t:MANUAL');
+insert into t_ids select 'si4_paid_at', paid_at::text from public.storage_intake where id = pg_temp.id('si4');
 select pg_temp.chk('S7', 'a released batch cannot be released again',
   pg_temp.err($$select pg_temp.force('wp09-manual-again', 'B6', 'manual', 'again')$$), '55000');
 reset role;
@@ -383,6 +387,10 @@ select pg_temp.chk('S7', '… ref + payment recorded, charge settled, error log 
   (select format('%s:%s:%s', payment_ref, notes ~ '\[ERROR\] payment PAY-0005 \(REF-555\) adopted', notes !~ 'CRITICAL')
    from pg_temp.b('B6')) || ':' || pg_temp.charge_of('B6'),
   'REF-555:t:t:settled:PAY-0005:-');
+select pg_temp.chk('S9', 'adoption refreshes the released intake''s ref to the real payment (paid_at kept)',
+  (select format('%s:%s:%s', state, payment_ref, paid_at::text = (select v from t_ids where k = 'si4_paid_at'))
+   from public.storage_intake where id = pg_temp.id('si4')),
+  'released:REF-555:t');
 select pg_temp.chk('S2', 'the adopted payment re-synced is a no-op', pg_temp.pay(array['B6'], 5) -> 0 ->> 'status', 'noop');
 select pg_temp.chk('S7', 'every released batch has amount, a non-empty ref, paid_at and released_at',
   (select count(*) from public.storage_pickup_batch
