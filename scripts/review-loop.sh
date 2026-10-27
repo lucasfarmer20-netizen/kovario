@@ -79,12 +79,17 @@ c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
 s = (c.execute("select session_id from pr where url = ? and session_id != ''", (url,)).fetchone()
      or c.execute("select id from sessions where branch = ? order by created_at desc", (branch,)).fetchone())
 if not s: print("none"); sys.exit()
-rows = c.execute("select status, verdict from review_run where session_id = ? and target_sha = ?"
+rows = c.execute("select status, verdict, created_at from review_run where session_id = ? and target_sha = ?"
                  " order by created_at desc", (s[0], sha)).fetchall()
-done = [v for st, v in rows if st == "complete"]
-if done: print(done[0] or "approved")
-elif any(st not in ("failed",) for st, _ in rows) or not rows: print("pending")
-else: print("failed")
+done = [v for st, v, _ in rows if st == "complete"]
+if done: print(done[0] or "approved"); sys.exit()
+if any(st != "failed" for st, _, _ in rows) or not rows: print("pending"); sys.exit()
+# All runs failed. AO retries a few times about a minute apart, so only call it final after
+# 3 failures with the newest over 5 minutes old; until then a retry may still be on its way.
+import datetime
+newest = datetime.datetime.strptime(rows[0][2][:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
+age = (datetime.datetime.now(datetime.timezone.utc) - newest).total_seconds()
+print("failed" if len(rows) >= 3 and age > 300 else "pending")
 PY
 }
 
@@ -108,7 +113,7 @@ notify_worker() {
   local num="$1" branch="$2" head="$3" what="$4" sid
   sid=$(ao_session "https://github.com/$REPO/pull/$num" "$branch" | tr -d '\r') || return 0
   [ -z "$sid" ] && return 0
-  timeout 120 ao send --session "$sid" --message "The GitHub reviewer ($REVIEWER_LOGIN) $what on PR #$num at ${head:0:7}. Read it with: gh pr view $num --json reviews,comments, then address every required finding, re-run the checks in AGENTS.md, and push." \
+  timeout 120 ao send --session "$sid" --message "The GitHub reviewer ($REVIEWER_LOGIN) $what on PR #$num at ${head:0:7}. Read it with: gh pr view $num --json reviews,comments, then address any required findings, re-run the checks in AGENTS.md, and push." \
     </dev/null >/dev/null 2>&1 && echo "-- #$num: told $sid about the review" || echo "!! could not notify $sid about #$num"
 }
 
@@ -152,7 +157,12 @@ pass() {
     result=$(my_review "$num" "$head") || result=
     if [ "$critical" = true ]; then
       # only when the review comment actually landed on this commit
-      [ "$result" = COMMENTED ] && notify_worker "$num" "$branch" "$head" "posted review findings as a review comment (area:critical: a human merges)"
+      # an if, not `[ ] && notify`: a false && list would end the pass under set -e
+      if [ "$result" = COMMENTED ]; then
+        notify_worker "$num" "$branch" "$head" "posted review findings as a review comment (area:critical: a human merges)"
+      else
+        echo "!! #$num: critical review left no review comment on ${head:0:7}; retrying next pass"
+      fi
     elif [ "$result" = APPROVED ]; then
       merge_approved "$num"
     elif [ "$result" = CHANGES_REQUESTED ]; then
