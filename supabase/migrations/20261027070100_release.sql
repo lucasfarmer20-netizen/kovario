@@ -246,10 +246,11 @@ $$;
 
 -- Boxing Complete ------------------------------------------------------------------------------
 
--- p_box_ticks: the ticked boxes. p_vessel_ticks: [{vessel_id, lbs_left?, ticked?, measure?}] —
---   ticked defaults true; lbs_left blank = 0; measure is the weight the wizard showed (a
---   basket whose weight changed since is a stale selection, I16b). Unticked lines may be sent
---   so a remainder left on one is rejected rather than ignored (I5).
+-- p_box_ticks: the ticked boxes. p_vessel_ticks: [{vessel_id, lbs_left?, ticked?, measure}] —
+--   ticked defaults true; lbs_left blank = 0; measure (required on a ticked line) is the
+--   weight the wizard showed: a basket whose weight changed since is a stale selection
+--   (I16b). Unticked lines may be sent so a remainder left on one is rejected rather than
+--   ignored (I5).
 -- Order (I16): lock the session → scope (I11/I17) → lock ticked boxes and vessels → re-read
 -- and split the selection: input faults abort everything, stale-but-was-valid selections are
 -- dropped (reported in `stale`), the actionable remainder applies; empty remainder → no-op
@@ -318,6 +319,10 @@ begin
        or coalesce(jsonb_typeof(l -> 'ticked'), 'null') not in ('boolean', 'null')
   ) then
     raise exception 'vessel lines are [{vessel_id, lbs_left, ticked, measure}]' using errcode = '22023';
+  end if;
+  if exists (select 1 from jsonb_array_elements(v_lines) l
+             where coalesce((l ->> 'ticked')::boolean, true) and jsonb_typeof(l -> 'measure') is distinct from 'number') then
+    raise exception 'a ticked vessel line needs the measure (lb) the screen showed' using errcode = '22023';
   end if;
   select coalesce(array_agg((l ->> 'vessel_id')::uuid), '{}'),
          coalesce(array_agg((l ->> 'vessel_id')::uuid order by (l ->> 'vessel_id')::uuid)

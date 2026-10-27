@@ -511,6 +511,9 @@ select matches(pg_temp.err($$select pg_temp.release('s19', '{}', '[["v19b", -1]]
   'I16 — negative Lbs Left aborts');
 select matches(pg_temp.err($$select pg_temp.release('s19', '{}', '[["v19b", 10]]')$$), '^22023 .*less than',
   'I16 — split at the current measure aborts');
+select matches(pg_temp.err($$select public.release_party(gen_random_uuid()::text, pg_temp.id('s19'), '{}',
+    jsonb_build_array(jsonb_build_object('vessel_id', pg_temp.id('v19b'), 'lbs_left', 0)))$$),
+  '^22023 .*measure', 'I16 — a ticked line must carry the weight the screen showed (stale-by-weight check)');
 select matches(pg_temp.err($$select pg_temp.release('sc', '{bc}', '[["vc", 0]]')$$), '^55000 .*cancelled',
   'I16/I17 — a cancelled session is never releasable');
 reset role;

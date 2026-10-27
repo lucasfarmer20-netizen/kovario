@@ -7,7 +7,12 @@
 // Every other path P1–P24 is in supabase/tests/15_release.test.sql.
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { releaseLineIssue, shipmentBuyGate, vesselReleaseAction } from "../../rules/src/index.ts";
+import {
+  encode,
+  releaseLineIssue,
+  shipmentBuyGate,
+  vesselReleaseAction,
+} from "../../rules/src/index.ts";
 import { createOrg, dropOrg, localSupabase, type TestOrg } from "./testing/local-supabase";
 
 let pool: pg.Pool;
@@ -109,7 +114,7 @@ async function party(n: number, pooled = true): Promise<Party> {
       const tag = await insertId(
         c,
         "insert into public.asset_tag (org_id, code, qr) values ($1, $2, $3) returning id",
-        [org.id, code, `FL:TAG:${org.slug}:${code}`],
+        [org.id, code, encode("TAG", { orgSlug: org.slug, code })],
       );
       const vessel = await insertId(
         c,
