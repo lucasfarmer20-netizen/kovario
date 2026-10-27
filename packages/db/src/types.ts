@@ -1866,6 +1866,9 @@ isOneToOne: false
 "admin_update_species":
 { Args: { "p_client_action_id": string,"p_is_active": boolean,"p_name": string,"p_shorthand": string,"p_sort": number,"p_species_id": string }; Returns: Json
                            },
+"advance_wave":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_wave_id": string }; Returns: Json
+                           },
 "billing_apply_subscription":
 { Args: { "p_customer_id": string,"p_event_created": string,"p_event_id": string,"p_kind": string,"p_org_hint"?: string,"p_plan": string,"p_status": string,"p_subscription_id": string }; Returns: Json
                            },
@@ -1880,6 +1883,9 @@ isOneToOne: false
                            },
 "create_org":
 { Args: { "p_client_action_id": string,"p_display_name": string,"p_name": string,"p_reference": Json,"p_site_name"?: string,"p_slug": string,"p_timezone": string }; Returns: Json
+                           },
+"create_wave":
+{ Args: { "p_client_action_id": string,"p_intake_ids": (string)[],"p_operator_session"?: string }; Returns: Json
                            },
 "device_bind_auth_user":
 { Args: { "p_device_id": string,"p_user_id": string }; Returns: undefined
@@ -1940,6 +1946,9 @@ isOneToOne: false
                            },
 "save_intake":
 { Args: { "p_client_action_id": string,"p_payload": Json }; Returns: Json
+                           },
+"scan_wave_tote":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_raw": string,"p_wave_id": string }; Returns: Json
                            },
 "search_customers":
 { Args: { "p_limit"?: number,"p_org_id": string,"p_q": string }; Returns: {
