@@ -6,6 +6,7 @@ import { requireStaff } from "@/lib/auth";
 import { signOut } from "../login/actions";
 
 const NAV = [
+  { href: "/admin/asset-tags", label: "Asset tags" },
   { href: "/admin/printers", label: "Printers" },
   { href: "/admin/print-agents", label: "Print agents" },
   { href: "/admin/users", label: "Users" },
