@@ -10,7 +10,7 @@
 #   SITE_URL       hosted auth site_url. Without it `config push` is skipped (with a warning):
 #                  config.toml's site_url is the local one and must never reach a hosted project.
 #   REDIRECT_URLS  optional, comma-separated extra auth redirect URLs (globs allowed)
-# --dry-run links and runs `supabase db push --dry-run` only; nothing is written.
+# --dry-run runs `supabase db push --dry-run` only; nothing is written.
 # No `supabase link`: every command takes --project-ref, so the token needs no API-key scopes.
 # Token scopes (`supabase <cmd> --help`): db push — database pooling config read, database
 # write (migrations); functions deploy — edge functions read-write; config push — the auth /
@@ -38,9 +38,15 @@ cp -R "$root/supabase" "$work/supabase"
 rm -rf "$work/supabase/.temp" "$work/supabase/.env"
 sb() { supabase --workdir "$work" "$@"; }
 ref=(--project-ref "$SUPABASE_PROJECT_REF")
+# GitHub runners have no IPv6, so db push needs the IPv4 pooler address, which the CLI reads
+# from the API. Without that scope it falls back to the IPv6 host and suggests `link`.
+pool_hint() {
+  echo "::error::db push failed. 'IPv6 is not supported' means the token lacks the database pooling config read scope (docs/11-DEPLOY.md §1)"
+  exit 1
+}
 
 if [ "$mode" = "--dry-run" ]; then
-  sb db push "${ref[@]}" --dry-run
+  sb db push "${ref[@]}" --dry-run || pool_hint
   exit 0
 elif [ -n "$mode" ]; then
   echo "unknown option $mode" >&2
@@ -66,7 +72,7 @@ additional_redirect_urls = [$urls]
 EOF
 fi
 
-sb db push "${ref[@]}" --yes
+sb db push "${ref[@]}" --yes || pool_hint
 # --prune: a function that is not in supabase/functions on this commit does not stay deployed.
 sb functions deploy "${ref[@]}" --use-api --prune --yes
 if [ -n "${SITE_URL:-}" ]; then
