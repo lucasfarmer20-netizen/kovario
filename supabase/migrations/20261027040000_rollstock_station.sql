@@ -44,7 +44,7 @@ create function public.rollstock_scan_advance(
 ) returns jsonb language plpgsql security definer set search_path='' as $$
 declare v_action jsonb; v_result jsonb; v_tag public.tote_tag; v_next public.intake;
   v_open public.intake; v_reason text; v_operator uuid; v_manager uuid; v_scan uuid; v_scanned int;
-  v_open_id uuid:=p_open_intake_id;
+  v_open_id uuid:=p_open_intake_id; v_locked_wave_id uuid;
 begin
   perform app.require_role('{owner,manager,staff,station}');
   v_action:=app.action_begin(p_client_action_id,'rollstock.scan_advance',
@@ -64,12 +64,15 @@ begin
     select * into v_next from public.intake where id=v_tag.intake_id and org_id=app.org_id();
   end if;
   -- Wave first, then sorted intakes, matching wave advance/cancel lock order.
-  perform id from public.wave where org_id=app.org_id() and id=v_next.wave_id order by id for update;
+  v_locked_wave_id:=v_next.wave_id;
+  perform id from public.wave where org_id=app.org_id() and id=v_locked_wave_id order by id for update;
   perform id from public.intake where org_id=app.org_id() and id in (v_next.id,p_open_intake_id) order by id for update;
   select * into v_next from public.intake where id=v_tag.intake_id and org_id=app.org_id();
   select * into v_open from public.intake where id=p_open_intake_id and org_id=app.org_id();
   if v_reason is null then
-    if p_open_intake_id is not null and (v_open.id is null or v_open.state<>'rollstock') then
+    if v_next.wave_id is distinct from v_locked_wave_id then
+      v_reason:='Intake wave changed; scan again';
+    elsif p_open_intake_id is not null and (v_open.id is null or v_open.state<>'rollstock') then
       v_reason:='Open intake changed; refresh station';
     elsif p_raw is not null and (v_tag.id is null or v_tag.tote_no>v_next.tote_count) then
       v_reason:='Unknown tote: scan a numbered tote label';
@@ -95,7 +98,13 @@ begin
   end if;
   if v_reason is null and p_raw is not null then
     if v_next.state='holding' then
-      update public.intake set state='processing',pulled_at=now() where id=v_next.id;
+      -- A draft reservation is reversible. Detach it under the wave lock so
+      -- the remaining holding intakes can still verify and complete normally.
+      if exists(select 1 from public.wave where id=v_next.wave_id and org_id=app.org_id() and state='draft') then
+        delete from public.wave_intake where wave_id=v_next.wave_id and intake_id=v_next.id and org_id=app.org_id();
+        v_next.wave_id:=null;
+      end if;
+      update public.intake set state='processing',pulled_at=now(),wave_id=v_next.wave_id where id=v_next.id;
       insert into public.domain_event(org_id,kind,subject_id,payload) values(app.org_id(),'rollstock.holding_bypass',v_next.id,
         jsonb_build_object('operator_id',v_operator,'from','holding','to','processing'));
     end if;

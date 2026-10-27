@@ -85,5 +85,27 @@ set local role authenticated;
 select is(public.rollstock_scan_advance('FL:TOTE:INT-0004:1',null,'rs-pin-required')->>'reason','operator_pin_required','WP11 station requires live operator proof');
 select is((select reason from public.scan_log where raw='FL:TOTE:INT-0004:1' and result='rejected'),'operator_pin_required','WP11 missing PIN scan is audited');
 reset role;
+-- A bypass must release only its draft reservation, leaving the rest usable.
+insert into public.intake(id,org_id,number,customer_id,tote_count) values
+ ('a0000000-0000-4000-8000-000000000015','a0000000-0000-4000-8000-00000000000a','INT-0005','a0000000-0000-4000-8000-000000000002',1),
+ ('a0000000-0000-4000-8000-000000000016','a0000000-0000-4000-8000-00000000000a','INT-0006','a0000000-0000-4000-8000-000000000002',1);
+update public.intake set state='holding' where number in ('INT-0005','INT-0006');
+insert into public.tote_tag(org_id,intake_id,tote_no,of_count,qr) values
+ ('a0000000-0000-4000-8000-00000000000a','a0000000-0000-4000-8000-000000000015',1,1,'FL:TOTE:INT-0005:1'),
+ ('a0000000-0000-4000-8000-00000000000a','a0000000-0000-4000-8000-000000000016',1,1,'FL:TOTE:INT-0006:1');
+select set_config('request.jwt.claims','{"sub":"a0000000-0000-4000-8000-0000000000a1","role":"authenticated","org_id":"a0000000-0000-4000-8000-00000000000a","app_role":"manager"}',true);
+set local role authenticated;
+create temp table draft_bypass as select (public.create_wave(array['a0000000-0000-4000-8000-000000000015'::uuid,'a0000000-0000-4000-8000-000000000016'::uuid],'rs-draft-create')->>'wave_id')::uuid id;
+select is(public.rollstock_scan_advance('FL:TOTE:INT-0005:1',null,'rs-draft-bypass')->>'ok','true','WP11 draft-wave holding bypass succeeds');
+select ok((select wave_id is null and state='rollstock' from public.intake where number='INT-0005'),'WP11 bypass clears draft wave pointer');
+select is((select count(*)::int from public.wave_intake where intake_id='a0000000-0000-4000-8000-000000000015'),0,'WP11 bypass removes draft membership');
+select ok((select wave_id=(select id from draft_bypass) and state='holding' from public.intake where number='INT-0006'),'WP11 bypass preserves other draft intake reservation');
+select is((select count(*)::int from public.wave_intake where wave_id=(select id from draft_bypass)),1,'WP11 draft retains remaining member');
+select is(public.advance_wave((select id from draft_bypass),'rs-draft-verify')->>'ok','true','WP11 remaining draft intakes can start verification after bypass');
+select is(public.scan_wave_tote((select id from draft_bypass),'FL:TOTE:INT-0006:1','rs-draft-scan')->>'ok','true','WP11 remaining draft tote can verify');
+select is(public.advance_wave((select id from draft_bypass),'rs-draft-complete')->>'ok','true','WP11 remaining draft intakes can complete after bypass');
+select is((select state::text from public.intake where number='INT-0006'),'processing','WP11 remaining intake reaches processing');
+select is((select state::text from public.intake where number='INT-0005'),'rollstock','WP11 wave completion leaves bypassed intake open');
+reset role;
 select * from finish();
 rollback;
