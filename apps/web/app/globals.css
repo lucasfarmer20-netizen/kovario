@@ -379,3 +379,22 @@
     grid-template-columns: 1fr;
   }
 }
+.storage-notes {
+  white-space: pre-wrap;
+  font-size: 14px;
+  margin: 8px 0 0;
+}
+/* Storage receipts print from the browser: the open pickup receipt alone, else the intake
+   page without station controls. */
+@media print {
+  .storage-station header,
+  .storage-station .station-actions,
+  .storage-station .station-feedback,
+  .storage-station input[type="checkbox"] {
+    display: none;
+  }
+  .storage-station:has(.storage-receipt) .intake-header,
+  .storage-station:has(.storage-receipt) .station-workspace > section > :not(.storage-receipt) {
+    display: none;
+  }
+}

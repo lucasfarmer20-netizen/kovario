@@ -1469,14 +1469,14 @@ isOneToOne: false
                   ]
                 },"storage_intake": {
                   Row: {
-                    "active_box_count": number,"box_count": number,"created_at": string,"customer_id": string,"id": string,"intake_at": string,"location_id": string | null,"notes": string | null,"number": string,"org_id": string,"site_id": string | null,"state": Database["public"]['Enums']["storage_intake_state"],"updated_at": string
+                    "active_box_count": number,"box_count": number,"created_at": string,"customer_id": string,"id": string,"intake_at": string,"location_id": string | null,"notes": string | null,"number": string,"org_id": string,"paid_at": string | null,"payment_ref": string | null,"site_id": string | null,"state": Database["public"]['Enums']["storage_intake_state"],"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "active_box_count"?: number,"box_count"?: number,"created_at"?: string,"customer_id": string,"id"?: string,"intake_at"?: string,"location_id"?: string | null,"notes"?: string | null,"number": string,"org_id": string,"site_id"?: string | null,"state"?: Database["public"]['Enums']["storage_intake_state"],"updated_at"?: string
+                    "active_box_count"?: number,"box_count"?: number,"created_at"?: string,"customer_id": string,"id"?: string,"intake_at"?: string,"location_id"?: string | null,"notes"?: string | null,"number": string,"org_id": string,"paid_at"?: string | null,"payment_ref"?: string | null,"site_id"?: string | null,"state"?: Database["public"]['Enums']["storage_intake_state"],"updated_at"?: string
                   }
                   Update: {
-                    "active_box_count"?: number,"box_count"?: number,"created_at"?: string,"customer_id"?: string,"id"?: string,"intake_at"?: string,"location_id"?: string | null,"notes"?: string | null,"number"?: string,"org_id"?: string,"site_id"?: string | null,"state"?: Database["public"]['Enums']["storage_intake_state"],"updated_at"?: string
+                    "active_box_count"?: number,"box_count"?: number,"created_at"?: string,"customer_id"?: string,"id"?: string,"intake_at"?: string,"location_id"?: string | null,"notes"?: string | null,"number"?: string,"org_id"?: string,"paid_at"?: string | null,"payment_ref"?: string | null,"site_id"?: string | null,"state"?: Database["public"]['Enums']["storage_intake_state"],"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -1507,14 +1507,14 @@ isOneToOne: false
                   ]
                 },"storage_pickup_batch": {
                   Row: {
-                    "amount": number,"box_ids": (string)[],"charge_id": string | null,"created_at": string,"id": string,"notes": string,"number": string,"org_id": string,"paid_at": string | null,"payment_id": string | null,"payment_ref": string | null,"rate_per_box_day": number,"release_failed": boolean,"released_at": string | null,"state": Database["public"]['Enums']["storage_pickup_batch_state"],"storage_intake_id": string,"updated_at": string
+                    "amount": number,"box_days": NonNullable<Json>,"box_ids": (string)[],"charge_id": string | null,"created_at": string,"id": string,"notes": string,"number": string,"org_id": string,"paid_at": string | null,"payment_id": string | null,"payment_ref": string | null,"rate_per_box_day": number,"release_failed": boolean,"released_at": string | null,"released_by": string | null,"snapshot_at": string,"state": Database["public"]['Enums']["storage_pickup_batch_state"],"storage_intake_id": string,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount": number,"box_ids": (string)[],"charge_id"?: string | null,"created_at"?: string,"id"?: string,"notes"?: string,"number": string,"org_id": string,"paid_at"?: string | null,"payment_id"?: string | null,"payment_ref"?: string | null,"rate_per_box_day": number,"release_failed"?: boolean,"released_at"?: string | null,"state"?: Database["public"]['Enums']["storage_pickup_batch_state"],"storage_intake_id": string,"updated_at"?: string
+                    "amount": number,"box_days"?: NonNullable<Json>,"box_ids": (string)[],"charge_id"?: string | null,"created_at"?: string,"id"?: string,"notes"?: string,"number": string,"org_id": string,"paid_at"?: string | null,"payment_id"?: string | null,"payment_ref"?: string | null,"rate_per_box_day": number,"release_failed"?: boolean,"released_at"?: string | null,"released_by"?: string | null,"snapshot_at"?: string,"state"?: Database["public"]['Enums']["storage_pickup_batch_state"],"storage_intake_id": string,"updated_at"?: string
                   }
                   Update: {
-                    "amount"?: number,"box_ids"?: (string)[],"charge_id"?: string | null,"created_at"?: string,"id"?: string,"notes"?: string,"number"?: string,"org_id"?: string,"paid_at"?: string | null,"payment_id"?: string | null,"payment_ref"?: string | null,"rate_per_box_day"?: number,"release_failed"?: boolean,"released_at"?: string | null,"state"?: Database["public"]['Enums']["storage_pickup_batch_state"],"storage_intake_id"?: string,"updated_at"?: string
+                    "amount"?: number,"box_days"?: NonNullable<Json>,"box_ids"?: (string)[],"charge_id"?: string | null,"created_at"?: string,"id"?: string,"notes"?: string,"number"?: string,"org_id"?: string,"paid_at"?: string | null,"payment_id"?: string | null,"payment_ref"?: string | null,"rate_per_box_day"?: number,"release_failed"?: boolean,"released_at"?: string | null,"released_by"?: string | null,"snapshot_at"?: string,"state"?: Database["public"]['Enums']["storage_pickup_batch_state"],"storage_intake_id"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -1534,6 +1534,12 @@ isOneToOne: false
       columns: ["payment_id"]
 isOneToOne: false
       referencedRelation: "payment"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "storage_pickup_batch_released_by_fkey"
+      columns: ["released_by"]
+isOneToOne: false
+      referencedRelation: "org_member"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "storage_pickup_batch_storage_intake_id_fkey"
@@ -1848,11 +1854,17 @@ isOneToOne: false
                   ]
                 },"storage_box_days": {
                   Row: {
-                    "box_no": number,"days_stored": number | null,"intake_at": string,"label": string,"org_id": string,"released_at": string | null,"state": Database["public"]['Enums']["storage_box_state"],"storage_box_id": string,"storage_intake_id": string
+                    "batch_id": string | null,"box_no": number,"days_stored": number | null,"description": string | null,"intake_at": string,"label": string,"org_id": string,"released_at": string | null,"state": Database["public"]['Enums']["storage_box_state"],"storage_box_id": string,"storage_intake_id": string,"weight_lb": number | null
                   }
                   ComputedFields: never
                   Relationships: [
                     {
+      foreignKeyName: "storage_box_batch_id_fkey"
+      columns: ["batch_id"]
+isOneToOne: false
+      referencedRelation: "storage_pickup_batch"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "storage_box_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
@@ -1961,17 +1973,26 @@ isOneToOne: false
 "billing_link_customer":
 { Args: { "p_customer_id": string,"p_org_id": string }; Returns: string
                            },
+"cancel_pickup_batch":
+{ Args: { "p_batch_id": string,"p_client_action_id": string }; Returns: Json
+                           },
 "cancel_wave":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_wave_id": string }; Returns: Json
                            },
 "claim_print_job":
 { Args: { "p_client_action_id": string }; Returns: Json
                            },
+"confirm_storage_intake":
+{ Args: { "p_client_action_id": string,"p_payload": Json }; Returns: Json
+                           },
 "create_customer":
 { Args: { "p_client_action_id": string,"p_email"?: string,"p_name": string,"p_phone": string }; Returns: Json
                            },
 "create_org":
 { Args: { "p_client_action_id": string,"p_display_name": string,"p_name": string,"p_reference": Json,"p_site_name"?: string,"p_slug": string,"p_timezone": string }; Returns: Json
+                           },
+"create_pickup_batch":
+{ Args: { "p_box_ids": (string)[],"p_client_action_id": string,"p_storage_intake_id": string }; Returns: Json
                            },
 "create_wave":
 { Args: { "p_client_action_id": string,"p_intake_ids": (string)[],"p_operator_session"?: string }; Returns: Json
@@ -1998,6 +2019,9 @@ isOneToOne: false
                            },
 "finish_print_job":
 { Args: { "p_client_action_id": string,"p_error"?: string,"p_job_id": string }; Returns: Json
+                           },
+"force_release_pickup_batch":
+{ Args: { "p_batch_id": string,"p_client_action_id": string,"p_elevation_token"?: string,"p_mode": string,"p_payment_ref"?: string,"p_reason": string }; Returns: Json
                            },
 "force_transition":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_entity": string,"p_id": string,"p_reason": string,"p_to_state": string }; Returns: Json
@@ -2030,6 +2054,9 @@ isOneToOne: false
 "print_intake_receipt":
 { Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
                            },
+"queue_storage_labels":
+{ Args: { "p_client_action_id": string,"p_labels": Json,"p_storage_intake_id": string }; Returns: Json
+                           },
 "reprint_intake_tote_tags":
 { Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
                            },
@@ -2061,6 +2088,15 @@ isOneToOne: false
                            },
 "station_scan":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed": Json,"p_raw": string,"p_reason"?: string,"p_station": Database["public"]['Enums']["device_station"] }; Returns: Json
+                           },
+"storage_label_data":
+{ Args: { "p_storage_intake_id": string }; Returns: Json
+                           },
+"storage_pickup_quote":
+{ Args: { "p_box_ids": (string)[],"p_storage_intake_id": string }; Returns: Json
+                           },
+"storage_pickup_receipt":
+{ Args: { "p_batch_id": string }; Returns: Json
                            },
 "unlock_intake":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_intake_id": string,"p_reason"?: string }; Returns: Json
