@@ -2134,7 +2134,7 @@ isOneToOne: false
 { Args: { "p_customer_id"?: string,"p_intake_id"?: string }; Returns: Json
                            },
 "locate_scan":
-{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed"?: Json,"p_pending_vessel_raw"?: string,"p_raw": string }; Returns: Json
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed"?: Json,"p_pending_vessel_id"?: string,"p_pending_vessel_raw"?: string,"p_raw": string }; Returns: Json
                            },
 "member_lookup_user":
 { Args: { "p_email": string }; Returns: string
@@ -2148,7 +2148,7 @@ isOneToOne: false
 { Args: { "p_pin": string }; Returns: Json
                            },
 "place_vessel":
-{ Args: { "p_client_action_id": string,"p_location_raw": string,"p_operator_session"?: string,"p_vessel_raw": string }; Returns: Json
+{ Args: { "p_client_action_id": string,"p_expected_vessel_id"?: string,"p_location_raw": string,"p_operator_session"?: string,"p_vessel_raw": string }; Returns: Json
                            },
 "print_agent_bind_auth_user":
 { Args: { "p_agent_id": string,"p_user_id": string }; Returns: undefined

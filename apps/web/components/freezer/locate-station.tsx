@@ -9,6 +9,8 @@ import type { ScanReply, ScanRequest } from "@/src/components/station/scan-queue
 import { freezerReply, useFreezerOperator, type FreezerReply } from "./use-freezer-operator";
 
 export type PendingVessel = {
+  /** Vessel step 1 resolved. Tags are reusable: step 2 places only this vessel. */
+  id: string;
   raw: string;
   tag: string | null;
   intake: string | null;
@@ -18,20 +20,24 @@ export type PendingVessel = {
 function readPending(key: string): PendingVessel | null {
   try {
     const value = JSON.parse(localStorage.getItem(key) ?? "null") as PendingVessel | null;
-    return value && typeof value.raw === "string" ? value : null;
+    return value && typeof value.raw === "string" && typeof value.id === "string" ? value : null;
   } catch {
     return null;
   }
 }
 
-/** The loop's next pending vessel: placed → reset; accepted tag → hold it; rejection → keep. */
+/**
+ * The loop's next pending vessel: placed or stale selection → reset; accepted tag → hold
+ * it with its vessel id; any other rejection → keep.
+ */
 export function nextPending(
   current: PendingVessel | null,
   reply: FreezerReply,
 ): PendingVessel | null {
-  if (reply.placed) return null;
-  if (reply.ok && reply.pending_vessel_raw)
+  if (reply.placed || reply.reset) return null;
+  if (reply.ok && reply.pending_vessel_raw && reply.pending_vessel_id)
     return {
+      id: reply.pending_vessel_id,
       raw: reply.pending_vessel_raw,
       tag: reply.tag_code ?? null,
       intake: reply.intake_number ?? null,
@@ -89,6 +95,7 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
         p_client_action_id: request.client_action_id,
         p_raw: request.raw,
         p_pending_vessel_raw: current?.raw ?? undefined,
+        p_pending_vessel_id: current?.id ?? undefined,
         p_operator_session: request.operator_session ?? undefined,
       });
       if (error) {

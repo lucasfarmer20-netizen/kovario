@@ -106,10 +106,13 @@ select is(public.admin_locations('wp13-unarchive','unarchive',p_location_id=>(se
 select is(public.locate_scan('wp13-loop-noves','FL:LOC:freezer-a:IF-A-01-2-F')->>'reason','Scan a vessel tag first','WP13 loop needs a vessel before a location');
 create temp table step1 as select public.locate_scan('wp13-loop-1','FL:TAG:freezer-a:041') r;
 select is((select r->>'pending_vessel_raw' from step1),'FL:TAG:freezer-a:041','WP13 loop step 1 holds the vessel');
+select is((select r->>'pending_vessel_id' from step1),'a1300000-0000-4000-8000-000000000041','WP13 loop step 1 returns the selected vessel identity');
 select is((select r->>'intake_number' || ' ' || (r->>'species') from step1),'INT-0001 Reds','WP13 loop step 1 shows intake and species');
-select is(public.locate_scan('wp13-loop-archived','FL:LOC:freezer-a:IF-A-02-2-R','FL:TAG:freezer-a:041')->>'pending_vessel_raw','FL:TAG:freezer-a:041','WP13 loop keeps vessel pending after a rejected location');
-create temp table step2 as select public.locate_scan('wp13-loop-2','FL:LOC:freezer-a:IF-A-01-2-F','FL:TAG:freezer-a:041') r;
+select is(public.locate_scan('wp13-loop-archived','FL:LOC:freezer-a:IF-A-02-2-R','FL:TAG:freezer-a:041',p_pending_vessel_id=>'a1300000-0000-4000-8000-000000000041')->>'pending_vessel_raw','FL:TAG:freezer-a:041','WP13 loop keeps vessel pending after a rejected location');
+create temp table step2 as select public.locate_scan('wp13-loop-2','FL:LOC:freezer-a:IF-A-01-2-F','FL:TAG:freezer-a:041',p_pending_vessel_id=>'a1300000-0000-4000-8000-000000000041') r;
 select ok((select (r->>'placed')::boolean and r->'pending_vessel_raw'='null'::jsonb from step2),'WP13 loop step 2 places and resets');
+create temp table noid as select public.locate_scan('wp13-loop-noid','FL:LOC:freezer-a:IF-A-01-2-F','FL:TAG:freezer-a:042') r;
+select ok((select r->>'reason'='Vessel selection expired; scan the tag again' and (r->>'reset')::boolean and r->'pending_vessel_raw'='null'::jsonb from noid),'WP13 loop refuses a pending tag without its selected vessel');
 select is(public.locate_scan('wp13-loop-bad','NOT-A-THING')->>'reason','Unknown tag','WP13 loop rejects unknown scan');
 
 -- Walk order (boxing pick list) --------------------------------------------------------
@@ -126,6 +129,29 @@ select is((select array_agg(coalesce(location_code,'-') order by walk_seq) from 
 select is((select count(*)::int from public.vessel_walk_order where location_code='IF-A-01-1-R'),1,'WP13 walk order lists occupied vessels only');
 select ok((select sort_key from public.location where code='IF-A-01-1-F') < (select sort_key from public.location where code='IF-A-01-1-R')
   and (select sort_key from public.location where code='IF-A-01-2-R') < (select sort_key from public.location where code='IF-A-02-1-F'),'WP13 sort_key F before R, level before bay');
+
+-- Stale selection: tag released and rebound between the two scans -----------------------
+set local role authenticated;
+create temp table stale1 as select public.locate_scan('wp13-stale-1','FL:TAG:freezer-a:041') r;
+reset role;
+-- Vessel A (041's holder at step 1) is fully pulled; tag 041 is rebound to a new vessel B.
+update public.vessel set lifecycle_state='emptied',location_id=null where id='a1300000-0000-4000-8000-000000000041';
+update public.asset_tag set state='available',current_vessel_id=null where code='041';
+insert into public.vessel(id,org_id,intake_id,weight_lb,asset_tag_id)
+ select 'a1300000-0000-4000-8000-000000000044','a1300000-0000-4000-8000-00000000000a','a1300000-0000-4000-8000-000000000011',7,id
+ from public.asset_tag where code='041';
+update public.asset_tag set state='in_use',current_vessel_id='a1300000-0000-4000-8000-000000000044' where code='041';
+create temp table placements_before as select count(*)::int n from public.location_placement;
+grant select on placements_before to authenticated;
+set local role authenticated;
+create temp table stale2 as select public.locate_scan('wp13-stale-2','FL:LOC:freezer-a:IF-A-01-1-F',
+ (select r->>'pending_vessel_raw' from stale1),p_pending_vessel_id=>(select (r->>'pending_vessel_id')::uuid from stale1)) r;
+select is((select r->>'reason' from stale2),'Selected vessel changed since its tag was scanned; scan the tag again','WP13 release/rebind between scans rejects the stale selection');
+select ok((select (r->>'reset')::boolean and r->'pending_vessel_raw'='null'::jsonb and r->'pending_vessel_id'='null'::jsonb from stale2),'WP13 stale selection resets the loop');
+select is((select location_id from public.vessel where id='a1300000-0000-4000-8000-000000000044'),null,'WP13 stale selection never places the tag''s new holder');
+select is((select count(*)::int from public.location_placement),(select n from placements_before),'WP13 stale selection writes no placement');
+select is(public.place_vessel('041','IF-A-01-1-F','wp13-stale-direct',p_expected_vessel_id=>'a1300000-0000-4000-8000-000000000041')->>'ok','false','WP13 place_vessel honours an expected vessel identity');
+reset role;
 
 -- Tenancy and operator proof -----------------------------------------------------------
 reset role;

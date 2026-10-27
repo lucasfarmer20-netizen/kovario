@@ -108,6 +108,7 @@ it("WP13 locate two-step loop: tag → shows vessel, location → placed and res
       species: "Reds",
       placed: false,
       pending_vessel_raw: "FL:TAG:demo:041",
+      pending_vessel_id: "vessel-a",
     },
     { ok: true, reason: "Placed 041 → IF-A-01-1-F", placed: true, pending_vessel_raw: null },
   ]);
@@ -124,6 +125,7 @@ it("WP13 locate two-step loop: tag → shows vessel, location → placed and res
       p_client_action_id: "loc-2",
       p_raw: "FL:LOC:demo:IF-A-01-1-F",
       p_pending_vessel_raw: "FL:TAG:demo:041",
+      p_pending_vessel_id: "vessel-a",
     }),
   ]);
   expect(await screen.findByText("STEP 1 — SCAN VESSEL TAG")).toBeTruthy();
@@ -131,7 +133,7 @@ it("WP13 locate two-step loop: tag → shows vessel, location → placed and res
 });
 
 it("WP13 locate keeps the vessel pending after a rejected (archived) location", () => {
-  const current = { raw: "041", tag: "041", intake: "INT-0001", species: null };
+  const current = { id: "vessel-a", raw: "041", tag: "041", intake: "INT-0001", species: null };
   expect(
     nextPending(current, {
       ok: false,
@@ -142,11 +144,35 @@ it("WP13 locate keeps the vessel pending after a rejected (archived) location", 
   ).toBe(current);
 });
 
+it("WP13 locate resets when the tag was released and rebound between scans", () => {
+  const current = { id: "vessel-a", raw: "041", tag: "041", intake: "INT-0001", species: null };
+  expect(
+    nextPending(current, {
+      ok: false,
+      reason: "Selected vessel changed since its tag was scanned; scan the tag again",
+      placed: false,
+      reset: true,
+      pending_vessel_raw: null,
+      pending_vessel_id: null,
+    }),
+  ).toBeNull();
+});
+
+it("WP13 locate drops a stored pending tag that has no vessel identity", () => {
+  localStorage.setItem(
+    "org:staff:locate",
+    JSON.stringify({ raw: "041", tag: "041", intake: "INT-0001", species: null }),
+  );
+  setup();
+  render(<LocateStation />);
+  expect(screen.getByText("STEP 1 — SCAN VESSEL TAG")).toBeTruthy();
+});
+
 it("WP13 locate can drop the pending vessel", async () => {
   setup();
   localStorage.setItem(
     "org:staff:locate",
-    JSON.stringify({ raw: "041", tag: "041", intake: "INT-0001", species: null }),
+    JSON.stringify({ id: "vessel-a", raw: "041", tag: "041", intake: "INT-0001", species: null }),
   );
   render(<LocateStation />);
   fireEvent.click(await screen.findByRole("button", { name: "Scan a different vessel" }));

@@ -14,6 +14,8 @@ export type FreezerReply = ScanReply & {
   location_code?: string | null;
   placed?: boolean;
   pending_vessel_raw?: string | null;
+  pending_vessel_id?: string | null;
+  reset?: boolean;
 };
 
 export function freezerReply(data: Json): FreezerReply {

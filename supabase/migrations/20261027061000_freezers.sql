@@ -181,13 +181,34 @@ end $$;
 -- never gates on capacity and gives no fill guidance. Appends location_placement (whose
 -- trigger mirrors vessel.location_id); the first placement moves the intake to stored.
 -- Lock order: vessel → intake.
-create function app.freezer_place(p_vessel_raw text, p_location_raw text, p_session uuid, p_parsed jsonb)
+-- Two-step loop (p_two_step): tags are reusable, so the vessel chosen at step 1
+-- (p_expected_vessel) is locked by id and the scanned tag must still be bound to it. A
+-- vessel released, or a tag rebound, between the two scans is a stale selection: it is
+-- rejected and the loop resets instead of placing the tag's new holder.
+create function app.freezer_place(p_vessel_raw text, p_location_raw text, p_session uuid, p_parsed jsonb,
+  p_expected_vessel uuid default null, p_two_step boolean default false)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare op uuid; v public.vessel; i public.intake; l public.location; tag text; reason text; msg text;
+  stale boolean:=false; raw text:=btrim(p_vessel_raw,E' \t\r\n');
 begin
   begin
     op:=app.freezer_operator(p_session,'locate');
-    v:=app.freezer_vessel(p_vessel_raw);
+    if p_expected_vessel is null and p_two_step and coalesce(raw,'')<>'' then
+      stale:=true;
+      raise exception 'Vessel selection expired; scan the tag again';
+    end if;
+    if p_expected_vessel is null then
+      v:=app.freezer_vessel(p_vessel_raw);
+    else
+      select * into v from public.vessel
+      where id=p_expected_vessel and org_id=app.org_id() and lifecycle_state='occupied' for update;
+      if v.id is null or not exists(select 1 from public.asset_tag t
+          where t.id=v.asset_tag_id and t.org_id=v.org_id and t.state='in_use'
+            and t.current_vessel_id=v.id and (t.qr=raw or t.code=app.normalize_tag_code(raw))) then
+        stale:=true;
+        raise exception 'Selected vessel changed since its tag was scanned; scan the tag again';
+      end if;
+    end if;
     select * into i from public.intake where id=v.intake_id and org_id=app.org_id() for update;
     select code into tag from public.asset_tag where id=v.asset_tag_id;
     if i.state not in ('blast_freezer','stored') then
@@ -221,32 +242,38 @@ begin
     reason,i.id,v.id,l.id);
   return jsonb_build_object('ok',reason is null,'reason',coalesce(reason,msg),
     'vessel_id',v.id,'location_code',l.code,'placed',reason is null,
-    -- the two-step loop resets after a placement; on rejection the vessel stays pending
-    'pending_vessel_raw',case when reason is null then null else p_vessel_raw end);
+    -- the two-step loop resets after a placement or a stale selection; on any other
+    -- rejection (e.g. an archived location) the vessel stays pending
+    'reset',reason is null or stale,
+    'pending_vessel_raw',case when reason is null or stale then null else p_vessel_raw end,
+    'pending_vessel_id',case when reason is null or stale then null else p_expected_vessel end);
 end $$;
 
 revoke all on function app.freezer_vessel(text), app.freezer_location(text),
   app.freezer_vessel_scan(public.device_station,text,uuid,jsonb),
-  app.freezer_place(text,text,uuid,jsonb) from public, anon, authenticated;
+  app.freezer_place(text,text,uuid,jsonb,uuid,boolean) from public, anon, authenticated;
 
+-- p_expected_vessel_id (optional): only place if the tag is still bound to this vessel.
 create function public.place_vessel(p_vessel_raw text, p_location_raw text, p_client_action_id text,
-  p_operator_session uuid default null)
+  p_operator_session uuid default null, p_expected_vessel_id uuid default null)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare a jsonb; r jsonb;
 begin
   perform app.require_role('{owner,manager,staff,station}');
   a:=app.action_begin(p_client_action_id,'locate.place',
-    jsonb_build_object('vessel_raw',p_vessel_raw,'location_raw',p_location_raw));
+    jsonb_build_object('vessel_raw',p_vessel_raw,'location_raw',p_location_raw,'vessel_id',p_expected_vessel_id));
   if a->>'status'='done' then return a->'result'; end if;
-  r:=app.freezer_place(p_vessel_raw,p_location_raw,p_operator_session,null);
+  r:=app.freezer_place(p_vessel_raw,p_location_raw,p_operator_session,null,p_expected_vessel_id);
   perform app.action_complete(p_client_action_id,r);
   return r;
 end $$;
 
 -- The Locate station's two-step loop in one idempotent scan action: a location scan
 -- places the pending vessel; anything else is read as a vessel tag and becomes pending.
+-- The pending vessel is carried as the tag text plus the vessel id step 1 resolved.
 create function public.locate_scan(p_client_action_id text, p_raw text,
-  p_pending_vessel_raw text default null, p_operator_session uuid default null, p_parsed jsonb default null)
+  p_pending_vessel_raw text default null, p_operator_session uuid default null, p_parsed jsonb default null,
+  p_pending_vessel_id uuid default null)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare a jsonb; r jsonb;
 begin
@@ -254,10 +281,11 @@ begin
   a:=app.action_begin(p_client_action_id,'locate.scan',jsonb_build_object('raw',p_raw));
   if a->>'status'='done' then return a->'result'; end if;
   if (app.freezer_location(p_raw)).id is not null then
-    r:=app.freezer_place(p_pending_vessel_raw,p_raw,p_operator_session,p_parsed);
+    r:=app.freezer_place(p_pending_vessel_raw,p_raw,p_operator_session,p_parsed,p_pending_vessel_id,true);
   else
     r:=app.freezer_vessel_scan('locate',p_raw,p_operator_session,p_parsed);
-    r:=r||jsonb_build_object('placed',false,
+    r:=r||jsonb_build_object('placed',false,'reset',false,
+      'pending_vessel_id',case when (r->>'ok')::boolean then r->'vessel_id' else to_jsonb(p_pending_vessel_id) end,
       'pending_vessel_raw',case when (r->>'ok')::boolean then btrim(p_raw,E' \t\r\n') else p_pending_vessel_raw end);
   end if;
   perform app.action_complete(p_client_action_id,r);
@@ -278,10 +306,10 @@ begin
 end $$;
 
 revoke all on function public.admin_locations(text,text,jsonb,uuid),
-  public.place_vessel(text,text,text,uuid), public.locate_scan(text,text,text,uuid,jsonb),
+  public.place_vessel(text,text,text,uuid,uuid), public.locate_scan(text,text,text,uuid,jsonb,uuid),
   public.blast_vessel(text,text,uuid,jsonb) from public, anon;
 grant execute on function public.admin_locations(text,text,jsonb,uuid),
-  public.place_vessel(text,text,text,uuid), public.locate_scan(text,text,text,uuid,jsonb),
+  public.place_vessel(text,text,text,uuid,uuid), public.locate_scan(text,text,text,uuid,jsonb,uuid),
   public.blast_vessel(text,text,uuid,jsonb) to authenticated;
 
 -- Boxing pick list: a session's occupied vessels in walk-path order. Unlocated vessels
