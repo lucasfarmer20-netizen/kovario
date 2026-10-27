@@ -305,3 +305,22 @@ it("WP15 the I8 panel keys on the SQL hint, never on the English message", async
   expect(screen.queryByText("Manager override")).toBeNull();
   expect(screen.queryByText(/still has baskets in the freezer/)).toBeNull();
 });
+
+it("WP15 a refused override (a tote reappeared) points at the freezer", async () => {
+  setup(undefined, "manager", [
+    I8_NO_TOTE,
+    {
+      message:
+        "ALC-0001 still has a tote to tick (Tag 042 (INT-0001)); the I8 override applies only when none is left (DECISION-23)",
+      hint: "i8_tote_left",
+    },
+  ]);
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.change(await screen.findByLabelText("Override reason"), {
+    target: { value: "other party took it" },
+  });
+  fireEvent.click(screen.getByText("Manager override"));
+  expect(await screen.findByText(/still has baskets in the freezer/)).toBeTruthy();
+  expect(screen.queryByText("Manager override")).toBeNull();
+});

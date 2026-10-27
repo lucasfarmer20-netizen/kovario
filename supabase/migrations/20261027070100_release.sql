@@ -479,7 +479,7 @@ begin
     end if;
     if v_bad is not null then
       raise exception '% still has a tote to tick (%); the I8 override applies only when none is left (DECISION-23)',
-        v_session.number, v_bad using errcode = '55000';
+        v_session.number, v_bad using errcode = '55000', hint = 'i8_tote_left';
     end if;
     v_override := jsonb_build_object(
       'reason', v_override_reason, 'approved_by', v_override_by, 'requested_by', v_op,

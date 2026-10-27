@@ -623,6 +623,8 @@ select pg_temp.as_user('manager');
 select matches(pg_temp.err($$select pg_temp.override('s_left', '{b_left}', 'forgot to tick')$$),
   '^55000 .*still has a tote to tick \(Tag 7401 .*DECISION-23',
   'I8 OVERRIDE — refused while the party still has an occupied tote');
+select is(pg_temp.hint($$select pg_temp.override('s_left', '{b_left}', 'forgot to tick')$$), 'i8_tote_left',
+  'I8 OVERRIDE — a refused override carries the tote-left hint (the screen points at the freezer)');
 select is(pg_temp.bstate('b_left') || '/' || pg_temp.vstate('v_left') || '/' || cardinality(pg_temp.audit('{i_left}')),
   'planned/occupied:6.00:-/0', 'I8 OVERRIDE — the refused override writes nothing');
 select pg_temp.as_user('staff');
