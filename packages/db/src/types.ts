@@ -1335,6 +1335,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"station_operator_session": {
+                  Row: {
+                    "created_at": string,"expires_at": string,"id": string,"operator_id": string,"org_id": string,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"expires_at"?: string,"id"?: string,"operator_id": string,"org_id": string,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"expires_at"?: string,"id"?: string,"operator_id"?: string,"org_id"?: string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "station_operator_session_operator_id_fkey"
+      columns: ["operator_id"]
+isOneToOne: false
+      referencedRelation: "org_member"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "station_operator_session_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"storage_box": {
                   Row: {
                     "batch_id": string | null,"box_no": number,"created_at": string,"description": string | null,"id": string,"label": string,"org_id": string,"released_at": string | null,"released_by": string | null,"state": Database["public"]['Enums']["storage_box_state"],"storage_intake_id": string,"updated_at": string,"weight_lb": number | null
@@ -1817,6 +1843,12 @@ isOneToOne: false
                            },
 "set_lodge_guest":
 { Args: { "p_client_action_id": string,"p_customer_id": string,"p_is_lodge_guest": boolean,"p_lodge_id"?: string }; Returns: Json
+                           },
+"station_identify":
+{ Args: { "p_pin": string }; Returns: Json
+                           },
+"station_scan":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed": Json,"p_raw": string,"p_reason"?: string,"p_station": Database["public"]['Enums']["device_station"] }; Returns: Json
                            }
           }
           Enums: {
