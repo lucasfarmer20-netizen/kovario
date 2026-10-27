@@ -132,7 +132,20 @@ alter table public.payment
   add column if not exists reversed_at timestamptz,
   add column if not exists reversed_amount numeric(12,2) check (reversed_amount >= 0),
   add column if not exists reverse_reason text,
-  add column if not exists reverse_txn text;
+  add column if not exists reverse_txn text,
+  -- the void / refund in flight (payment_reverse_begin → payment_reverse_record): one at a time
+  add column if not exists reverse_pending_at timestamptz,
+  add column if not exists reverse_pending_kind text check (reverse_pending_kind in ('reverse', 'refund')),
+  add column if not exists reverse_pending_amount numeric(12,2),
+  add column if not exists reverse_pending_ref text,
+  add column if not exists reverse_pending_reason text;
+
+do $$ begin
+  alter table public.payment add constraint payment_reverse_pending_shape check (
+    (reverse_pending_at is null) = (reverse_pending_kind is null)
+    and (reverse_pending_at is null) = (reverse_pending_amount is null)
+    and (reverse_pending_at is null) = (reverse_pending_ref is null));
+exception when duplicate_object then null; end $$;
 
 do $$ begin
   alter table public.payment add constraint payment_comp_reason check (tender <> 'comp' or length(btrim(reason)) > 0);
@@ -214,7 +227,7 @@ as $$
     'attempt', p.attempt, 'provider_ref', p.provider_ref, 'card_brand', p.card_brand, 'card_last4', p.card_last4,
     'entry_mode', p.entry_mode, 'auth_code', p.auth_code, 'decline_reason', p.decline_reason,
     'message', p.message, 'approved_at', p.approved_at, 'reversed_amount', p.reversed_amount,
-    'created_at', p.created_at)
+    'reverse_pending_kind', p.reverse_pending_kind, 'created_at', p.created_at)
 $$;
 
 -- The cart as the register shows it.
@@ -1151,6 +1164,12 @@ create constraint trigger register_order_paid_hook
 -- intent for the whole payment — the provider decides void vs refund; 'refund' returns
 -- p_amount (≤ the captured amount). Records reverse_requested / refund_requested and returns
 -- what the route handler needs; payment_reverse_record stores the provider's answer.
+-- ONE reversal at a time: begin reserves it on the payment row (kind, amount, provider ref)
+-- under the row lock and commits; a competing intent is refused until payment_reverse_record
+-- clears the reservation, so two managers (or a double click) can never both reach the
+-- provider. A reservation older than the route's lifetime (maxDuration 300 s + margin) means
+-- its request died without recording: only the SAME intent may resume it, with the SAME
+-- provider ref, so the provider rejects or dedupes the repeat instead of refunding twice.
 create or replace function public.payment_reverse_begin(
   p_client_action_id text, p_payment_id uuid, p_kind text, p_reason text,
   p_amount numeric default null, p_elevation_token text default null
@@ -1166,6 +1185,8 @@ declare
   v_pay public.payment;
   v_amount numeric;
   v_n int;
+  v_ref text;
+  v_resumed boolean := false;
   v_result jsonb;
 begin
   if p_elevation_token is not null then
@@ -1198,14 +1219,35 @@ begin
   if v_amount is null or v_amount <= 0 or v_amount > v_pay.amount or v_amount * 100 <> trunc(v_amount * 100) then
     raise exception 'refund amount must be more than 0 and at most %', v_pay.amount using errcode = '22023';
   end if;
-  select count(*) + 1 into v_n from public.payment_event
-  where payment_id = v_pay.id and kind in ('reverse_requested', 'refund_requested');
+  if v_pay.reverse_pending_at is not null then
+    if v_pay.reverse_pending_at > now() - interval '6 minutes' then
+      raise exception 'a % of % (%) is already in progress; wait for its result', v_pay.reverse_pending_kind,
+        v_pay.number, v_pay.reverse_pending_amount using errcode = '55000', hint = 'reversal_in_flight';
+    end if;
+    if v_pay.reverse_pending_kind <> p_kind or v_pay.reverse_pending_amount <> v_amount then
+      raise exception 'an unfinished % of % (%) must be retried as the same request (or checked with the provider) first',
+        v_pay.reverse_pending_kind, v_pay.number, v_pay.reverse_pending_amount
+        using errcode = '55000', hint = 'reversal_in_flight';
+    end if;
+    -- Resume the dead request with the same ref, so the provider cannot apply it twice.
+    v_ref := v_pay.reverse_pending_ref;
+    v_resumed := true;
+  else
+    select count(*) + 1 into v_n from public.payment_event
+    where payment_id = v_pay.id and kind in ('reverse_requested', 'refund_requested');
+    v_ref := case when p_kind = 'reverse' then v_pay.provider_ref else v_pay.provider_ref || '-R' || v_n end;
+  end if;
+  update public.payment
+  set reverse_pending_at = now(), reverse_pending_kind = p_kind, reverse_pending_amount = v_amount,
+      reverse_pending_ref = v_ref, reverse_pending_reason = btrim(p_reason)
+  where id = v_pay.id
+  returning * into v_pay;
   insert into public.payment_event (org_id, payment_id, kind, payload)
   values (v_pay.org_id, v_pay.id, (p_kind || '_requested')::public.payment_event_kind, jsonb_build_object(
-    'amount', v_amount, 'reason', btrim(p_reason), 'approved_by', v_manager, 'attempt', v_n));
+    'amount', v_amount, 'reason', btrim(p_reason), 'approved_by', v_manager, 'ref', v_ref, 'resumed', v_resumed));
   v_result := app.payment_json(v_pay) || jsonb_build_object(
     'org_id', v_pay.org_id, 'kind', p_kind, 'reverse_amount', v_amount, 'reason', btrim(p_reason),
-    'provider_txn', v_pay.provider_txn, 'refund_ref', v_pay.provider_ref || '-R' || v_n, 'approved_by', v_manager);
+    'provider_txn', v_pay.provider_txn, 'refund_ref', v_ref, 'resumed', v_resumed, 'approved_by', v_manager);
   perform app.action_complete(p_client_action_id, v_result);
   return v_result;
 end;
@@ -1214,7 +1256,10 @@ $$;
 -- Service role only: stores the provider's reverse / refund answer. voided | refunded → the
 -- payment's state, plus a refund register_order (kind refund, inserted as paid) recording
 -- amount and reason; the paid hook sees a refund and never releases (S11). declined | error
--- → the payment stays approved; the event records why.
+-- → the payment stays approved; the event records why. Either way the reservation taken by
+-- payment_reverse_begin is cleared; amount and reason come from it. Without a matching
+-- reservation nothing changes (a repeated record of a finished reversal is a no-op; a stray
+-- one is refused).
 create or replace function public.payment_reverse_record(
   p_payment_id uuid, p_kind text, p_amount numeric, p_reason text, p_result jsonb
 )
@@ -1227,6 +1272,8 @@ declare
   v_pay public.payment;
   v_order_id uuid;
   v_outcome text := p_result ->> 'outcome';
+  v_amount numeric;
+  v_reason text;
   v_refund public.register_order;
   v_hook jsonb;
   v_status text;
@@ -1245,29 +1292,39 @@ begin
     perform 1 from public.register_order where id = v_order_id for update;
   end if;
   select * into v_pay from public.payment where id = p_payment_id for update;
+  if v_pay.state in ('voided', 'refunded') and v_pay.reverse_pending_at is null then
+    return jsonb_build_object('status', 'noop', 'payment', app.payment_json(v_pay));
+  end if;
+  if v_pay.reverse_pending_at is null or v_pay.reverse_pending_kind <> p_kind
+     or v_pay.reverse_pending_amount <> p_amount then
+    raise exception 'no matching % of % is in progress', p_kind, v_pay.number using errcode = '55000';
+  end if;
+  v_amount := v_pay.reverse_pending_amount;
+  v_reason := coalesce(v_pay.reverse_pending_reason, btrim(p_reason));
   insert into public.payment_event (org_id, payment_id, kind, payload)
   values (v_pay.org_id, v_pay.id, (p_kind || '_result')::public.payment_event_kind, jsonb_strip_nulls(jsonb_build_object(
-    'outcome', v_outcome, 'amount', p_amount, 'provider_txn', p_result -> 'providerTxn', 'raw', p_result -> 'raw',
-    'state_before', v_pay.state)));
+    'outcome', v_outcome, 'amount', v_amount, 'ref', v_pay.reverse_pending_ref,
+    'provider_txn', p_result -> 'providerTxn', 'raw', p_result -> 'raw', 'state_before', v_pay.state)));
+  update public.payment
+  set reverse_pending_at = null, reverse_pending_kind = null, reverse_pending_amount = null,
+      reverse_pending_ref = null, reverse_pending_reason = null
+  where id = v_pay.id
+  returning * into v_pay;
 
   if v_outcome in ('voided', 'refunded') and v_pay.state = 'approved' then
     update public.payment
-    set state = v_outcome::public.payment_state, reversed_amount = p_amount, reverse_reason = btrim(p_reason),
+    set state = v_outcome::public.payment_state, reversed_amount = v_amount, reverse_reason = v_reason,
         reverse_txn = p_result ->> 'providerTxn'
     where id = v_pay.id
     returning * into v_pay;
     insert into public.register_order (org_id, customer_id, kind, state, refund_of_id, refund_payment_id,
                                        refund_amount, reason)
-    values (v_pay.org_id, v_pay.customer_id, 'refund', 'paid', v_pay.register_order_id, v_pay.id, p_amount,
-            btrim(p_reason))
+    values (v_pay.org_id, v_pay.customer_id, 'refund', 'paid', v_pay.register_order_id, v_pay.id, v_amount,
+            v_reason)
     returning * into v_refund;
     v_hook := public.apply_paid_register_order(v_refund.id, null);
-    v_status := v_outcome;
-  elsif v_pay.state in ('voided', 'refunded') then
-    v_status := 'noop';
-  else
-    v_status := v_outcome;
   end if;
+  v_status := v_outcome;
   return jsonb_build_object('status', v_status, 'payment', app.payment_json(v_pay),
     'refund_order', case when v_refund.id is not null then app.register_order_json(v_refund.id) end,
     'paid_hook', v_hook);

@@ -44,6 +44,8 @@ export type CartPayment = {
   decline_reason: string | null;
   message: string | null;
   reversed_amount: number | null;
+  /** a void / refund is in flight (one at a time; the server refuses another) */
+  reverse_pending_kind?: "reverse" | "refund" | null;
 };
 
 export type Cart = {
@@ -220,7 +222,7 @@ export function chargeInputError(input: {
 
 /** A payment a manager may void / refund from the register. */
 export function reversible(p: CartPayment): boolean {
-  return p.state === "approved";
+  return p.state === "approved" && !p.reverse_pending_kind;
 }
 
 /** A payment the cashier must resolve before charging again. */

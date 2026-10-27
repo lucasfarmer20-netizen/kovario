@@ -401,16 +401,45 @@ select pg_temp.chk('REFUND', 'reverse_begin: refund_requested logged, a refund r
   format('%s|%s|%s', pg_temp.events('P5'), pg_temp.res('RV') ->> 'reverse_amount',
          pg_temp.res('RV') ->> 'refund_ref' = (pg_temp.pay('P5')).provider_ref || '-R1'),
   'sale_requested,sale_result,refund_requested|5|t');
+-- One reversal at a time: the reservation is committed with the request, before the provider call.
+select pg_temp.chk('REVERSAL', 'begin reserves the reversal on the payment (kind, amount, ref) while it stays approved',
+  (select format('%s|%s|%s|%s', state, reverse_pending_kind, reverse_pending_amount,
+                 reverse_pending_ref = pg_temp.res('RV') ->> 'refund_ref') from pg_temp.pay('P5')),
+  'approved|refund|5.00|t');
+select pg_temp.chk('REVERSAL', 'a competing void / refund (another action id) is refused while one is in flight',
+  pg_temp.err($$select public.payment_reverse_begin('wp16-rv-3b', pg_temp.id('P5'), 'refund', 'second manager', 2)$$) || ':'
+  || pg_temp.err($$select public.payment_reverse_begin('wp16-rv-3c', pg_temp.id('P5'), 'reverse', 'second manager')$$),
+  '55000:55000');
+-- The request died without recording (older than the route's lifetime): only the same intent
+-- resumes, with the same provider ref.
 reset role;
+update public.payment set reverse_pending_at = now() - interval '10 minutes' where id = pg_temp.id('P5');
+set local role authenticated;
+select pg_temp.chk('REVERSAL', 'a stale reservation refuses a different intent',
+  pg_temp.err($$select public.payment_reverse_begin('wp16-rv-3d', pg_temp.id('P5'), 'refund', 'retry', 4)$$), '55000');
+insert into t_ids values ('RV2', public.payment_reverse_begin('wp16-rv-3e', pg_temp.id('P5'), 'refund', 'retry', 5)::text);
+select pg_temp.chk('REVERSAL', '… and resumes the same intent with the SAME ref (the provider dedupes it)',
+  format('%s|%s', pg_temp.res('RV2') ->> 'resumed', pg_temp.res('RV2') ->> 'refund_ref' = pg_temp.res('RV') ->> 'refund_ref'),
+  'true|t');
+reset role;
+select pg_temp.chk('REVERSAL', 'recording a result that does not match the reservation is refused',
+  pg_temp.err($$select public.payment_reverse_record(pg_temp.id('P5'), 'refund', 2, 'x', '{"outcome":"refunded"}')$$) || ':'
+  || pg_temp.err($$select public.payment_reverse_record(pg_temp.id('P2'), 'reverse', 6, 'x', '{"outcome":"voided"}')$$),
+  '55000:55000');
 insert into t_ids values ('RR', public.payment_reverse_record(pg_temp.id('P5'), 'refund', 5, 'customer changed mind',
   '{"outcome":"refunded","providerTxn":"TX-5R","raw":{"ProcessedAs":"Return"}}')::text);
+select pg_temp.chk('REVERSAL', 'the result clears the reservation; recording it again is a no-op (one refund order)',
+  format('%s|%s|%s', (pg_temp.pay('P5')).reverse_pending_at is null,
+         public.payment_reverse_record(pg_temp.id('P5'), 'refund', 5, 'x', '{"outcome":"refunded"}') ->> 'status',
+         (select count(*) from public.register_order where refund_payment_id = pg_temp.id('P5'))),
+  't|noop|1');
 set constraints all immediate;
 set constraints all deferred;
 set local role authenticated;
 select pg_temp.chk('REFUND', 'refund order: kind refund, paid, records amount + reason; its hook never releases',
   (select format('%s|%s|%s|%s|%s', o.kind, o.state, o.refund_amount, o.reason, o.paid_hook_result ->> 'status')
    from public.register_order o where o.refund_payment_id = pg_temp.id('P5')),
-  'refund|paid|5.00|customer changed mind|refund');
+  'refund|paid|5.00|retry|refund');  -- the reason of the (resumed) reservation
 select pg_temp.chk('REFUND', 'the refunded payment: state refunded, amount + txn stored; nothing released or settled',
   format('%s|%s|%s|%s|%s', (pg_temp.pay('P5')).state, (pg_temp.pay('P5')).reversed_amount, (pg_temp.pay('P5')).reverse_txn,
          (select state from public.storage_pickup_batch where id = pg_temp.id('B5')),

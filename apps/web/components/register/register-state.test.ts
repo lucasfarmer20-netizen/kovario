@@ -154,6 +154,7 @@ describe("what the cashier may do", () => {
   it("only approved payments are reversible; pending / indeterminate are unresolved", () => {
     expect(reversible(payment())).toBe(true);
     expect(reversible(payment({ state: "refunded" }))).toBe(false);
+    expect(reversible(payment({ reverse_pending_kind: "refund" }))).toBe(false);
     expect(unresolved(payment({ state: "pending" }))).toBe(true);
     expect(unresolved(payment({ state: "indeterminate" }))).toBe(true);
     expect(unresolved(payment())).toBe(false);

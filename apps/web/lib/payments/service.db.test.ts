@@ -349,4 +349,43 @@ describe("payments route flow (fake provider)", { timeout: 60_000 }, () => {
       .eq("state", "open");
     expect(charges).toHaveLength(1); // the cart's charge is still owed
   });
+  it("two managers refunding at once: the second is refused while the first is in flight; one provider refund, one refund order", async () => {
+    fake = new FakeProvider()
+      .queueSale({ outcome: "approved" })
+      .queueRefund({ outcome: "refunded", providerTxn: "TX-R1", delayMs: 300 });
+    await settleAll();
+    const orderId = await cart(8);
+    const paid = res(
+      await chargePayment(deps(), {
+        clientActionId: cid("sale"),
+        orderId,
+        amount: 8,
+        terminalId,
+        tender: "card",
+      }),
+    );
+    const refund = (amount: number) =>
+      reversePayment(deps(manager), {
+        clientActionId: cid("rf"),
+        paymentId: paid.payment.id,
+        kind: "refund",
+        amount,
+        reason: "double click",
+      });
+    const first = refund(8);
+    // the first request has reserved the reversal and is waiting on the (delayed) provider
+    for (let i = 0; i < 50 && fake.callsOf("refund").length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await expect(refund(3)).rejects.toMatchObject({
+      status: 409,
+    } satisfies Partial<PaymentRequestError>);
+    expect(((await first) as unknown as { status: string }).status).toBe("refunded");
+    expect(fake.callsOf("refund")).toHaveLength(1);
+    const { data: refundOrders } = await admin
+      .from("register_order")
+      .select("refund_amount")
+      .eq("refund_payment_id", paid.payment.id);
+    expect(refundOrders).toEqual([{ refund_amount: 8 }]);
+  });
 });

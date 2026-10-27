@@ -29,6 +29,13 @@ export interface FakeSaleStep {
   throws?: string;
 }
 
+/** A scripted reverse / refund answer; `delayMs` keeps the provider call in flight. */
+export interface FakeReverseStep<O> {
+  outcome: O;
+  providerTxn?: string;
+  delayMs?: number;
+}
+
 export interface FakeCall {
   op: "sale" | "abort" | "status" | "reverse" | "refund";
   req: unknown;
@@ -40,8 +47,8 @@ export class FakeProvider implements PaymentProvider {
   readonly calls: FakeCall[] = [];
   private readonly sales: FakeSaleStep[] = [];
   private readonly statuses: FakeSaleStep[] = [];
-  private readonly reverses: { outcome: ReverseOutcome; providerTxn?: string }[] = [];
-  private readonly refunds: { outcome: RefundOutcome; providerTxn?: string }[] = [];
+  private readonly reverses: FakeReverseStep<ReverseOutcome>[] = [];
+  private readonly refunds: FakeReverseStep<RefundOutcome>[] = [];
   private readonly seenRefs = new Set<string>();
   private readonly held = new Map<string, () => void>();
   private txn = 0;
@@ -58,12 +65,12 @@ export class FakeProvider implements PaymentProvider {
     return this;
   }
 
-  queueReverse(...steps: { outcome: ReverseOutcome; providerTxn?: string }[]): this {
+  queueReverse(...steps: FakeReverseStep<ReverseOutcome>[]): this {
     this.reverses.push(...steps);
     return this;
   }
 
-  queueRefund(...steps: { outcome: RefundOutcome; providerTxn?: string }[]): this {
+  queueRefund(...steps: FakeReverseStep<RefundOutcome>[]): this {
     this.refunds.push(...steps);
     return this;
   }
@@ -126,16 +133,18 @@ export class FakeProvider implements PaymentProvider {
     );
   }
 
-  reverse(req: Parameters<PaymentProvider["reverse"]>[0]): Promise<ReverseResult> {
+  async reverse(req: Parameters<PaymentProvider["reverse"]>[0]): Promise<ReverseResult> {
     this.calls.push({ op: "reverse", req: this.scrub(req) });
-    const step = this.reverses.shift() ?? { outcome: "voided" };
-    return Promise.resolve({ ...step, raw: { fake: true, outcome: step.outcome } });
+    const { delayMs, ...step } = this.reverses.shift() ?? { outcome: "voided" };
+    if (delayMs) await sleep(delayMs);
+    return { ...step, raw: { fake: true, outcome: step.outcome } };
   }
 
-  refund(req: Parameters<PaymentProvider["refund"]>[0]): Promise<RefundResult> {
+  async refund(req: Parameters<PaymentProvider["refund"]>[0]): Promise<RefundResult> {
     this.calls.push({ op: "refund", req: this.scrub(req) });
-    const step = this.refunds.shift() ?? { outcome: "refunded" };
-    return Promise.resolve({ ...step, raw: { fake: true, outcome: step.outcome } });
+    const { delayMs, ...step } = this.refunds.shift() ?? { outcome: "refunded" };
+    if (delayMs) await sleep(delayMs);
+    return { ...step, raw: { fake: true, outcome: step.outcome } };
   }
 
   scrub(x: unknown): unknown {
