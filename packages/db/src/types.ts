@@ -1399,14 +1399,14 @@ isOneToOne: false
                   ]
                 },"shipment": {
                   Row: {
-                    "blockers": NonNullable<Json>,"box_plan_ids": (string)[],"carrier": string | null,"created_at": string,"customer_id": string | null,"id": string,"is_walkin": boolean,"label_url": string | null,"number": string,"org_id": string,"rate_amount": number | null,"service": string | null,"ship_date": string | null,"ship_to": NonNullable<Json>,"shippo_shipment_id": string | null,"shippo_transaction_id": string | null,"state": Database["public"]['Enums']["shipment_state"],"tracking_number": string | null,"updated_at": string
+                    "address_check": Json | null,"blockers": NonNullable<Json>,"box_plan_ids": (string)[],"buy_claim_forced": boolean,"buy_claim_id": string | null,"buy_claimed_at": string | null,"buy_error": string | null,"buy_outstanding_rate_id": string | null,"buy_purchase_started_at": string | null,"carrier": string | null,"created_at": string,"customer_id": string | null,"id": string,"is_walkin": boolean,"label_url": string | null,"notes": string,"number": string,"org_id": string,"rate_amount": number | null,"rate_shop": Json | null,"service": string | null,"ship_date": string | null,"ship_to": NonNullable<Json>,"shipped_at": string | null,"shippo_rate_id": string | null,"shippo_shipment_id": string | null,"shippo_transaction_id": string | null,"site_id": string | null,"state": Database["public"]['Enums']["shipment_state"],"tracking_number": string | null,"tracking_status": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "blockers"?: NonNullable<Json>,"box_plan_ids"?: (string)[],"carrier"?: string | null,"created_at"?: string,"customer_id"?: string | null,"id"?: string,"is_walkin"?: boolean,"label_url"?: string | null,"number": string,"org_id": string,"rate_amount"?: number | null,"service"?: string | null,"ship_date"?: string | null,"ship_to"?: NonNullable<Json>,"shippo_shipment_id"?: string | null,"shippo_transaction_id"?: string | null,"state"?: Database["public"]['Enums']["shipment_state"],"tracking_number"?: string | null,"updated_at"?: string
+                    "address_check"?: Json | null,"blockers"?: NonNullable<Json>,"box_plan_ids"?: (string)[],"buy_claim_forced"?: boolean,"buy_claim_id"?: string | null,"buy_claimed_at"?: string | null,"buy_error"?: string | null,"buy_outstanding_rate_id"?: string | null,"buy_purchase_started_at"?: string | null,"carrier"?: string | null,"created_at"?: string,"customer_id"?: string | null,"id"?: string,"is_walkin"?: boolean,"label_url"?: string | null,"notes"?: string,"number": string,"org_id": string,"rate_amount"?: number | null,"rate_shop"?: Json | null,"service"?: string | null,"ship_date"?: string | null,"ship_to"?: NonNullable<Json>,"shipped_at"?: string | null,"shippo_rate_id"?: string | null,"shippo_shipment_id"?: string | null,"shippo_transaction_id"?: string | null,"site_id"?: string | null,"state"?: Database["public"]['Enums']["shipment_state"],"tracking_number"?: string | null,"tracking_status"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "blockers"?: NonNullable<Json>,"box_plan_ids"?: (string)[],"carrier"?: string | null,"created_at"?: string,"customer_id"?: string | null,"id"?: string,"is_walkin"?: boolean,"label_url"?: string | null,"number"?: string,"org_id"?: string,"rate_amount"?: number | null,"service"?: string | null,"ship_date"?: string | null,"ship_to"?: NonNullable<Json>,"shippo_shipment_id"?: string | null,"shippo_transaction_id"?: string | null,"state"?: Database["public"]['Enums']["shipment_state"],"tracking_number"?: string | null,"updated_at"?: string
+                    "address_check"?: Json | null,"blockers"?: NonNullable<Json>,"box_plan_ids"?: (string)[],"buy_claim_forced"?: boolean,"buy_claim_id"?: string | null,"buy_claimed_at"?: string | null,"buy_error"?: string | null,"buy_outstanding_rate_id"?: string | null,"buy_purchase_started_at"?: string | null,"carrier"?: string | null,"created_at"?: string,"customer_id"?: string | null,"id"?: string,"is_walkin"?: boolean,"label_url"?: string | null,"notes"?: string,"number"?: string,"org_id"?: string,"rate_amount"?: number | null,"rate_shop"?: Json | null,"service"?: string | null,"ship_date"?: string | null,"ship_to"?: NonNullable<Json>,"shipped_at"?: string | null,"shippo_rate_id"?: string | null,"shippo_shipment_id"?: string | null,"shippo_transaction_id"?: string | null,"site_id"?: string | null,"state"?: Database["public"]['Enums']["shipment_state"],"tracking_number"?: string | null,"tracking_status"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -1421,18 +1421,56 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "org"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "shipment_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"shipment_parcel": {
+                  Row: {
+                    "box_plan_id": string | null,"created_at": string,"dry_ice_lb": number,"height_in": number | null,"id": string,"label_printed_at": string | null,"label_url": string | null,"label_zpl": string | null,"length_in": number | null,"org_id": string,"seq": number,"shipment_id": string,"shippo_transaction_id": string | null,"tracking_number": string | null,"tracking_status": string | null,"updated_at": string,"weight_lb": number | null,"width_in": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "box_plan_id"?: string | null,"created_at"?: string,"dry_ice_lb"?: number,"height_in"?: number | null,"id"?: string,"label_printed_at"?: string | null,"label_url"?: string | null,"label_zpl"?: string | null,"length_in"?: number | null,"org_id": string,"seq": number,"shipment_id": string,"shippo_transaction_id"?: string | null,"tracking_number"?: string | null,"tracking_status"?: string | null,"updated_at"?: string,"weight_lb"?: number | null,"width_in"?: number | null
+                  }
+                  Update: {
+                    "box_plan_id"?: string | null,"created_at"?: string,"dry_ice_lb"?: number,"height_in"?: number | null,"id"?: string,"label_printed_at"?: string | null,"label_url"?: string | null,"label_zpl"?: string | null,"length_in"?: number | null,"org_id"?: string,"seq"?: number,"shipment_id"?: string,"shippo_transaction_id"?: string | null,"tracking_number"?: string | null,"tracking_status"?: string | null,"updated_at"?: string,"weight_lb"?: number | null,"width_in"?: number | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "shipment_parcel_box_plan_id_fkey"
+      columns: ["box_plan_id"]
+isOneToOne: false
+      referencedRelation: "box_plan"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "shipment_parcel_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "shipment_parcel_shipment_id_fkey"
+      columns: ["shipment_id"]
+isOneToOne: false
+      referencedRelation: "shipment"
+      referencedColumns: ["id"]
     }
                   ]
                 },"site": {
                   Row: {
-                    "created_at": string,"id": string,"is_default": boolean,"name": string,"org_id": string,"updated_at": string
+                    "created_at": string,"id": string,"is_default": boolean,"name": string,"org_id": string,"ship_from": Json | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"is_default"?: boolean,"name": string,"org_id": string,"updated_at"?: string
+                    "created_at"?: string,"id"?: string,"is_default"?: boolean,"name": string,"org_id": string,"ship_from"?: Json | null,"updated_at"?: string
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"is_default"?: boolean,"name"?: string,"org_id"?: string,"updated_at"?: string
+                    "created_at"?: string,"id"?: string,"is_default"?: boolean,"name"?: string,"org_id"?: string,"ship_from"?: Json | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -2097,6 +2135,9 @@ isOneToOne: false
 "admin_set_rate_card_lines":
 { Args: { "p_client_action_id": string,"p_lines": Json,"p_rate_card_id": string }; Returns: Json
                            },
+"admin_set_ship_from":
+{ Args: { "p_address": Json,"p_client_action_id": string,"p_site_id": string }; Returns: Json
+                           },
 "admin_update_customer":
 { Args: { "p_client_action_id": string,"p_customer_id": string,"p_email": string,"p_name": string,"p_notes": string,"p_phone": string }; Returns: Json
                            },
@@ -2121,6 +2162,9 @@ isOneToOne: false
 "allocation_session_summary":
 { Args: { "p_session_id": string }; Returns: Json
                            },
+"begin_label_buy":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_force_buy_held"?: boolean,"p_shipment_id": string }; Returns: Json
+                           },
 "billing_apply_subscription":
 { Args: { "p_customer_id": string,"p_event_created": string,"p_event_id": string,"p_kind": string,"p_org_hint"?: string,"p_plan": string,"p_status": string,"p_subscription_id": string }; Returns: Json
                            },
@@ -2139,6 +2183,9 @@ isOneToOne: false
 "cancel_pickup_batch":
 { Args: { "p_batch_id": string,"p_client_action_id": string }; Returns: Json
                            },
+"cancel_shipment":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_reason": string,"p_shipment_id": string }; Returns: Json
+                           },
 "cancel_wave":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_wave_id": string }; Returns: Json
                            },
@@ -2156,6 +2203,12 @@ isOneToOne: false
                            },
 "create_pickup_batch":
 { Args: { "p_box_ids": (string)[],"p_client_action_id": string,"p_storage_intake_id": string }; Returns: Json
+                           },
+"create_shipment":
+{ Args: { "p_box_plan_ids": (string)[],"p_client_action_id": string,"p_ship_date": string,"p_ship_to": Json }; Returns: Json
+                           },
+"create_walkin_shipment":
+{ Args: { "p_client_action_id": string,"p_customer_id": string,"p_parcels": Json,"p_ship_date": string,"p_ship_to": Json }; Returns: Json
                            },
 "create_wave":
 { Args: { "p_client_action_id": string,"p_intake_ids": (string)[],"p_operator_session"?: string }; Returns: Json
@@ -2195,6 +2248,9 @@ isOneToOne: false
 "locate_scan":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed"?: Json,"p_pending_vessel_id"?: string,"p_pending_vessel_raw"?: string,"p_raw": string }; Returns: Json
                            },
+"mark_shipment_shipped":
+{ Args: { "p_client_action_id": string,"p_shipment_id": string }; Returns: Json
+                           },
 "member_lookup_user":
 { Args: { "p_email": string }; Returns: string
                            },
@@ -2229,6 +2285,9 @@ isOneToOne: false
 "print_settlement_receipt":
 { Args: { "p_client_action_id": string,"p_settlement_id": string }; Returns: Json
                            },
+"print_shipment_labels":
+{ Args: { "p_client_action_id": string,"p_shipment_id": string }; Returns: Json
+                           },
 "queue_storage_labels":
 { Args: { "p_client_action_id": string,"p_labels": Json,"p_storage_intake_id": string }; Returns: Json
                            },
@@ -2261,6 +2320,9 @@ isOneToOne: false
 "seed_org_reference":
 { Args: { "p_org_id": string,"p_reference": Json }; Returns: Json
                            },
+"select_shipment_rate":
+{ Args: { "p_client_action_id": string,"p_rate_id": string,"p_shipment_id": string }; Returns: Json
+                           },
 "send_to_blast":
 { Args: { "p_client_action_id": string,"p_intake_id": string,"p_operator_session"?: string }; Returns: Json
                            },
@@ -2272,6 +2334,33 @@ isOneToOne: false
                            },
 "settlement_receipt":
 { Args: { "p_settlement_id": string }; Returns: Json
+                           },
+"shipment_detail":
+{ Args: { "p_shipment_id": string }; Returns: Json
+                           },
+"shipping_api_key":
+{ Args: { "p_org_id": string }; Returns: string
+                           },
+"shipping_apply_tracking":
+{ Args: { "p_details": string,"p_in_carrier_hands": boolean,"p_org_id": string,"p_status": string,"p_tracking_number": string,"p_transaction_id": string }; Returns: Json
+                           },
+"shipping_buy_failed":
+{ Args: { "p_charged": boolean,"p_claim_id": string,"p_error": string,"p_org_id": string,"p_shipment_id": string }; Returns: Json
+                           },
+"shipping_queue":
+{ Args: { "p_days"?: number }; Returns: Json
+                           },
+"shipping_record_address":
+{ Args: { "p_checked": Json,"p_messages": Json,"p_normalized": Json,"p_org_id": string,"p_shipment_id": string,"p_valid": boolean }; Returns: Json
+                           },
+"shipping_record_labels":
+{ Args: { "p_claim_id": string,"p_labels": Json,"p_org_id": string,"p_rate_id": string,"p_shipment_id": string }; Returns: Json
+                           },
+"shipping_record_rates":
+{ Args: { "p_checked": Json,"p_org_id": string,"p_shipment_id": string,"p_shop": Json }; Returns: Json
+                           },
+"shipping_start_purchase":
+{ Args: { "p_claim_id": string,"p_org_id": string,"p_shipment_id": string }; Returns: Json
                            },
 "station_identify":
 { Args: { "p_pin": string }; Returns: Json
@@ -2290,6 +2379,9 @@ isOneToOne: false
                            },
 "unlock_intake":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_intake_id": string,"p_reason"?: string }; Returns: Json
+                           },
+"update_shipment":
+{ Args: { "p_client_action_id": string,"p_ship_date": string,"p_ship_to": Json,"p_shipment_id": string }; Returns: Json
                            }
           }
           Enums: {

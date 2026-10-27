@@ -52,6 +52,16 @@ tracking webhook → `shipment.state`. Retry rate calls when the live-carrier se
 back **thin, not just empty** (carrier APIs lag). Cold-chain note: packaging + dry-ice
 weight added per box size.
 
+Route handlers (Next.js, Node runtime) — the only shipping code that uses the service role,
+which it uses to read the org's Shippo key from Vault (`shippo_api_key:<org id>`) and to record
+provider results (`shipping_record_*`, `shipping_buy_failed`, `shipping_apply_tracking`); reads
+and the buy claim run as the caller:
+`POST /api/shipping/{verify,rates,buy,rate-check}` and
+`POST /api/shipping/webhook?org=<org id>&token=<org token>` (Shippo `track_updated`). The webhook
+credential is per org, never the platform secret: token = HMAC(`SHIPPO_WEBHOOK_TOKEN`, org id).
+Each plant registers its own URL (shown in Admin → Sites) in its own Shippo account, and events
+apply only to that org's parcels. See `docs/wp/WP-19.md`.
+
 ## 5. Stripe Billing (tenant subscriptions)
 Checkout + Customer Portal; webhook updates `org.plan`; feature gates read `org.plan`.
 Five tiers $79–$899 (names/limits: DECISION-06).

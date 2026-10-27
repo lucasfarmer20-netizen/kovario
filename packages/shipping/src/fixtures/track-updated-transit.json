@@ -1,0 +1,18 @@
+{
+  "event": "track_updated",
+  "test": false,
+  "data": {
+    "carrier": "ups",
+    "tracking_number": "1Z999AA10123456784",
+    "transaction": "txn_2e1d0000000000000000000000000001",
+    "servicelevel": { "token": "ups_second_day_air", "name": "2nd Day Air" },
+    "tracking_status": {
+      "status": "TRANSIT",
+      "status_details": "Origin Scan",
+      "status_date": "2026-07-21T22:14:00Z",
+      "location": { "city": "Anchorage", "state": "AK", "zip": "99502", "country": "US" }
+    },
+    "tracking_history": [],
+    "metadata": "SHP-0001"
+  }
+}
