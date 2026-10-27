@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ScanRequest, ScanReply } from "@/src/components/station/scan-queue";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  ScanQueue,
+  type PendingScan,
+  type QueueLock,
+  type ScanRequest,
+  type ScanReply,
+} from "@/src/components/station/scan-queue";
 import { RollstockStation, rollstockReply } from "./rollstock-station";
 const mocks = vi.hoisted(() => ({
   session: null as unknown,
@@ -19,6 +25,15 @@ vi.mock("@/src/components/station/use-scan-action", () => ({
   },
 }));
 vi.mock("@/src/components/station/scan-feedback", () => ({ ScanFeedback: () => null }));
+
+beforeEach(() => {
+  Object.defineProperty(navigator, "locks", {
+    configurable: true,
+    value: {
+      request: async (_name: string, work: () => unknown) => work(),
+    },
+  });
+});
 afterEach(() => {
   cleanup();
   localStorage.clear();
@@ -131,6 +146,126 @@ it("WP11 FIFO two-scan delivery uses previous server response without waiting fo
   ]);
   expect(localStorage.getItem("org:staff:rollstock")).toBe("i2");
 });
+it("WP11 Finish reads shared open intake after acquiring the delivery lock", async () => {
+  const rpc = setup();
+  render(<RollstockStation />);
+  await screen.findByText("Totes 1/2");
+  const requestLock = vi.fn(async (_name: string, work: () => unknown) => {
+    // Another consumer has advanced the selection while Finish waited for its lock.
+    localStorage.setItem("org:staff:rollstock", "i2");
+    return work();
+  });
+  Object.defineProperty(navigator, "locks", {
+    configurable: true,
+    value: { request: requestLock },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Finish queue" }));
+  await waitFor(() =>
+    expect(rpc).toHaveBeenCalledWith(
+      "rollstock_scan_advance",
+      expect.objectContaining({ p_raw: null, p_open_intake_id: "i2" }),
+    ),
+  );
+  expect(requestLock).toHaveBeenCalledWith(
+    "scan-delivery:org:staff:rollstock",
+    expect.any(Function),
+  );
+});
 it("WP11 malformed response cannot silently clear the open intake", () => {
   expect(() => rollstockReply({ ok: true, reason: "Accepted" })).toThrow();
+});
+it("WP11 two queue consumers share open intake before storage events and synchronize panels", async () => {
+  const rpc = setup();
+  localStorage.removeItem("org:staff:rollstock");
+  const first = render(<RollstockStation />);
+  const sendA = mocks.send!;
+  const second = render(<RollstockStation />);
+  const sendB = mocks.send!;
+  await waitFor(() => expect(within(first.container).getByText(/INT-0002/)).toBeTruthy());
+  rpc.mockResolvedValueOnce({
+    data: { ok: true, reason: "Tote accepted", open_intake_id: "i1" },
+    error: null,
+  });
+  rpc.mockResolvedValueOnce({
+    data: { ok: true, reason: "Tote accepted", open_intake_id: "i1" },
+    error: null,
+  });
+  // Both consumers use one durable queue and the same cross-tab delivery lock.
+  let rows: PendingScan[] = [];
+  const store = {
+    read: async () => structuredClone(rows),
+    write: async (next: PendingScan[]) => {
+      rows = structuredClone(next);
+    },
+  };
+  const serialLock = (): QueueLock => {
+    let tail: Promise<unknown> = Promise.resolve();
+    return (work) => {
+      const next = tail.then(work);
+      tail = next.catch(() => undefined);
+      return next;
+    };
+  };
+  const storageLock = serialLock();
+  const deliveryLock = serialLock();
+  const a = new ScanQueue(
+    store,
+    sendA,
+    () => undefined,
+    () => undefined,
+    Date.now,
+    storageLock,
+    deliveryLock,
+  );
+  const b = new ScanQueue(
+    store,
+    sendB,
+    () => undefined,
+    () => undefined,
+    Date.now,
+    storageLock,
+    deliveryLock,
+  );
+  const request = (id: string, raw: string): ScanRequest => ({
+    client_action_id: id,
+    raw,
+    station: "rollstock",
+    operator_session: null,
+  });
+  await act(async () => {
+    await a.enqueue(request("consumer-a-first", "FL:TOTE:INT-0001:1"));
+    await a.drain();
+    // Do not deliver a storage event yet: consumer B still displays no open intake.
+    await b.enqueue(request("consumer-b-same", "FL:TOTE:INT-0001:2"));
+    await b.drain();
+    await a.enqueue(request("consumer-a-next", "FL:TOTE:INT-0002:1"));
+    await a.drain();
+  });
+  expect(rpc.mock.calls).toEqual([
+    ["rollstock_scan_advance", expect.objectContaining({ p_open_intake_id: null })],
+    ["rollstock_scan_advance", expect.objectContaining({ p_open_intake_id: "i1" })],
+    ["rollstock_scan_advance", expect.objectContaining({ p_open_intake_id: "i1" })],
+  ]);
+  expect(await store.read()).toEqual([]);
+  expect(localStorage.getItem("org:staff:rollstock")).toBe("i2");
+  expect(within(second.container).getByRole("heading", { name: "INT-0001" })).toBeTruthy();
+  act(() =>
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: "org:staff:rollstock",
+        newValue: "i2",
+        storageArea: localStorage,
+      }),
+    ),
+  );
+  expect(within(second.container).getByRole("heading", { name: "INT-0002" })).toBeTruthy();
+  // Clearing shared selection also updates both consumers.
+  localStorage.removeItem("org:staff:rollstock");
+  act(() =>
+    window.dispatchEvent(new StorageEvent("storage", { key: null, storageArea: localStorage })),
+  );
+  expect(within(first.container).getByText("Scan a numbered tote to open an intake.")).toBeTruthy();
+  expect(
+    within(second.container).getByText("Scan a numbered tote to open an intake."),
+  ).toBeTruthy();
 });

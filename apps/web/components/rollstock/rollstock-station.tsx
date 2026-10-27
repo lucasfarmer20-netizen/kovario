@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { Database, Json } from "db";
 import { hoursInCooler } from "rules";
@@ -46,8 +46,6 @@ export function RollstockStation() {
 }
 function LiveRollstock({ client, claims, siteName }: StationSession) {
   const scope = `${claims.orgId}:${claims.userId}:rollstock`;
-  const openRef = useRef<string | null>(null);
-  const initialized = useRef(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [intakes, setIntakes] = useState<Intake[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -68,9 +66,8 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
   const idle = useOperatorIdle(claims.appRole === "station" && operator !== null, expire);
   const remember = useCallback(
     (id: string | null) => {
-      openRef.current = id;
-      setOpenId(id);
       localStorage.setItem(scope, id ?? "");
+      setOpenId(id);
     },
     [scope],
   );
@@ -89,10 +86,13 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
     setCounts(Object.fromEntries((progress.data ?? []).map((r) => [r.intake_id, r.scanned ?? 0])));
   }, [client]);
   useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true;
-      remember(localStorage.getItem(scope) || null);
-    }
+    const syncOpen = () => setOpenId(localStorage.getItem(scope) || null);
+    syncOpen();
+    const storageChanged = (event: StorageEvent) => {
+      if (event.storageArea === localStorage && (event.key === scope || event.key === null))
+        syncOpen();
+    };
+    window.addEventListener("storage", storageChanged);
     const reload = () => {
       void refresh().catch(() => setMessage("Rollstock refresh unavailable. Retry connection."));
     };
@@ -108,15 +108,18 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
     const timer = setInterval(reload, 15000);
     return () => {
       clearInterval(timer);
+      window.removeEventListener("storage", storageChanged);
       void client.removeChannel(channel);
     };
-  }, [client, claims.orgId, refresh, remember, scope]);
+  }, [client, claims.orgId, refresh, scope]);
   const send = useCallback(
     async (request: ScanRequest): Promise<ScanReply> => {
-      // FIFO delivery reads the previous response's open id, not scan-time React state.
+      // ScanQueue holds scan-delivery:<scope> across this call. Read shared state
+      // inside that lock: another tab may have delivered the previous scan, even
+      // if its storage event has not reached this tab yet.
       const { data, error } = await client.rpc("rollstock_scan_advance", {
         p_raw: request.raw,
-        p_open_intake_id: openRef.current!,
+        p_open_intake_id: (localStorage.getItem(scope) || null)!,
         p_client_action_id: request.client_action_id,
         p_operator_session: request.operator_session ?? undefined,
       });
@@ -131,7 +134,7 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
       void refresh().catch(() => undefined);
       return reply;
     },
-    [client, expire, refresh, remember],
+    [client, expire, refresh, remember, scope],
   );
   const { scan, pending, feedback } = useScanAction(scope, send);
   const allowed = () => {
@@ -145,25 +148,30 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
     if (!allowed() || pending || busy) return;
     setBusy(true);
     try {
-      const { data, error } = await client.rpc("rollstock_scan_advance", {
-        p_raw: null!,
-        p_open_intake_id: openRef.current!,
-        p_client_action_id: crypto.randomUUID(),
-        p_operator_session: proof ?? undefined,
-        p_override_reason: token !== undefined ? overrideReason : undefined,
-        p_elevation_token: token,
+      await navigator.locks.request(`scan-delivery:${scope}`, async () => {
+        const { data, error } = await client.rpc("rollstock_scan_advance", {
+          p_raw: null!,
+          p_open_intake_id: (localStorage.getItem(scope) || null)!,
+          p_client_action_id: crypto.randomUUID(),
+          p_operator_session: proof ?? undefined,
+          p_override_reason: token !== undefined ? overrideReason : undefined,
+          p_elevation_token: token,
+        });
+        if (error) throw new Error(error.message);
+        const reply = rollstockReply(data);
+        remember(reply.open_intake_id);
+        setMessage(reply.reason);
+        if (reply.reason === "operator_pin_required") expire();
       });
-      if (error) throw new Error(error.message);
-      const reply = rollstockReply(data);
-      remember(reply.open_intake_id);
-      setMessage(reply.reason);
-      if (reply.reason === "operator_pin_required") expire();
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Finish unavailable");
     } finally {
       setBusy(false);
     }
+  };
+  const selectOpen = async (id: string | null) => {
+    await navigator.locks.request(`scan-delivery:${scope}`, () => remember(id));
   };
   const open = intakes.find((i) => i.id === openId);
   return (
@@ -219,7 +227,7 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
             Finish queue
           </button>
           {openId && !open && (
-            <button disabled={pending > 0 || busy} onClick={() => remember(null)}>
+            <button disabled={pending > 0 || busy} onClick={() => void selectOpen(null)}>
               Clear stale open intake
             </button>
           )}
@@ -258,7 +266,11 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
           {intakes
             .filter((i) => i.state === "rollstock" && i.id !== openId)
             .map((i) => (
-              <button key={i.id} disabled={pending > 0 || busy} onClick={() => remember(i.id)}>
+              <button
+                key={i.id}
+                disabled={pending > 0 || busy}
+                onClick={() => void selectOpen(i.id)}
+              >
                 Resume {i.number}
               </button>
             ))}
