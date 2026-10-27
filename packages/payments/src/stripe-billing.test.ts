@@ -115,6 +115,11 @@ describe("subscriptionChange (webhook → org.plan)", () => {
     expect(subscriptionChange(noCustomer)).toBeNull();
   });
 
+  it("drops a metadata org_id that is not a uuid (it would fail the RPC forever)", () => {
+    expect(subscriptionChange(subEvent({ metadata: { org_id: "demo-plant" } }))?.orgIdHint).toBeNull();
+    expect(subscriptionChange(subEvent({ metadata: {} }))?.orgIdHint).toBeNull();
+  });
+
   it("accepts an expanded customer object", () => {
     const e = subEvent({});
     (e.data.object as { customer: unknown }).customer = { id: "cus_9" };

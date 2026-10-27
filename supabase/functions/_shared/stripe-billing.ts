@@ -208,6 +208,8 @@ export interface SubscriptionChange {
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid = (v: unknown): string | null => (typeof v === "string" && UUID.test(v) ? v : null);
 
 /** The org-plan change a webhook event implies, or null for events we ignore. */
 export function subscriptionChange(event: unknown): SubscriptionChange | null {
@@ -233,6 +235,6 @@ export function subscriptionChange(event: unknown): SubscriptionChange | null {
     subscriptionId,
     status,
     plan: entitled ? planFromLookupKey(price?.lookup_key) : null,
-    orgIdHint: isObj(sub.metadata) ? str(sub.metadata.org_id) : null,
+    orgIdHint: isObj(sub.metadata) ? uuid(sub.metadata.org_id) : null,
   };
 }
