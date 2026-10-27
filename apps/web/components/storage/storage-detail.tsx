@@ -9,11 +9,12 @@ import {
   cancelPickupBatch,
   createPickupBatch,
   forceRelease,
+  loadLabelData,
   loadStorageIntake,
   pickupReceipt,
-  printStorageReceipt,
+  printLabels,
   quotePickup,
-  reprintLabels,
+  type LabelsQueued,
   type LoadedStorageIntake,
   type PickupReceipt,
   type Quote,
@@ -97,8 +98,10 @@ export function StorageDetail({
     }
   }
 
-  const printed = (label: string) => (r: { printer_missing: boolean }) =>
-    r.printer_missing ? `${label}: no printer is set up for this site.` : `${label}: queued.`;
+  const printed = (r: LabelsQueued) =>
+    r.printer_missing
+      ? "Labels: no label printer is set up for this site."
+      : `Labels: ${r.label_jobs_queued} queued.`;
 
   if (!data) return <p>{error || "Loading storage intake…"}</p>;
   const { intake, boxes, batches } = data;
@@ -131,16 +134,20 @@ export function StorageDetail({
           <button
             disabled={busy}
             onClick={() =>
-              void run("Labels", () => reprintLabels(client, intake.id), printed("Labels"))
+              void run(
+                "Labels",
+                async () => printLabels(client, await loadLabelData(client, intake.id)),
+                printed,
+              )
             }
           >
             Reprint Labels
           </button>
           <button
             disabled={busy}
-            onClick={() =>
-              void run("Receipt", () => printStorageReceipt(client, intake.id), printed("Receipt"))
-            }
+            // Receipts print from the browser: the agent prints PDFs only from an HTTPS URL
+            // and there is no PDF render/upload pipeline yet.
+            onClick={() => window.print()}
           >
             Print Receipt
           </button>
@@ -281,18 +288,6 @@ export function StorageDetail({
                   >
                     Receipt
                   </button>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void run(
-                        "Receipt",
-                        () => printStorageReceipt(client, intake.id, b.id),
-                        printed("Receipt"),
-                      )
-                    }
-                  >
-                    Print
-                  </button>
                   {b.state === "pending" && !b.release_failed && (
                     <button
                       disabled={busy}
@@ -365,7 +360,10 @@ export function StorageDetail({
           )}
 
           {receipt && (
-            <section className="station-card" aria-label={`Receipt ${receipt.number}`}>
+            <section
+              className="station-card storage-receipt"
+              aria-label={`Receipt ${receipt.number}`}
+            >
               <h3>
                 Receipt {receipt.number} · {receipt.storage_number} · {receipt.date}
               </h3>
@@ -385,9 +383,14 @@ export function StorageDetail({
                 Total {money(receipt.total)}
                 {receipt.payment_ref && ` · ${receipt.payment_ref}`}
               </p>
-              <button type="button" onClick={() => setReceipt(null)}>
-                Close
-              </button>
+              <div className="station-actions">
+                <button type="button" onClick={() => window.print()}>
+                  Print
+                </button>
+                <button type="button" onClick={() => setReceipt(null)}>
+                  Close
+                </button>
+              </div>
             </section>
           )}
         </section>

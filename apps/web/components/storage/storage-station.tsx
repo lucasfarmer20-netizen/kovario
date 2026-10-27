@@ -49,10 +49,13 @@ export function NewStorageStation() {
       {(session) => (
         <StorageForm
           session={session}
-          onConfirmed={(r) => {
-            const notice = r.printer_missing
-              ? `${r.number} stored. No label printer is set up for this site.`
-              : `${r.number} stored; ${r.label_jobs_queued} box labels queued.`;
+          onConfirmed={(r, labels) => {
+            const notice =
+              "error" in labels
+                ? `${r.number} stored, but the labels did not queue (${labels.error}). Use Reprint Labels.`
+                : labels.printer_missing
+                  ? `${r.number} stored. No label printer is set up for this site.`
+                  : `${r.number} stored; ${labels.label_jobs_queued} box labels queued.`;
             router.push(`/storage/${r.storage_intake_id}?saved=${encodeURIComponent(notice)}`);
           }}
         />

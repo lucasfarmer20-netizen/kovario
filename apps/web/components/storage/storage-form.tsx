@@ -5,7 +5,13 @@ import { CustomerSearch } from "@/components/customers/customer-search";
 import type { CustomerHit } from "@/components/customers/customer-search-state";
 import { createCustomer, searchCustomers } from "@/components/intake/intake-data";
 import type { StationSession } from "@/components/intake/use-station-session";
-import { confirmStorageIntake, listLocations, type ConfirmResult } from "./storage-data";
+import {
+  confirmStorageIntake,
+  listLocations,
+  printLabels,
+  type ConfirmResult,
+  type LabelsQueued,
+} from "./storage-data";
 import { confirmPayload, emptyBox, type BoxRow } from "./storage-state";
 
 /**
@@ -17,7 +23,8 @@ export function StorageForm({
   onConfirmed,
 }: {
   session: StationSession;
-  onConfirmed: (result: ConfirmResult) => void;
+  /** `labels` is the label print outcome, or the error that kept them from queuing. */
+  onConfirmed: (result: ConfirmResult, labels: LabelsQueued | { error: string }) => void;
 }) {
   const { client, claims } = session;
   const [customer, setCustomer] = useState<CustomerHit | null>(null);
@@ -25,7 +32,6 @@ export function StorageForm({
   const [locationId, setLocationId] = useState("");
   const [rows, setRows] = useState<BoxRow[]>(() => [emptyBox()]);
   const [notes, setNotes] = useState("");
-  const [printReceipt, setPrintReceipt] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   // One id per confirm intent: a retry after a lost response replays; any edit starts a new one.
@@ -50,7 +56,6 @@ export function StorageForm({
       customerId: customer?.id ?? null,
       locationId,
       notes,
-      printReceipt,
       rows,
     });
     if ("errors" in built) {
@@ -63,7 +68,11 @@ export function StorageForm({
       actionId.current ??= crypto.randomUUID();
       const result = await confirmStorageIntake(client, actionId.current, built.payload);
       actionId.current = null;
-      onConfirmed(result);
+      // The intake is stored; a label failure is reported, and Reprint Labels retries it.
+      const labels = await printLabels(client, result.labels).catch((err: unknown) => ({
+        error: err instanceof Error ? err.message : "labels did not queue",
+      }));
+      onConfirmed(result, labels);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Confirm failed; try again.");
     } finally {
@@ -163,14 +172,6 @@ export function StorageForm({
         <div className="intake-fields">
           <label>
             Notes <textarea value={notes} onChange={(e) => edit(setNotes)(e.target.value)} />
-          </label>
-          <label className="intake-toggle">
-            <input
-              type="checkbox"
-              checked={printReceipt}
-              onChange={(e) => edit(setPrintReceipt)(e.target.checked)}
-            />{" "}
-            Print receipt
           </label>
         </div>
 

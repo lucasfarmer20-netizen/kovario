@@ -1,5 +1,6 @@
 "use client";
 import { withAction, type Database, type FilletryClient, type Json } from "db";
+import { renderStorageLabels, type LabelData } from "./storage-labels";
 import type { ConfirmPayload } from "./storage-state";
 
 // Station-side calls for cold storage. Every mutation is one SQL function keyed by a
@@ -36,9 +37,7 @@ export async function listLocations(client: FilletryClient) {
 export type ConfirmResult = {
   storage_intake_id: string;
   number: string;
-  label_jobs_queued: number;
-  receipt_job_id: string | null;
-  printer_missing: boolean;
+  labels: LabelData;
 };
 
 export function confirmStorageIntake(
@@ -54,29 +53,27 @@ export function confirmStorageIntake(
   );
 }
 
-export function reprintLabels(client: FilletryClient, storageIntakeId: string, boxIds?: string[]) {
-  return act<{ label_jobs_queued: number; printer_missing: boolean }>(
-    client,
-    crypto.randomUUID(),
-    (id) =>
-      client.rpc("reprint_storage_labels", {
-        p_client_action_id: id,
-        p_storage_intake_id: storageIntakeId,
-        p_box_ids: boxIds,
-      }),
+export async function loadLabelData(client: FilletryClient, storageIntakeId: string) {
+  const data = unwrap(
+    await client.rpc("storage_label_data", { p_storage_intake_id: storageIntakeId }),
   );
+  return data as unknown as LabelData;
 }
 
-export function printStorageReceipt(
+export type LabelsQueued = { label_jobs_queued: number; printer_missing: boolean };
+
+/** Renders the box labels (all, or `boxIds`) and queues them as ZPL print jobs. */
+export function printLabels(
   client: FilletryClient,
-  storageIntakeId: string,
-  batchId?: string,
-) {
-  return act<{ printer_missing: boolean }>(client, crypto.randomUUID(), (id) =>
-    client.rpc("print_storage_receipt", {
+  data: LabelData,
+  boxIds?: string[],
+): Promise<LabelsQueued> {
+  const labels = renderStorageLabels(data, boxIds);
+  return act(client, crypto.randomUUID(), (id) =>
+    client.rpc("queue_storage_labels", {
       p_client_action_id: id,
-      p_storage_intake_id: storageIntakeId,
-      p_batch_id: batchId,
+      p_storage_intake_id: data.storage_intake_id,
+      p_labels: labels as unknown as Json,
     }),
   );
 }

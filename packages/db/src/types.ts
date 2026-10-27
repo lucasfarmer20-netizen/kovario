@@ -1968,14 +1968,11 @@ isOneToOne: false
 "print_intake_receipt":
 { Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
                            },
-"print_storage_receipt":
-{ Args: { "p_batch_id"?: string,"p_client_action_id": string,"p_storage_intake_id": string }; Returns: Json
+"queue_storage_labels":
+{ Args: { "p_client_action_id": string,"p_labels": Json,"p_storage_intake_id": string }; Returns: Json
                            },
 "reprint_intake_tote_tags":
 { Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
-                           },
-"reprint_storage_labels":
-{ Args: { "p_box_ids"?: (string)[],"p_client_action_id": string,"p_storage_intake_id": string }; Returns: Json
                            },
 "save_intake":
 { Args: { "p_client_action_id": string,"p_payload": Json }; Returns: Json
@@ -2002,6 +1999,9 @@ isOneToOne: false
                            },
 "station_scan":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed": Json,"p_raw": string,"p_reason"?: string,"p_station": Database["public"]['Enums']["device_station"] }; Returns: Json
+                           },
+"storage_label_data":
+{ Args: { "p_storage_intake_id": string }; Returns: Json
                            },
 "storage_pickup_quote":
 { Args: { "p_box_ids": (string)[],"p_storage_intake_id": string }; Returns: Json

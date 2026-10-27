@@ -8,7 +8,6 @@ export type ConfirmPayload = {
   customer_id: string;
   location_id: string | null;
   notes: string | null;
-  print_receipt: boolean;
   boxes: { weight_lb: number | null; description: string | null }[];
 };
 
@@ -35,7 +34,6 @@ export function confirmPayload(input: {
   customerId: string | null;
   locationId: string;
   notes: string;
-  printReceipt: boolean;
   rows: BoxRow[];
 }): { payload: ConfirmPayload } | { errors: string[] } {
   const errors: string[] = [];
@@ -55,7 +53,6 @@ export function confirmPayload(input: {
       customer_id: input.customerId,
       location_id: input.locationId || null,
       notes: input.notes.trim() || null,
-      print_receipt: input.printReceipt,
       boxes,
     },
   };

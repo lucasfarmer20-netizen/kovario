@@ -1,6 +1,7 @@
 -- WP-09 cold storage (docs/04-BUSINESS-RULES.md §10, docs/06-STATIONS-UX.md Storage intake,
 -- docs/10-LESSONS-FROM-CSP.md §3 S1–S12, docs/03-STATE-MACHINES.md):
---   * confirm_storage_intake — STG- number, boxes, draft → stored, box label + receipt jobs;
+--   * confirm_storage_intake — STG- number, boxes, draft → stored; queue_storage_labels queues
+--     the box labels the station rendered (non-empty ZPL);
 --   * app.storage_box_days(box) — the ONE day count (S4); the storage_box_days view, the
 --     pickup quote, the batch snapshot and the pickup receipt all call it;
 --   * app.storage_snapshot — the ONE place a storage amount is computed (S4);
@@ -11,8 +12,11 @@
 --     (S6 release_failed stamped outside the savepoint, S8 blast radius);
 --   * force_release_pickup_batch — manager Force Release (MANUAL) and COMP, reason required.
 -- Payment application itself (register, apply_paid_register_order) is WP-16.
--- Print transport/rendering is WP-08's: like WP-07, a print_job here is a row whose `source`
--- names the template and ids; QR text is encoded by the renderer through packages/rules qr.ts.
+-- Printing: the station renders each box label with packages/labels storageBoxLabel (the
+-- SBOX QR text comes from packages/rules qr.ts) from storage_label_data, and
+-- queue_storage_labels stores that ZPL as the print_job payload the WP-08 agent sends as-is.
+-- No receipt print_job is queued: the agent prints PDFs only from an HTTPS URL and there
+-- is no PDF render/upload pipeline yet, so the station prints receipts through the browser.
 
 -- Columns ---------------------------------------------------------------------------------
 
@@ -211,67 +215,116 @@ $$;
 
 -- Print jobs ------------------------------------------------------------------------------
 
--- One storage_label job per box (all boxes, or `p_box_ids`); returns how many were queued
--- (0 when no label printer is set up). The renderer encodes FL:SBOX:<number>:<box_no>
--- with packages/rules qr.ts from storage_number + box_no.
-create or replace function app.queue_storage_label_jobs(p_storage_intake_id uuid, p_box_ids uuid[] default null)
-returns int
-language plpgsql
+-- What the storage box labels print: {storage_intake_id, storage_number, customer, date,
+-- boxes: [{box_id, box_no}]}. The station renders each with storageBoxLabel.
+create or replace function app.storage_label_data(p_storage_intake_id uuid)
+returns jsonb
+language sql
+stable
 security definer
 set search_path = ''
 as $$
-declare
-  v_intake public.storage_intake;
-  v_customer text;
-  v_tz text;
-  v_printer uuid;
-  v_n int;
+  select jsonb_build_object(
+    'storage_intake_id', si.id,
+    'storage_number', si.number,
+    'customer', c.name,
+    'date', to_char(si.intake_at at time zone coalesce(o.timezone, 'UTC'), 'YYYY-MM-DD'),
+    'boxes', (select coalesce(jsonb_agg(jsonb_build_object('box_id', b.id, 'box_no', b.box_no)
+                                        order by b.box_no), '[]'::jsonb)
+              from public.storage_box b where b.storage_intake_id = si.id))
+  from public.storage_intake si
+  join public.customer c on c.id = si.customer_id
+  join public.org o on o.id = si.org_id
+  where si.id = p_storage_intake_id
+$$;
+
+create or replace function public.storage_label_data(p_storage_intake_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
 begin
-  select * into v_intake from public.storage_intake where id = p_storage_intake_id;
-  v_printer := app.station_printer(v_intake.site_id, 'label_zpl', 'storage_label');
-  if v_printer is null then
-    return 0;
+  perform app.require_role('{owner,manager,staff,cashier,station}');
+  if not exists (select 1 from public.storage_intake where id = p_storage_intake_id and org_id = app.org_id()) then
+    raise exception 'storage intake not found' using errcode = 'P0002';
   end if;
-  select c.name into v_customer from public.customer c where c.id = v_intake.customer_id;
-  select coalesce(o.timezone, 'UTC') into v_tz from public.org o where o.id = v_intake.org_id;
-  insert into public.print_job (org_id, printer_id, kind, payload_type, payload, source)
-  select v_intake.org_id, v_printer, 'storage_label', 'zpl', '', jsonb_build_object(
-    'template', 'storage_box_label', 'storage_intake_id', v_intake.id,
-    'storage_number', v_intake.number, 'storage_box_id', b.id, 'box_no', b.box_no,
-    'customer', v_customer, 'date', to_char(v_intake.intake_at at time zone v_tz, 'YYYY-MM-DD'))
-  from public.storage_box b
-  where b.storage_intake_id = v_intake.id and (p_box_ids is null or b.id = any (p_box_ids))
-  order by b.box_no;
-  get diagnostics v_n = row_count;
-  return v_n;
+  return app.storage_label_data(p_storage_intake_id);
 end;
 $$;
 
-create or replace function app.queue_storage_receipt_job(p_template text, p_source jsonb, p_site_id uuid, p_org_id uuid)
-returns uuid
+-- p_labels: [{box_id, zpl}] — rendered by the station with storageBoxLabel. Each label must
+-- be for a box of this intake and be one ^XA…^XZ ZPL document; it is queued as-is on the
+-- calling station's label printer (else the site's storage_label printer). Returns
+-- {label_jobs_queued, printer_missing}; nothing is queued when no printer is set up.
+create or replace function public.queue_storage_labels(
+  p_client_action_id text, p_storage_intake_id uuid, p_labels jsonb
+)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_printer uuid := app.station_printer(p_site_id, 'receipt_pdf', 'receipt');
-  v_job uuid;
+  v_action jsonb;
+  v_intake public.storage_intake;
+  v_printer uuid;
+  v_n int := 0;
+  v_result jsonb;
 begin
-  if v_printer is null then
-    return null;
+  perform app.require_role('{owner,manager,staff,cashier,station}');
+  if jsonb_typeof(p_labels) is distinct from 'array' or jsonb_array_length(p_labels) not between 1 and 200 then
+    raise exception 'labels must be a list of 1 to 200 rendered labels' using errcode = '22023';
   end if;
-  insert into public.print_job (org_id, printer_id, kind, payload_type, payload, source)
-  values (p_org_id, v_printer, 'receipt', 'pdf_url', '', jsonb_build_object('template', p_template) || p_source)
-  returning id into v_job;
-  return v_job;
+  -- The action log keeps which boxes were printed, not the ZPL.
+  v_action := app.action_begin(p_client_action_id, 'storage.queue_labels', jsonb_build_object(
+    'storage_intake_id', p_storage_intake_id,
+    'box_ids', (select jsonb_agg(l -> 'box_id') from jsonb_array_elements(p_labels) l)));
+  if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+
+  select * into v_intake from public.storage_intake where id = p_storage_intake_id and org_id = app.org_id();
+  if not found then
+    raise exception 'storage intake not found' using errcode = 'P0002';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(p_labels) l
+    where jsonb_typeof(l -> 'zpl') is distinct from 'string'
+       or l ->> 'zpl' !~ '^\^XA'
+       or l ->> 'zpl' !~ '\^XZ\s*$'
+       or octet_length(l ->> 'zpl') > 100000
+       or not exists (
+         select 1 from public.storage_box b
+         where b.id::text = l ->> 'box_id' and b.storage_intake_id = v_intake.id)
+  ) then
+    raise exception 'each label needs a box of this storage intake and its rendered ZPL' using errcode = '22023';
+  end if;
+
+  v_printer := app.station_printer(v_intake.site_id, 'label_zpl', 'storage_label');
+  if v_printer is not null then
+    insert into public.print_job (org_id, printer_id, kind, payload_type, payload, source)
+    select v_intake.org_id, v_printer, 'storage_label', 'zpl', l ->> 'zpl', jsonb_build_object(
+      'template', 'storage_box_label', 'storage_intake_id', v_intake.id, 'storage_box_id', b.id,
+      'box_no', b.box_no)
+    from jsonb_array_elements(p_labels) l
+    join public.storage_box b on b.id::text = l ->> 'box_id'
+    order by b.box_no;
+    get diagnostics v_n = row_count;
+  end if;
+
+  v_result := jsonb_build_object('storage_intake_id', v_intake.id, 'label_jobs_queued', v_n,
+    'printer_missing', v_printer is null);
+  perform app.action_complete(p_client_action_id, v_result);
+  return v_result;
 end;
 $$;
 
 -- Storage intake ----------------------------------------------------------------------------
 
--- p_payload: {customer_id, site_id?, location_id?, notes?, print_receipt?,
+-- p_payload: {customer_id, site_id?, location_id?, notes?,
 --             boxes: [{weight_lb?, description?}]}
--- One transaction: STG- number, boxes 1..n, draft → stored, a label job per box (+ receipt).
+-- One transaction: STG- number, boxes 1..n, draft → stored. Returns the label data the
+-- station renders and hands to queue_storage_labels.
 create or replace function public.confirm_storage_intake(p_client_action_id text, p_payload jsonb)
 returns jsonb
 language plpgsql
@@ -286,8 +339,6 @@ declare
   v_site uuid;
   v_location uuid;
   v_intake public.storage_intake;
-  v_labels int;
-  v_receipt uuid;
   v_result jsonb;
 begin
   perform app.require_role('{owner,manager,staff,cashier,station}');
@@ -344,92 +395,13 @@ begin
   update public.storage_intake set state = 'stored' where id = v_intake.id returning * into v_intake;
   update public.customer set last_visit_at = now() where id = v_customer_id;
 
-  v_labels := app.queue_storage_label_jobs(v_intake.id);
-  if coalesce((p_payload ->> 'print_receipt')::boolean, false) then
-    v_receipt := app.queue_storage_receipt_job('storage_intake_receipt', jsonb_build_object(
-      'storage_intake_id', v_intake.id, 'storage_number', v_intake.number), v_intake.site_id, v_org);
-  end if;
-
   v_result := jsonb_build_object(
     'storage_intake_id', v_intake.id,
     'number', v_intake.number,
     'state', v_intake.state,
     'box_count', v_intake.box_count,
-    'label_jobs_queued', v_labels,
-    'receipt_job_id', v_receipt,
-    'printer_missing', v_labels = 0
+    'labels', app.storage_label_data(v_intake.id)
   );
-  perform app.action_complete(p_client_action_id, v_result);
-  return v_result;
-end;
-$$;
-
-create or replace function public.reprint_storage_labels(
-  p_client_action_id text, p_storage_intake_id uuid, p_box_ids uuid[] default null
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_action jsonb;
-  v_n int;
-  v_result jsonb;
-begin
-  perform app.require_role('{owner,manager,staff,cashier,station}');
-  v_action := app.action_begin(p_client_action_id, 'storage.reprint_labels',
-    jsonb_build_object('storage_intake_id', p_storage_intake_id, 'box_ids', p_box_ids));
-  if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
-  if not exists (select 1 from public.storage_intake where id = p_storage_intake_id and org_id = app.org_id()) then
-    raise exception 'storage intake not found' using errcode = 'P0002';
-  end if;
-  v_n := app.queue_storage_label_jobs(p_storage_intake_id, p_box_ids);
-  v_result := jsonb_build_object('storage_intake_id', p_storage_intake_id, 'label_jobs_queued', v_n,
-    'printer_missing', v_n = 0);
-  perform app.action_complete(p_client_action_id, v_result);
-  return v_result;
-end;
-$$;
-
--- Receipt print job for the intake (`p_batch_id` null) or for a pickup batch.
-create or replace function public.print_storage_receipt(
-  p_client_action_id text, p_storage_intake_id uuid, p_batch_id uuid default null
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_action jsonb;
-  v_intake public.storage_intake;
-  v_batch public.storage_pickup_batch;
-  v_job uuid;
-  v_result jsonb;
-begin
-  perform app.require_role('{owner,manager,staff,cashier,station}');
-  v_action := app.action_begin(p_client_action_id, 'storage.print_receipt',
-    jsonb_build_object('storage_intake_id', p_storage_intake_id, 'batch_id', p_batch_id));
-  if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
-  select * into v_intake from public.storage_intake where id = p_storage_intake_id and org_id = app.org_id();
-  if not found then
-    raise exception 'storage intake not found' using errcode = 'P0002';
-  end if;
-  if p_batch_id is null then
-    v_job := app.queue_storage_receipt_job('storage_intake_receipt', jsonb_build_object(
-      'storage_intake_id', v_intake.id, 'storage_number', v_intake.number), v_intake.site_id, v_intake.org_id);
-  else
-    select * into v_batch from public.storage_pickup_batch
-    where id = p_batch_id and storage_intake_id = v_intake.id;
-    if not found then
-      raise exception 'pickup batch not found' using errcode = 'P0002';
-    end if;
-    v_job := app.queue_storage_receipt_job('storage_pickup_receipt', jsonb_build_object(
-      'batch_id', v_batch.id, 'batch_number', v_batch.number), v_intake.site_id, v_intake.org_id);
-  end if;
-  v_result := jsonb_build_object('storage_intake_id', v_intake.id, 'batch_id', p_batch_id,
-    'receipt_job_id', v_job, 'printer_missing', v_job is null);
   perform app.action_complete(p_client_action_id, v_result);
   return v_result;
 end;
@@ -1017,8 +989,7 @@ revoke all on function
   app.storage_rate(uuid),
   app.storage_snapshot(uuid, uuid[], timestamptz),
   app.next_free_number(uuid, text, regclass),
-  app.queue_storage_label_jobs(uuid, uuid[]),
-  app.queue_storage_receipt_job(text, jsonb, uuid, uuid),
+  app.storage_label_data(uuid),
   app.void_pickup_batch(uuid, text),
   app.release_pickup_batch(uuid, text, text, uuid, text, uuid, numeric),
   app.release_pickup_batches(uuid[], uuid, text, jsonb)
@@ -1032,8 +1003,8 @@ to service_role;
 
 revoke all on function
   public.confirm_storage_intake(text, jsonb),
-  public.reprint_storage_labels(text, uuid, uuid[]),
-  public.print_storage_receipt(text, uuid, uuid),
+  public.storage_label_data(uuid),
+  public.queue_storage_labels(text, uuid, jsonb),
   public.storage_pickup_quote(uuid, uuid[]),
   public.create_pickup_batch(text, uuid, uuid[]),
   public.cancel_pickup_batch(text, uuid),
@@ -1043,8 +1014,8 @@ from public, anon, authenticated;
 
 grant execute on function
   public.confirm_storage_intake(text, jsonb),
-  public.reprint_storage_labels(text, uuid, uuid[]),
-  public.print_storage_receipt(text, uuid, uuid),
+  public.storage_label_data(uuid),
+  public.queue_storage_labels(text, uuid, jsonb),
   public.storage_pickup_quote(uuid, uuid[]),
   public.create_pickup_batch(text, uuid, uuid[]),
   public.cancel_pickup_batch(text, uuid),

@@ -5,6 +5,7 @@ import type { FilletryClient } from "db";
 import type { StationSession } from "@/components/intake/use-station-session";
 import { StorageDetail } from "./storage-detail";
 import { StorageForm } from "./storage-form";
+import { renderStorageLabels } from "./storage-labels";
 
 afterEach(cleanup);
 
@@ -104,14 +105,22 @@ it("pickup wizard: days from the box view, tick boxes → server quote → Creat
   expect(create[1].p_client_action_id).toMatch(/^[0-9a-f-]{36}$/);
 });
 
-it("storage form: refuses without a customer, then Confirm sends customer, location and boxes", async () => {
+it("storage form: refuses without a customer; Confirm sends the boxes, then queues their rendered ZPL labels", async () => {
   const confirmed = {
     storage_intake_id: "si-9",
     number: "STG-0009",
-    label_jobs_queued: 2,
-    receipt_job_id: null,
-    printer_missing: false,
+    labels: {
+      storage_intake_id: "si-9",
+      storage_number: "STG-0009",
+      customer: "Sam Store",
+      date: "2026-10-27",
+      boxes: [
+        { box_id: "box-1", box_no: 1 },
+        { box_id: "box-2", box_no: 2 },
+      ],
+    },
   };
+  const queued = { label_jobs_queued: 2, printer_missing: false };
   const hit = {
     id: "cust-1",
     name: "Sam Store",
@@ -124,6 +133,7 @@ it("storage form: refuses without a customer, then Confirm sends customer, locat
   const { client, rpc } = fakeClient({
     confirm_storage_intake: confirmed,
     search_customers: [hit],
+    queue_storage_labels: queued,
   });
   const onConfirmed = vi.fn();
   render(<StorageForm session={session(client)} onConfirmed={onConfirmed} />);
@@ -140,18 +150,30 @@ it("storage form: refuses without a customer, then Confirm sends customer, locat
   fireEvent.click(await screen.findByText("Sam Store"));
   fireEvent.change(screen.getByLabelText("Location"), { target: { value: "loc-1" } });
   fireEvent.click(screen.getByText("Confirm & Print 2 Labels"));
-  await waitFor(() => expect(onConfirmed).toHaveBeenCalledWith(confirmed));
+  await waitFor(() => expect(onConfirmed).toHaveBeenCalledWith(confirmed, queued));
   expect(rpc).toHaveBeenCalledWith("confirm_storage_intake", {
     p_client_action_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
     p_payload: {
       customer_id: "cust-1",
       location_id: "loc-1",
       notes: null,
-      print_receipt: true,
       boxes: [
         { weight_lb: 20, description: null },
         { weight_lb: null, description: "kings" },
       ],
     },
   });
+  // Labels are rendered with the WP-08 template (non-empty ZPL with the SBOX QR), not left empty.
+  const queue = rpc.mock.calls.find(([name]) => name === "queue_storage_labels") as unknown as [
+    string,
+    { p_storage_intake_id: string; p_labels: { box_id: string; zpl: string }[] },
+  ];
+  expect(queue[1].p_storage_intake_id).toBe("si-9");
+  expect(queue[1].p_labels).toEqual(renderStorageLabels(confirmed.labels));
+  expect(
+    queue[1].p_labels.map((l) => [l.box_id, l.zpl.includes("^FDLA,FL:SBOX:STG-0009:")]),
+  ).toEqual([
+    ["box-1", true],
+    ["box-2", true],
+  ]);
 });

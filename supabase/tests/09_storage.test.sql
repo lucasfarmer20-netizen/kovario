@@ -106,7 +106,7 @@ set local role authenticated;
 
 insert into t_ids values ('r1', pg_temp.confirm('wp09-confirm-0001',
   '[{"weight_lb":20,"description":"halibut"},{"weight_lb":18.5},{},{"description":" kings "}]',
-  '{"location_id":"a9000000-0000-4000-8000-0000000004a1","notes":"top shelf","print_receipt":true}')::text);
+  '{"location_id":"a9000000-0000-4000-8000-0000000004a1","notes":"top shelf"}')::text);
 insert into t_ids select 'si1', pg_temp.res('r1') ->> 'storage_intake_id';
 insert into t_ids select 'b' || box_no, id::text from public.storage_box where storage_intake_id = pg_temp.id('si1');
 
@@ -119,18 +119,49 @@ select pg_temp.chk('INTAKE', 'boxes 1..n with label, weight, description',
   (select array_agg(format('%s|%s|%s|%s', box_no, label, weight_lb, description) order by box_no)
    from public.storage_box where storage_intake_id = pg_temp.id('si1')),
   array['1|Box 1|20.00|halibut', '2|Box 2|18.50|', '3|Box 3||', '4|Box 4||kings']);
-select pg_temp.chk('INTAKE', 'one storage_label job per box on the site''s label printer',
-  (select array_agg(format('%s:%s:%s', j.source ->> 'template', j.source ->> 'storage_number', j.source ->> 'box_no')
+select pg_temp.chk('INTAKE', 'confirm returns the label data the station renders (number, customer, org-tz date, boxes)',
+  (select format('%s|%s|%s|%s', l ->> 'storage_number', l ->> 'customer', l ->> 'date',
+                 (select string_agg(b ->> 'box_no', ',') from jsonb_array_elements(l -> 'boxes') b))
+   from (select pg_temp.res('r1') -> 'labels' as l) x),
+  format('STG-0001|Sam Store|%s|1,2,3,4', to_char(now() at time zone 'America/Anchorage', 'YYYY-MM-DD')));
+select pg_temp.chk('INTAKE', 'confirm itself queues no print job (no empty payloads)',
+  (select count(*) from public.print_job), 0);
+create function pg_temp.labels(p_boxes text[], p_zpl text default null) returns jsonb language sql as $$
+  select jsonb_agg(jsonb_build_object('box_id', pg_temp.id(b),
+    'zpl', coalesce(p_zpl, '^XA^CI28^FD' || b || '^FS^XZ')) order by b)
+  from unnest(p_boxes) b;
+$$;
+grant execute on function pg_temp.labels(text[], text) to authenticated;
+insert into t_ids values ('lq1', public.queue_storage_labels('wp09-labels-0001', pg_temp.id('si1'),
+  pg_temp.labels(array['b1', 'b2', 'b3', 'b4']))::text);
+select pg_temp.chk('INTAKE', 'queue_storage_labels: one queued ZPL job per box on the site''s label printer, payload as rendered',
+  (select array_agg(format('%s:%s:%s:%s:%s', j.state, j.payload_type, j.source ->> 'template', j.source ->> 'box_no', j.payload)
                     order by (j.source ->> 'box_no')::int)
    from public.print_job j
    where j.kind = 'storage_label' and j.printer_id = 'a9000000-0000-4000-8000-0000000003a1'
      and j.source ->> 'storage_intake_id' = pg_temp.id('si1')::text),
-  array['storage_box_label:STG-0001:1', 'storage_box_label:STG-0001:2', 'storage_box_label:STG-0001:3',
-        'storage_box_label:STG-0001:4']);
-select pg_temp.chk('INTAKE', 'print_receipt queues a receipt job on the receipt printer',
-  (select format('%s:%s', printer_id, source ->> 'template') from public.print_job
-   where id = (pg_temp.res('r1') ->> 'receipt_job_id')::uuid),
-  'a9000000-0000-4000-8000-0000000003a2:storage_intake_receipt');
+  array['queued:zpl:storage_box_label:1:^XA^CI28^FDb1^FS^XZ', 'queued:zpl:storage_box_label:2:^XA^CI28^FDb2^FS^XZ',
+        'queued:zpl:storage_box_label:3:^XA^CI28^FDb3^FS^XZ', 'queued:zpl:storage_box_label:4:^XA^CI28^FDb4^FS^XZ']);
+select pg_temp.chk('INTAKE', 'label queue result', pg_temp.res('lq1') ->> 'label_jobs_queued', '4');
+select pg_temp.chk('INTAKE', 'replaying the label action queues nothing more',
+  public.queue_storage_labels('wp09-labels-0001', pg_temp.id('si1'), pg_temp.labels(array['b1'])) = pg_temp.res('lq1')
+    and (select count(*) from public.print_job) = 4, true);
+select pg_temp.chk('INTAKE', 'labels are refused when empty, not ZPL, or for a box of another intake',
+  pg_temp.err($$select public.queue_storage_labels('wp09-labels-empty', pg_temp.id('si1'), pg_temp.labels(array['b1'], ''))$$)
+    || ':' || pg_temp.err($$select public.queue_storage_labels('wp09-labels-text', pg_temp.id('si1'), pg_temp.labels(array['b1'], 'Box 1'))$$)
+    || ':' || pg_temp.err($$select public.queue_storage_labels('wp09-labels-none', pg_temp.id('si1'), '[]')$$)
+    || ':' || pg_temp.err($$select public.queue_storage_labels('wp09-labels-xbox', pg_temp.id('si1'),
+                              '[{"box_id":"a9000000-0000-4000-8000-00000000beef","zpl":"^XA^XZ"}]')$$),
+  '22023:22023:22023:22023');
+reset role;
+update public.printer set is_default_for = '{}' where id = 'a9000000-0000-4000-8000-0000000003a1';
+set local role authenticated;
+select pg_temp.chk('INTAKE', 'no label printer: nothing queued, the station is told',
+  (public.queue_storage_labels('wp09-labels-noprinter', pg_temp.id('si1'), pg_temp.labels(array['b2'])) ->> 'printer_missing')
+    || ':' || (select count(*) from public.print_job), 'true:4');
+reset role;
+update public.printer set is_default_for = '{"storage_label": true}' where id = 'a9000000-0000-4000-8000-0000000003a1';
+set local role authenticated;
 select pg_temp.chk('INTAKE', 'replaying the client_action_id returns the stored result',
   pg_temp.confirm('wp09-confirm-0001', '[]'), pg_temp.res('r1'));
 select pg_temp.chk('INTAKE', 'a replay writes nothing', (select count(*) from public.storage_intake), 1);
@@ -143,8 +174,6 @@ select pg_temp.chk('INTAKE', 'another org''s customer is not found',
     '{"customer_id":"b9000000-0000-4000-8000-0000000002b1","boxes":[{}]}')$$), 'P0002');
 select pg_temp.chk('INTAKE', 'clients cannot write boxes directly',
   pg_temp.err($$update public.storage_box set weight_lb = 1$$), '42501');
-select pg_temp.chk('INTAKE', 'reprint queues the selected boxes'' labels again',
-  public.reprint_storage_labels('wp09-reprint-0001', pg_temp.id('si1'), array[pg_temp.id('b2')]) ->> 'label_jobs_queued', '1');
 
 -- Three days in the freezer.
 reset role;

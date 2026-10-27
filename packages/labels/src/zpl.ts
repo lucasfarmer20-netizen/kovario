@@ -1,9 +1,10 @@
 import { encode, normalizeTagCode } from "rules";
 
 // 4 x 6 inches at the Zebra default 203 dpi. All field bytes are escaped: customer
-// text cannot inject ^XZ, ~JA or a second printer command.
+// text cannot inject ^XZ, ~JA or a second printer command. TextEncoder (not Buffer) so
+// stations can render labels in the browser.
 const field = (s: string) =>
-  [...Buffer.from(s, "utf8")].map((b) => `_${b.toString(16).padStart(2, "0")}`).join("");
+  [...new TextEncoder().encode(s)].map((b) => `_${b.toString(16).padStart(2, "0")}`).join("");
 const text = (x: number, y: number, s: string, h = 36, w = h) =>
   `^FO${x},${y}^A0N,${h},${w}^FH_^FD${field(s)}^FS`;
 const qr = (x: number, y: number, s: string) => `^FO${x},${y}^BQN,2,7^FDLA,${s}^FS`;

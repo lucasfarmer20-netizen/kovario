@@ -14,7 +14,6 @@ describe("confirmPayload", () => {
         customerId: "c1",
         locationId: "",
         notes: "  top shelf ",
-        printReceipt: true,
         rows: [row("20", " halibut "), row("")],
       }),
     ).toEqual({
@@ -22,7 +21,6 @@ describe("confirmPayload", () => {
         customer_id: "c1",
         location_id: null,
         notes: "top shelf",
-        print_receipt: true,
         boxes: [
           { weight_lb: 20, description: "halibut" },
           { weight_lb: null, description: null },
@@ -37,7 +35,6 @@ describe("confirmPayload", () => {
         customerId: null,
         locationId: "",
         notes: "",
-        printReceipt: false,
         rows: [],
       }),
     ).toEqual({ errors: ["Pick or create the customer.", "Add at least one box."] });
@@ -46,7 +43,6 @@ describe("confirmPayload", () => {
         customerId: "c1",
         locationId: "l1",
         notes: "",
-        printReceipt: false,
         rows: [row("-2"), row("heavy")],
       }),
     ).toEqual({
