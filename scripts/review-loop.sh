@@ -74,8 +74,8 @@ pass() {
     [[ "$labels" == *area:critical* ]] && critical=true
     if [ -n "$issue" ] && gh issue view "$issue" -R "$REPO" --json labels -q '.labels[].name' | grep -q area:critical; then critical=true; fi
     # already reviewed this exact commit by the reviewer account?
-    mine=$(gh api "repos/$REPO/pulls/$num/reviews" --paginate \
-       | jq -r --arg u "$REVIEWER_LOGIN" --arg h "$head" '[.[] | select(.user.login==$u and .commit_id==$h) | .state] | last // empty')
+    mine=$(gh api "repos/$REPO/pulls/$num/reviews" --paginate --slurp \
+       | jq -r --arg u "$REVIEWER_LOGIN" --arg h "$head" '[.[][] | select(.user.login==$u and .commit_id==$h) | .state] | last // empty')
     if [ -n "$mine" ]; then
       # approved but auto-merge never armed (e.g. the merge call failed): arm it now
       if [ "$mine" = APPROVED ] && [ "$critical" = false ] && [ "$(jq -r '.autoMergeRequest == null' <<<"$pr")" = true ]; then
