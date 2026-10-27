@@ -118,3 +118,157 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Floor station tokens: docs/06-STATIONS-UX.md, wet-glove minimums. */
+.station {
+  --station-ink: #102c39;
+  --station-paper: #f2f6f5;
+  --station-ok: #bbf7d0;
+  --station-error: #fecaca;
+  min-height: 100dvh;
+  padding: clamp(20px, 4vw, 56px);
+  background: var(--station-paper);
+  color: var(--station-ink);
+  font-size: 18px;
+}
+.station header {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: center;
+  margin-bottom: 32px;
+}
+.station h1 {
+  font-size: clamp(32px, 5vw, 48px);
+  font-weight: 750;
+  letter-spacing: -0.04em;
+}
+.station h2 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+.station p {
+  margin-bottom: 16px;
+}
+.station-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 18px;
+  font-weight: 650;
+}
+.station-chips,
+.station-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.station-badge {
+  border: 1px solid #a8bbbf;
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: white;
+  white-space: nowrap;
+}
+.station-feedback {
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  padding: 24px;
+  background: #dce8eb;
+  border-radius: 16px;
+  font-size: 28px;
+  font-weight: 650;
+  margin-bottom: 28px;
+}
+.station-ok {
+  background: var(--station-ok);
+  color: #052e16;
+}
+.station-rejected {
+  background: var(--station-error);
+  color: #450a0a;
+}
+.station-workspace {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 24px;
+}
+.station-card,
+.station-queue {
+  background: white;
+  border: 1px solid #b9cbce;
+  border-radius: 16px;
+  padding: 28px;
+}
+.station button,
+.station input:not(.station-scan-input),
+.station a {
+  min-height: 56px;
+  min-width: 56px;
+  font-size: 20px;
+  border: 2px solid #406575;
+  border-radius: 8px;
+  padding: 12px 20px;
+}
+.station button {
+  background: #123d50;
+  color: white;
+  cursor: pointer;
+}
+.station button:disabled {
+  opacity: 0.5;
+}
+.station button:focus-visible,
+.station input:focus-visible {
+  outline: 4px solid #087f8c;
+  outline-offset: 3px;
+}
+.station-queue li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 0;
+  border-bottom: 1px solid #cbd8dc;
+}
+.station-hint {
+  margin-top: 24px;
+  color: #385563;
+}
+.station-overlay {
+  position: fixed;
+  inset: auto 20px 20px auto;
+  width: min(440px, calc(100vw - 40px));
+  max-height: 90dvh;
+  overflow: auto;
+  background: white;
+  border: 3px solid #123d50;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 12px 48px #102c3940;
+  z-index: 10;
+}
+.station-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 16px 0;
+}
+.station-overlay input {
+  width: 200px;
+}
+.station-scan-input {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  bottom: 0;
+  left: 0;
+}
+@media (max-width: 850px) {
+  .station-workspace {
+    grid-template-columns: 1fr;
+  }
+}

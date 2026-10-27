@@ -28,7 +28,7 @@ export async function withAction<T extends Json>(
     .select("result, completed_at")
     .eq("client_action_id", clientActionId)
     .maybeSingle();
-  if (error) throw new Error(`action_log lookup failed: ${error.message}`);
+  if (error) throw new Error(`action_log lookup failed: ${error.message}`, { cause: error });
   if (data?.completed_at) return data.result as T;
   return fn(clientActionId);
 }
