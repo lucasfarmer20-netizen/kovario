@@ -327,6 +327,19 @@ const STAMPS: [string, string][] = [
   ["done", "done_at"],
 ];
 
+// The demo numbers belong to this script. Anything else holding one (another fixture, an
+// intake made in the app before seeding) would 409 on (org_id, number) — say why instead.
+const taken = (await rest(
+  `intake?org_id=eq.${ORG_ID}&number=in.(${INTAKES.map((i) => i.number).join(",")})&select=id,number`,
+)) as { id: string; number: string }[];
+const foreign = taken.filter((t) => t.id !== id(`intake:${t.number}`)).map((t) => t.number);
+if (foreign.length > 0) {
+  throw new Error(
+    `demo-plant already has ${foreign.join(", ")} not created by seed-demo-org; ` +
+      "run `supabase db reset` first (supabase/seed.sql must not seed demo intakes)",
+  );
+}
+
 for (const demo of INTAKES) {
   const intakeId = id(`intake:${demo.number}`);
   const at = hoursAgo(demo.hoursAgo);
@@ -430,16 +443,17 @@ for (const demo of INTAKES) {
   }
 }
 
-// New intakes continue after the demo numbers (app.next_seq); never lower a counter the
-// org has already moved past.
+// New intakes continue after the highest demo number (app.next_seq stores the last value
+// issued); never lower a counter the org has already moved past.
+const lastNumber = Math.max(...INTAKES.map((i) => Number(i.number.slice("INT-".length))));
 await insertMissing(
   "sequence_counter",
-  [{ org_id: ORG_ID, kind: "intake", value: INTAKES.length }],
+  [{ org_id: ORG_ID, kind: "intake", value: lastNumber }],
   "org_id,kind",
 );
-await rest(`sequence_counter?org_id=eq.${ORG_ID}&kind=eq.intake&value=lt.${INTAKES.length}`, {
+await rest(`sequence_counter?org_id=eq.${ORG_ID}&kind=eq.intake&value=lt.${lastNumber}`, {
   method: "PATCH",
-  body: JSON.stringify({ value: INTAKES.length }),
+  body: JSON.stringify({ value: lastNumber }),
 });
 
 console.log(
