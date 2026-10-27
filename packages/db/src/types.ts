@@ -2023,6 +2023,9 @@ isOneToOne: false
 "advance_wave":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_wave_id": string }; Returns: Json
                            },
+"allocation_session_summary":
+{ Args: { "p_session_id": string }; Returns: Json
+                           },
 "billing_apply_subscription":
 { Args: { "p_customer_id": string,"p_event_created": string,"p_event_id": string,"p_kind": string,"p_org_hint"?: string,"p_plan": string,"p_status": string,"p_subscription_id": string }; Returns: Json
                            },

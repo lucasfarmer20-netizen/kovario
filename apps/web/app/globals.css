@@ -398,3 +398,22 @@
     display: none;
   }
 }
+.allocate-angler {
+  border: 2px solid #cbd8dc;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 0 0 16px;
+}
+.allocate-angler legend {
+  font-size: 20px;
+  font-weight: 700;
+  padding: 0 8px;
+}
+/* Settlement receipts print from the browser: the receipt alone, without station controls. */
+@media print {
+  .allocate-station header,
+  .allocate-station .station-actions,
+  .allocate-station .station-hint {
+    display: none;
+  }
+}

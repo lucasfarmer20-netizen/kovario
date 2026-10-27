@@ -311,10 +311,9 @@ select is(pg_temp.share_sum(pg_temp.id('s1')), 100.01::numeric,
 
 select is(public.cancel_allocation_session('wp14-cancel-0001', pg_temp.id('s1'), 'party re-split') ->> 'state',
   'cancelled', 'CANCEL — an unpaid, unreleased session can be cancelled');
-reset role; -- app.session_pool is internal (not granted to clients)
-select is((select format('%s|%s', (app.session_pool(pg_temp.id('s2')) ->> 'total'), pg_temp.share_sum(pg_temp.id('s2')))),
+select is((select format('%s|%s', (public.allocation_session_summary(pg_temp.id('s2')) -> 'pool' ->> 'total'),
+                         pg_temp.share_sum(pg_temp.id('s2')))),
   '80.00|80.00', 'SHARED — cancelling the billing session hands INT-0001 to the other session, repriced at once');
-set local role authenticated;
 select throws_like($$select public.save_allocation_session('wp14-edit-cancelled', pg_temp.current_payload(pg_temp.id('s1')))$$,
   '%is cancelled%', 'CANCEL — a cancelled session cannot be edited');
 
@@ -384,6 +383,8 @@ select throws_like($$select public.save_allocation_session('wp14-b-steal', jsonb
   '%intake not found%', 'TENANCY — another org''s intake cannot be pooled');
 select throws_like($$select public.price_session('wp14-b-price', (select v::uuid from t_ids where k = 's2'))$$,
   '%not found%', 'TENANCY — another org''s session cannot be priced');
+select throws_like($$select public.allocation_session_summary((select v::uuid from t_ids where k = 's2'))$$,
+  '%not found%', 'TENANCY — nor its summary read');
 select throws_like($$select public.settlement_receipt((select id from public.settlement limit 1))$$,
   '%not found%', 'TENANCY — nor its receipt read');
 

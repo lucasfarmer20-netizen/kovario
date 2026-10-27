@@ -749,6 +749,26 @@ begin
 end;
 $$;
 
+-- Session summary ---------------------------------------------------------------------------
+
+-- The editor's view of a session on load: the same shape save / price return (with the pool,
+-- so the counter sees which session bills a shared intake).
+create or replace function public.allocation_session_summary(p_session_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  perform app.require_role('{owner,manager,staff,cashier,station}');
+  if not exists (select 1 from public.allocation_session where id = p_session_id and org_id = app.org_id()) then
+    raise exception 'allocation session not found' using errcode = 'P0002';
+  end if;
+  return app.allocation_session_json(p_session_id);
+end;
+$$;
+
 -- Session list -------------------------------------------------------------------------------
 
 -- One row per session with its fulfillment rollup (allocation_session_fulfillment) and what
@@ -818,7 +838,8 @@ revoke all on function
   public.price_session(text, uuid),
   public.cancel_allocation_session(text, uuid, text),
   public.settlement_receipt(uuid),
-  public.print_settlement_receipt(text, uuid)
+  public.print_settlement_receipt(text, uuid),
+  public.allocation_session_summary(uuid)
 from public, anon, authenticated;
 
 grant execute on function
@@ -827,5 +848,6 @@ grant execute on function
   public.price_session(text, uuid),
   public.cancel_allocation_session(text, uuid, text),
   public.settlement_receipt(uuid),
-  public.print_settlement_receipt(text, uuid)
+  public.print_settlement_receipt(text, uuid),
+  public.allocation_session_summary(uuid)
 to authenticated;
