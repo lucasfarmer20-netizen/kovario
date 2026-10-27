@@ -54,7 +54,11 @@ pnpm workspace: `apps/web`, `packages/{rules,payments,labels,db,shipping}`,
   Docker memory fits only a few stacks at once.
 - Migrations: `supabase/migrations/<timestamp>_<slug>.sql`, idempotent where practical,
   one concern per file, every new table calls `enable_org_rls`. Regenerate
-  `packages/db/src/types.ts` in the same PR.
+  `packages/db/src/types.ts` in the same PR. **Your new migrations must sort after every
+  migration on `origin/main`** (staging applies `main` on each merge, and `db push` refuses
+  to insert an older-dated migration behind newer ones; CI's `migrations-dry-run` fails with
+  "Found local migration files to be inserted before the last migration"). Before pushing,
+  and again after merging `main` into your branch, rename (`git mv`) any that don't.
 - Tests live next to code (`*.test.ts`) or in `supabase/tests/` for SQL. Acceptance
   items in the issue map to tests; name them after the invariant (`I10`, `S4`, `P18`).
 - PR description: what, how to verify, which docs/invariants it satisfies (table),
