@@ -27,6 +27,13 @@ case $target in
   *) echo "usage: deploy-supabase.sh <staging|production> [--dry-run]" >&2; exit 2 ;;
 esac
 : "${SUPABASE_ACCESS_TOKEN:?missing}" "${SUPABASE_PROJECT_REF:?missing}" "${SUPABASE_DB_PASSWORD:?missing}"
+# A secret pasted with a trailing newline or space fails auth; strip surrounding whitespace
+# (Supabase-generated passwords and refs never have any) and remember whether there was some.
+trim() { local v=$1; v=${v#"${v%%[![:space:]]*}"}; printf '%s' "${v%"${v##*[![:space:]]}"}"; }
+password_trimmed=no
+[ "$(trim "$SUPABASE_DB_PASSWORD")" = "$SUPABASE_DB_PASSWORD" ] || password_trimmed=yes
+SUPABASE_DB_PASSWORD=$(trim "$SUPABASE_DB_PASSWORD")
+SUPABASE_PROJECT_REF=$(trim "$SUPABASE_PROJECT_REF")
 export SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD # read by the CLI; never passed as arguments
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -59,6 +66,8 @@ db_push() {
       "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/config/database/pooler" || echo "none")
     missing=$(grep -o '"missing_permissions":\[[^]]*\]' "$work/pooler.json" 2>/dev/null || true)
     echo "::error::db push cannot reach the IPv4 pooler: pooler config API returned HTTP $status ${missing:-} (docs/11-DEPLOY.md §1)"
+  elif grep -q "28P01" "$log"; then
+    echo "::error::database password rejected for this project (surrounding whitespace was stripped from the secret: $password_trimmed). Check the DB password secret against Dashboard → Database settings (docs/11-DEPLOY.md §1)"
   fi
   exit 1
 }
