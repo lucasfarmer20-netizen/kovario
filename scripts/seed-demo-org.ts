@@ -326,6 +326,19 @@ const STAMPS: [string, string][] = [
   ["done", "done_at"],
 ];
 
+// The demo numbers belong to this script. Anything else holding one (another fixture, an
+// intake made in the app before seeding) would 409 on (org_id, number) — say why instead.
+const taken = (await rest(
+  `intake?org_id=eq.${ORG_ID}&number=in.(${INTAKES.map((i) => i.number).join(",")})&select=id,number`,
+)) as { id: string; number: string }[];
+const foreign = taken.filter((t) => t.id !== id(`intake:${t.number}`)).map((t) => t.number);
+if (foreign.length > 0) {
+  throw new Error(
+    `demo-plant already has ${foreign.join(", ")} not created by seed-demo-org; ` +
+      "run `supabase db reset` first (supabase/seed.sql must not seed demo intakes)",
+  );
+}
+
 for (const demo of INTAKES) {
   const intakeId = id(`intake:${demo.number}`);
   const at = hoursAgo(demo.hoursAgo);
