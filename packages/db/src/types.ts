@@ -138,6 +138,12 @@ isOneToOne: false
       referencedRelation: "vessel"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "asset_tag_current_vessel_id_fkey"
+      columns: ["current_vessel_id"]
+isOneToOne: false
+      referencedRelation: "vessel_walk_order"
+      referencedColumns: ["vessel_id"]
+    },{
       foreignKeyName: "asset_tag_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
@@ -592,6 +598,12 @@ isOneToOne: false
       referencedRelation: "location"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "location_placement_location_id_fkey"
+      columns: ["location_id"]
+isOneToOne: false
+      referencedRelation: "vessel_walk_order"
+      referencedColumns: ["location_id"]
+    },{
       foreignKeyName: "location_placement_operator_id_fkey"
       columns: ["operator_id"]
 isOneToOne: false
@@ -609,6 +621,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "vessel"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "location_placement_vessel_id_fkey"
+      columns: ["vessel_id"]
+isOneToOne: false
+      referencedRelation: "vessel_walk_order"
+      referencedColumns: ["vessel_id"]
     }
                   ]
                 },"lodge": {
@@ -1119,6 +1137,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "vessel"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "release_audit_vessel_id_fkey"
+      columns: ["vessel_id"]
+isOneToOne: false
+      referencedRelation: "vessel_walk_order"
+      referencedColumns: ["vessel_id"]
     }
                   ]
                 },"scale": {
@@ -1216,6 +1240,12 @@ isOneToOne: false
       referencedRelation: "location"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "scan_log_location_id_fkey"
+      columns: ["location_id"]
+isOneToOne: false
+      referencedRelation: "vessel_walk_order"
+      referencedColumns: ["location_id"]
+    },{
       foreignKeyName: "scan_log_operator_id_fkey"
       columns: ["operator_id"]
 isOneToOne: false
@@ -1233,6 +1263,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "vessel"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "scan_log_vessel_id_fkey"
+      columns: ["vessel_id"]
+isOneToOne: false
+      referencedRelation: "vessel_walk_order"
+      referencedColumns: ["vessel_id"]
     }
                   ]
                 },"sequence_counter": {
@@ -1492,6 +1528,12 @@ isOneToOne: false
       referencedRelation: "location"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "storage_intake_location_id_fkey"
+      columns: ["location_id"]
+isOneToOne: false
+      referencedRelation: "vessel_walk_order"
+      referencedColumns: ["location_id"]
+    },{
       foreignKeyName: "storage_intake_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
@@ -1629,6 +1671,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "location"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "vessel_location_id_fkey"
+      columns: ["location_id"]
+isOneToOne: false
+      referencedRelation: "vessel_walk_order"
+      referencedColumns: ["location_id"]
     },{
       foreignKeyName: "vessel_org_id_fkey"
       columns: ["org_id"]
@@ -1884,6 +1932,44 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"vessel_walk_order": {
+                  Row: {
+                    "intake_id": string,"intake_number": string,"is_exchange": boolean,"location_code": string | null,"location_id": string | null,"org_id": string,"session_id": string,"sort_key": string | null,"species_summary": string | null,"tag_code": string | null,"vessel_id": string,"walk_seq": number | null,"weight_lb": number
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "allocation_intake_session_id_fkey"
+      columns: ["session_id"]
+isOneToOne: false
+      referencedRelation: "allocation_session"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "allocation_intake_session_id_fkey"
+      columns: ["session_id"]
+isOneToOne: false
+      referencedRelation: "allocation_session_fulfillment"
+      referencedColumns: ["session_id"]
+    },{
+      foreignKeyName: "vessel_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "vessel_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "vessel_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
                 }
           }
           Functions: {
@@ -1925,6 +2011,9 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: {
               "created_at": string,"display_name": string,"email": string,"has_pin": boolean,"id": string,"is_default": boolean,"role": Database["public"]['Enums']["org_member_role"],"user_id": string
             }[]
+                           },
+"admin_locations":
+{ Args: { "p_client_action_id": string,"p_location_id"?: string,"p_locations"?: Json,"p_operation": string }; Returns: Json
                            },
 "admin_merge_customers":
 { Args: { "p_client_action_id": string,"p_keep_id": string,"p_merge_id": string }; Returns: Json
@@ -1985,6 +2074,9 @@ isOneToOne: false
 "bind_tag":
 { Args: { "p_client_action_id": string,"p_code": string,"p_intake_id": string,"p_operator_session"?: string }; Returns: Json
                            },
+"blast_vessel":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed"?: Json,"p_raw": string }; Returns: Json
+                           },
 "cancel_pickup_batch":
 { Args: { "p_batch_id": string,"p_client_action_id": string }; Returns: Json
                            },
@@ -2041,6 +2133,9 @@ isOneToOne: false
 "intake_price_context":
 { Args: { "p_customer_id"?: string,"p_intake_id"?: string }; Returns: Json
                            },
+"locate_scan":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed"?: Json,"p_pending_vessel_id"?: string,"p_pending_vessel_raw"?: string,"p_raw": string }; Returns: Json
+                           },
 "member_lookup_user":
 { Args: { "p_email": string }; Returns: string
                            },
@@ -2051,6 +2146,9 @@ isOneToOne: false
                            },
 "operator_identify":
 { Args: { "p_pin": string }; Returns: Json
+                           },
+"place_vessel":
+{ Args: { "p_client_action_id": string,"p_expected_vessel_id"?: string,"p_location_raw": string,"p_operator_session"?: string,"p_vessel_raw": string }; Returns: Json
                            },
 "print_agent_bind_auth_user":
 { Args: { "p_agent_id": string,"p_user_id": string }; Returns: undefined

@@ -4,6 +4,8 @@ import {
   assetTagSheet,
   boxLabel,
   locationTag,
+  locationTagSheet,
+  singleLocationTag,
   pickListHtml,
   receiptHtml,
   receiptPdf,
@@ -153,3 +155,22 @@ it("receipt and pick list render actual PDF bytes in Chromium", async () => {
     expect(bytes.length).toBeGreaterThan(5000);
   }
 }, 30000);
+describe("WP13 location tag sheet", () => {
+  it("WP13 tag sheet pairs F/R shelves, prints pallets alone, and round-trips every code", () => {
+    const codes = ["IF-A-01-1-F", "IF-A-01-1-R", "IF-A-01-2-F", "IF-PALLET-01"];
+    const output = locationTagSheet({ orgSlug: "demo-plant", codes });
+    expect(output.match(/\^XA/g)).toHaveLength(3);
+    expect(qrTexts(output).map((q) => parse(q))).toEqual(
+      ["IF-A-01-1-R", "IF-A-01-1-F", "IF-A-01-2-F", "IF-PALLET-01"].map((code) => ({
+        ok: true,
+        value: { kind: "LOC", orgSlug: "demo-plant", code, legacy: false },
+      })),
+    );
+  });
+  it("WP13 single location tag round-trips", () => {
+    const output = singleLocationTag({ orgSlug: "demo", code: "OF-PALLET-02" });
+    expect(qrTexts(output).map((q) => parse(q))).toEqual([
+      { ok: true, value: { kind: "LOC", orgSlug: "demo", code: "OF-PALLET-02", legacy: false } },
+    ]);
+  });
+});

@@ -15,3 +15,4 @@ export * from "./wave.ts";
 export * from "./states.ts";
 export * from "./reference-seed.ts";
 export * from "./reconcile";
+export * from "./locations";
