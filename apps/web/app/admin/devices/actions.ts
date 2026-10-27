@@ -7,6 +7,7 @@ import QRCode from "qrcode";
 import { z } from "zod";
 import { adminMutation, unwrap, type ActionState } from "@/lib/admin-action";
 import { ForbiddenError, requireManager } from "@/lib/auth";
+import { requirePlan } from "@/lib/plan";
 import { pairingQrText } from "@/lib/pairing";
 
 const createSchema = z.object({
@@ -20,18 +21,21 @@ export async function createDevice(_state: ActionState, formData: FormData): Pro
   if (!parsed.success) return { error: "Enter a name and pick a station." };
   const result = await adminMutation(
     formData,
-    async ({ supabase }, id) =>
-      unwrap(
+    async ({ supabase }, id) => {
+      await requirePlan("stations", supabase);
+      return unwrap(
         await supabase.rpc("admin_create_device", {
           p_client_action_id: id,
           p_name: parsed.data.name,
           p_station: parsed.data.station,
           p_site_id: parsed.data.site_id || undefined,
         }),
-      ),
+      );
+    },
     `Added ${parsed.data.name}. Press “Pair” to connect a tablet.`,
   );
   revalidatePath("/admin/devices");
+  revalidatePath("/onboarding"); // the onboarding wizard reuses this form
   return result;
 }
 
@@ -70,7 +74,7 @@ export async function issuePairingCode(
     if (error || !row) return { error: error?.message ?? "Could not issue a code." };
     revalidatePath("/admin/devices");
     if (!row.active) return { active: false };
-    // QR text comes only from the rules codec (KV:PAIR:<code>, hard rule 4).
+    // QR text comes only from the rules codec (FL:PAIR:<code>, hard rule 4).
     const qrSvg = await QRCode.toString(pairingQrText(row.code), {
       type: "svg",
       margin: 1,

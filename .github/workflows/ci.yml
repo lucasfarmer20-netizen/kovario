@@ -27,7 +27,7 @@ jobs:
         run: |
           supabase start -x studio,imgproxy,logflare,vector
           supabase db reset --no-seed
-          supabase test db supabase/tests/06_reference_data.test.sql
+          supabase test db supabase/tests/07_reference_data.test.sql
       - name: Apply migrations and the demo seed on a fresh local database
         run: supabase db reset
       - run: pnpm db:types                      # regenerates packages/db/src/types.ts; drift is a reviewer check, not a CI gate

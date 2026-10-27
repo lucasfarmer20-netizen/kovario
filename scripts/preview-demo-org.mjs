@@ -1,12 +1,17 @@
 // `pnpm db:preview-demo`: creates or refreshes the throwaway demo org that Vercel preview
 // deployments sign in to on **staging** (docs/01-ARCHITECTURE.md §8, docs/11-DEPLOY.md §4).
-// Idempotent: upserts org `preview-demo`, its sites, the demo owner (password reset to the
-// given one) and the owner membership. Never run it against prod; hosted deploys never seed.
+// Idempotent: upserts org `preview-demo` and its sites, adds the processing reference data and
+// default rate card the same way onboarding does (public.seed_org_reference with
+// referenceSeed(); existing rows are kept), then the demo owner (password reset to the given
+// one) and the owner membership. Never run it against prod; hosted deploys never seed.
+// Runs on Node with type stripping: `pnpm db:preview-demo`.
 //   STAGING_SUPABASE_URL               https://<staging-ref>.supabase.co
 //   STAGING_SUPABASE_SERVICE_ROLE_KEY  staging service-role key (never commit it)
 //   FILLETRY_PREVIEW_DEMO_PASSWORD     password for the demo owner
 //   FILLETRY_PREVIEW_DEMO_EMAIL        default owner@preview-demo.test
 //   SUPABASE_PROD_PROJECT_REF          optional; when set, a URL on that project is refused
+import { referenceSeed } from "../packages/rules/src/reference-seed.ts";
+
 const DEMO_ORG_ID = "00000000-0000-4000-8000-0000000000de";
 
 function required(name) {
@@ -63,6 +68,12 @@ await upsert("site", "org_id,name", [
   { org_id: DEMO_ORG_ID, name: "Main", is_default: true },
   { org_id: DEMO_ORG_ID, name: "Lodge", is_default: false },
 ]);
+
+const seeded = await call("/rest/v1/rpc/seed_org_reference", {
+  method: "POST",
+  body: JSON.stringify({ p_org_id: DEMO_ORG_ID, p_reference: referenceSeed() }),
+});
+if (!seeded.ok) throw new Error(`preview-demo-org: seed_org_reference failed (${seeded.status})`);
 
 let userId;
 const created = await call("/auth/v1/admin/users", {

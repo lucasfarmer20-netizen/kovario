@@ -139,6 +139,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"billing_event": {
+                  Row: {
+                    "applied": boolean,"created_at": string,"event_created_at": string,"id": string,"kind": string,"org_id": string,"plan": string | null,"reason": string | null,"status": string | null,"stripe_event_id": string,"subscription_id": string | null,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "applied"?: boolean,"created_at"?: string,"event_created_at": string,"id"?: string,"kind": string,"org_id": string,"plan"?: string | null,"reason"?: string | null,"status"?: string | null,"stripe_event_id": string,"subscription_id"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "applied"?: boolean,"created_at"?: string,"event_created_at"?: string,"id"?: string,"kind"?: string,"org_id"?: string,"plan"?: string | null,"reason"?: string | null,"status"?: string | null,"stripe_event_id"?: string,"subscription_id"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "billing_event_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"box_plan": {
                   Row: {
                     "box_size_id": string | null,"created_at": string,"fulfillment_state": Database["public"]['Enums']["box_plan_fulfillment_state"],"heavy_allowed": boolean,"id": string,"label_printed_at": string | null,"method": Database["public"]['Enums']["box_plan_method"],"number": string,"org_id": string,"retail_to_box": boolean,"session_id": string,"settlement_id": string,"shipment_id": string | null,"updated_at": string,"weight_lb": number
@@ -589,14 +609,14 @@ isOneToOne: false
                   ]
                 },"org": {
                   Row: {
-                    "created_at": string,"id": string,"is_active": boolean,"name": string,"plan": string | null,"settings": NonNullable<Json>,"slug": string,"stripe_customer_id": string | null,"timezone": string,"updated_at": string
+                    "created_at": string,"id": string,"is_active": boolean,"name": string,"plan": string | null,"plan_changed_at": string | null,"settings": NonNullable<Json>,"slug": string,"stripe_customer_id": string | null,"stripe_subscription_id": string | null,"subscription_status": string | null,"timezone": string,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"plan"?: string | null,"settings"?: NonNullable<Json>,"slug": string,"stripe_customer_id"?: string | null,"timezone": string,"updated_at"?: string
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"plan"?: string | null,"plan_changed_at"?: string | null,"settings"?: NonNullable<Json>,"slug": string,"stripe_customer_id"?: string | null,"stripe_subscription_id"?: string | null,"subscription_status"?: string | null,"timezone": string,"updated_at"?: string
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"plan"?: string | null,"settings"?: NonNullable<Json>,"slug"?: string,"stripe_customer_id"?: string | null,"timezone"?: string,"updated_at"?: string
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"plan"?: string | null,"plan_changed_at"?: string | null,"settings"?: NonNullable<Json>,"slug"?: string,"stripe_customer_id"?: string | null,"stripe_subscription_id"?: string | null,"subscription_status"?: string | null,"timezone"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     
@@ -1731,8 +1751,22 @@ isOneToOne: false
 "admin_create_device":
 { Args: { "p_client_action_id": string,"p_name": string,"p_site_id"?: string,"p_station": Database["public"]['Enums']["device_station"] }; Returns: Json
                            },
+"admin_create_lodge":
+{ Args: { "p_client_action_id": string,"p_contact"?: Json,"p_name": string,"p_pricing_cap": number }; Returns: Json
+                           },
+"admin_create_rate_card":
+{ Args: { "p_client_action_id": string,"p_copy_from"?: string,"p_ends_on": string,"p_name": string,"p_starts_on": string }; Returns: Json
+                           },
 "admin_create_site":
 { Args: { "p_client_action_id": string,"p_name": string }; Returns: Json
+                           },
+"admin_customer_duplicates":
+{ Args: { "p_limit"?: number }; Returns: {
+              "customers": Json,"phone": string
+            }[]
+                           },
+"admin_delete_rate_card":
+{ Args: { "p_client_action_id": string,"p_rate_card_id": string }; Returns: Json
                            },
 "admin_device_pairing_code":
 { Args: { "p_client_action_id": string,"p_device_id": string }; Returns: {
@@ -1744,8 +1778,14 @@ isOneToOne: false
               "created_at": string,"display_name": string,"email": string,"has_pin": boolean,"id": string,"is_default": boolean,"role": Database["public"]['Enums']["org_member_role"],"user_id": string
             }[]
                            },
+"admin_merge_customers":
+{ Args: { "p_client_action_id": string,"p_keep_id": string,"p_merge_id": string }; Returns: Json
+                           },
 "admin_rename_site":
 { Args: { "p_client_action_id": string,"p_name": string,"p_site_id": string }; Returns: Json
+                           },
+"admin_seed_reference":
+{ Args: { "p_client_action_id": string,"p_reference": Json }; Returns: Json
                            },
 "admin_set_default_site":
 { Args: { "p_client_action_id": string,"p_site_id": string }; Returns: Json
@@ -1755,6 +1795,39 @@ isOneToOne: false
                            },
 "admin_set_member_role":
 { Args: { "p_client_action_id": string,"p_member_id": string,"p_role": Database["public"]['Enums']["org_member_role"] }; Returns: Json
+                           },
+"admin_set_rate_card_lines":
+{ Args: { "p_client_action_id": string,"p_lines": Json,"p_rate_card_id": string }; Returns: Json
+                           },
+"admin_update_customer":
+{ Args: { "p_client_action_id": string,"p_customer_id": string,"p_email": string,"p_name": string,"p_notes": string,"p_phone": string }; Returns: Json
+                           },
+"admin_update_lodge":
+{ Args: { "p_client_action_id": string,"p_contact"?: Json,"p_lodge_id": string,"p_name": string,"p_pricing_cap": number }; Returns: Json
+                           },
+"admin_update_org":
+{ Args: { "p_client_action_id": string,"p_name": string,"p_settings": Json,"p_timezone": string }; Returns: Json
+                           },
+"admin_update_processing_method":
+{ Args: { "p_client_action_id": string,"p_is_active": boolean,"p_lodge_cappable": boolean,"p_method_id": string,"p_name": string }; Returns: Json
+                           },
+"admin_update_rate_card":
+{ Args: { "p_client_action_id": string,"p_ends_on": string,"p_name": string,"p_rate_card_id": string,"p_starts_on": string }; Returns: Json
+                           },
+"admin_update_species":
+{ Args: { "p_client_action_id": string,"p_is_active": boolean,"p_name": string,"p_shorthand": string,"p_sort": number,"p_species_id": string }; Returns: Json
+                           },
+"billing_apply_subscription":
+{ Args: { "p_customer_id": string,"p_event_created": string,"p_event_id": string,"p_kind": string,"p_org_hint"?: string,"p_plan": string,"p_status": string,"p_subscription_id": string }; Returns: Json
+                           },
+"billing_link_customer":
+{ Args: { "p_customer_id": string,"p_org_id": string }; Returns: string
+                           },
+"create_customer":
+{ Args: { "p_client_action_id": string,"p_email"?: string,"p_name": string,"p_phone": string }; Returns: Json
+                           },
+"create_org":
+{ Args: { "p_client_action_id": string,"p_display_name": string,"p_name": string,"p_reference": Json,"p_site_name"?: string,"p_slug": string,"p_timezone": string }; Returns: Json
                            },
 "device_bind_auth_user":
 { Args: { "p_device_id": string,"p_user_id": string }; Returns: undefined
@@ -1787,8 +1860,19 @@ isOneToOne: false
 "operator_identify":
 { Args: { "p_pin": string }; Returns: Json
                            },
+"search_customers":
+{ Args: { "p_limit"?: number,"p_org_id": string,"p_q": string }; Returns: {
+              "id": string,"is_lodge_guest": boolean,"last_visit_at": string,"lodge_id": string,"lodge_name": string,"name": string,"phone": string
+            }[]
+                           },
+"seed_org_reference":
+{ Args: { "p_org_id": string,"p_reference": Json }; Returns: Json
+                           },
 "set_default_org":
 { Args: { "p_org_id": string }; Returns: undefined
+                           },
+"set_lodge_guest":
+{ Args: { "p_client_action_id": string,"p_customer_id": string,"p_is_lodge_guest": boolean,"p_lodge_id"?: string }; Returns: Json
                            }
           }
           Enums: {

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { adminMutation, unwrap, type ActionState } from "@/lib/admin-action";
+import { requirePlan } from "@/lib/plan";
 
 const nameSchema = z.object({ name: z.string().trim().min(1).max(80) });
 
@@ -11,13 +12,15 @@ export async function createSite(_state: ActionState, formData: FormData): Promi
   if (!parsed.success) return { error: "Enter a site name." };
   const result = await adminMutation(
     formData,
-    async ({ supabase }, id) =>
-      unwrap(
+    async ({ supabase }, id) => {
+      await requirePlan("sites", supabase);
+      return unwrap(
         await supabase.rpc("admin_create_site", {
           p_client_action_id: id,
           p_name: parsed.data.name,
         }),
-      ),
+      );
+    },
     `Added ${parsed.data.name}.`,
   );
   revalidatePath("/admin/sites");

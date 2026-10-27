@@ -16,9 +16,10 @@ Rules:
 - **Seed files are never run against a hosted project.** `supabase/seed.sql` is demo-only.
   Reference data the app needs (`app.sequence_prefix`, `app.state_transitions`,
   `app.state_entity`) ships in migrations as idempotent upserts. CI resets the local database
-  with `--no-seed` and runs `supabase/tests/06_reference_data.test.sql`; add a table there when
+  with `--no-seed` and runs `supabase/tests/07_reference_data.test.sql`; add a table there when
   a migration introduces new platform reference data. Per-org reference data (species, rate
-  cards) is created by onboarding, not by migrations or seed.
+  cards) is created by onboarding (`public.create_org` / `seed_org_reference` with
+  `packages/rules` `referenceSeed()`), not by migrations or seed.
 - Secrets are referenced by **name** only: in workflows, `.env.example`, this runbook. Never
   paste a value into an issue, PR, commit or log.
 - The Supabase CLI is pinned to **2.122.0** in `ci.yml`, `deploy.yml` and `package.json`;
@@ -61,6 +62,13 @@ Rules:
 
 `db push` uses `postgresql://postgres.<ref>@<pooler host>:5432/postgres` with the password in
 `PGPASSWORD`, so the password never appears in a URL, argument or log.
+
+**Edge Function secrets** are per Supabase project and are not deployed from the repo. Set them
+once per environment with `supabase secrets set --project-ref <ref> NAME=…` (or Dashboard →
+Edge Functions → Secrets): `STRIPE_SECRET_KEY` (billing-checkout, billing-portal) and
+`STRIPE_WEBHOOK_SECRET` (billing-webhook) — Stripe test-mode keys on staging, live keys on
+prod. `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` are injected by
+Supabase.
 
 Create the **`production` environment** with: *Required reviewers* (at least one human),
 *Prevent self-review* on, and *Deployment branches* limited to `main`. The deploy workflow
@@ -147,7 +155,9 @@ recording it in a PR.
 ## 5. Preview demo org
 
 Vercel previews use staging with a throwaway org `preview-demo`. Create or refresh it (idempotent:
-upserts the org, sites `Main`/`Lodge`, the owner and membership; resets the owner's password):
+upserts the org and sites `Main`/`Lodge`; adds the processing reference data and default rate
+card through `seed_org_reference`, exactly as onboarding does, keeping existing rows; then the
+owner and membership, resetting the owner's password):
 
 ```bash
 STAGING_SUPABASE_URL=… STAGING_SUPABASE_SERVICE_ROLE_KEY=… \
@@ -155,5 +165,5 @@ FILLETRY_PREVIEW_DEMO_PASSWORD=… pnpm db:preview-demo
 ```
 
 Set `SUPABASE_PROD_PROJECT_REF` in the same shell to make the script refuse the prod URL. Run it
-from a trusted machine only; the service-role key never goes into CI or the repo. The org's
-processing reference data comes from onboarding once that work package lands.
+from a trusted machine only; the service-role key never goes into CI or the repo. For the local
+`demo-plant` org (intakes in every state for the e2e smoke) use `pnpm db:seed-demo` instead.
