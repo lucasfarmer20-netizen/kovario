@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { parse } from "rules";
+import { encode, parse } from "rules";
 import {
   ScanQueue,
   retryDelay,
@@ -9,7 +9,7 @@ import {
 } from "./scan-queue";
 const request = (id: string): ScanRequest => ({
   client_action_id: id,
-  raw: "KV:TOTE:INT-0001:1",
+  raw: encode("TOTE", { intakeNumber: "INT-0001", toteNo: 1 }),
   station: "wave",
   operator_session: null,
 });
@@ -150,14 +150,17 @@ it("preserves scans appended during a failed send when recording backoff", async
 });
 
 it("delivers a valid scan after an audited large-tote rejection without retrying the head", async () => {
-  const large = { ...request("large-tote"), raw: "KV:TOTE:INT-0001:2147483648" };
+  const large = {
+    ...request("large-tote"),
+    raw: encode("TOTE", { intakeNumber: "INT-0001", toteNo: 2147483648 }),
+  };
   expect(parse(large.raw)).toMatchObject({ ok: true, value: { toteNo: 2147483648 } });
   const s = setup();
   s.send.mockResolvedValueOnce({ ok: false, reason: "unknown_tote" });
   await s.queue.enqueue(large);
   await s.queue.enqueue(request("valid-after-large"));
   await s.queue.drain();
-  expect(s.send.mock.calls.map(([row]) => row.raw)).toEqual([large.raw, "KV:TOTE:INT-0001:1"]);
+  expect(s.send.mock.calls.map(([row]) => row.raw)).toEqual([large.raw, request("valid").raw]);
   expect(s.replied.mock.calls.map(([reply]) => reply.ok)).toEqual([false, true]);
   expect(await s.store.read()).toEqual([]);
   expect(s.changed).toHaveBeenLastCalledWith(0);

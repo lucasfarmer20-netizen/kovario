@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { filletryClaims, type FilletryClaims, type FilletryClient } from "db";
 import Link from "next/link";
+import { encode } from "rules";
 import { getDeviceClient } from "@/lib/supabase/device";
 import { getBrowserClient } from "@/lib/supabase/browser";
 import { StationShell } from "@/src/components/station/station-shell";
@@ -174,7 +175,8 @@ function LiveStation({ client, claims, station, site }: Context) {
           <p className="station-eyebrow">Shared station primitives · {station}</p>
           <h2>Scan a tote to begin</h2>
           <p>
-            Paste or scan <code>KV:TOTE:INT-0001:1</code>, then press Enter.
+            Paste or scan <code>{encode("TOTE", { intakeNumber: "INT-0001", toteNo: 1 })}</code>,
+            then press Enter.
           </p>
           <p>
             Only totes in this plant’s intake master are accepted. Unknown labels are recorded as

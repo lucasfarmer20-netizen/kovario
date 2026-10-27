@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
+import { encode } from "rules";
 import { createScanCapture } from "./scan-capture";
 describe("ScanInput capture", () => {
   it("parses pasted wedge payloads through the canonical QR parser", () => {
     const submit = vi.fn();
     const capture = createScanCapture(submit);
-    capture("KV:TOTE:INT-0001:1\r\n", 0);
-    expect(submit).toHaveBeenCalledWith("KV:TOTE:INT-0001:1\r\n", {
+    const raw = `${encode("TOTE", { intakeNumber: "INT-0001", toteNo: 1 })}\r\n`;
+    capture(raw, 0);
+    expect(submit).toHaveBeenCalledWith(raw, {
       ok: true,
       value: { kind: "TOTE", intakeNumber: "INT-0001", toteNo: 1, legacy: false },
     });
