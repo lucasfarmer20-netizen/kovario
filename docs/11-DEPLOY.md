@@ -32,16 +32,27 @@ Rules:
 1. **Staging** project exists (`kovario-staging`, region `us-west-1`). For **prod**, create a
    second project in the same organisation and region, Postgres 17 (`supabase/config.toml`
    `major_version`). Keep its database password in a password manager.
-2. Access tokens (Account → Access Tokens). Use a scoped token per environment:
-   - **staging** token, scoped to the staging project. The deploy script never runs
-     `supabase link` (every command takes `--project-ref`), so no API-key scopes are needed.
-     `db push` connects to Postgres directly and needs **no token scope** when the
-     session-pooler host is given (`SUPABASE_*_POOLER_HOST`, below); without it the CLI looks
-     the pooler up and needs `database_pooling_config_read` (otherwise it fails with
-     *IPv6 is not supported*: runners are IPv4-only, free-plan direct hosts IPv6-only).
-     `functions deploy`: Edge Functions read-write. **`config push` also needs** auth / database / data-API /
-     storage / realtime config **read**, plus `auth_config_write` and `project_admin_write`
-     (`supabase <command> --help` lists each command's scopes).
+2. Access tokens (Account → Access Tokens). Use a scoped token per environment, created as
+   **Project** access to that one project only. These are the permissions the staging deploy
+   was verified with on 2026-10-27 (labels as in the dashboard form; everything else None):
+
+   | Group | Permission | Level | Used by |
+   |---|---|---|---|
+   | Project | Project Settings | Read-write | `config push` |
+   | Database | Migrations | Read-write | `db push` |
+   | Database | Database config | Read-write | `config push` (DB settings) |
+   | Database | Database pooling config | Read | `db push` pooler lookup when `SUPABASE_*_POOLER_HOST` is unset |
+   | Application services | Edge Functions | Read-write | `functions deploy` |
+   | Application services | Auth Config | Read-write | `config push` (access-token hook, auth URLs) |
+   | Application services | Data API Config | Read-write | `config push` |
+   | Application services | Storage Config | Read-write | `config push` (not "Storage", which is buckets/objects) |
+   | Application services | Realtime Config | Read-write | `config push` |
+   | Infrastructure and delivery | Add-ons | Read | `config push` checks add-ons first (`infra_add_ons_read`) |
+
+   The deploy script never runs `supabase link` (every command takes `--project-ref`), so no
+   API-key scopes are needed. A missing scope fails the step with
+   `Missing required permission(s): <scope>`; a 402 means a paid-plan feature is enabled in
+   `supabase/config.toml` (vector buckets are off for this reason).
    - **prod** token, the same scopes on the prod project only.
 
 ### GitHub (`Settings → Secrets and variables → Actions`, `Settings → Environments`)
