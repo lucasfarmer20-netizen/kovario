@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   session: null as unknown,
   send: null as null | ((r: ScanRequest) => Promise<ScanReply>),
   pending: 0,
+  vesselFilters: [] as Array<[string, unknown]>,
 }));
 vi.mock("@/components/intake/use-station-session", () => ({
   useStationSession: () => ({ session: mocks.session, loaded: true }),
@@ -22,6 +23,7 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   mocks.pending = 0;
+  mocks.vesselFilters = [];
 });
 function setup(weight = 0) {
   localStorage.setItem("org:staff:reconcile", "i1");
@@ -49,7 +51,10 @@ function setup(weight = 0) {
   const from = (name: string) => {
     const q = {
       select: () => q,
-      eq: () => q,
+      eq: (column: string, value: unknown) => {
+        if (name === "vessel") mocks.vesselFilters.push([column, value]);
+        return q;
+      },
       order: () => q,
       then: (resolve: (v: unknown) => unknown) =>
         Promise.resolve({ data: tables[name], error: null }).then(resolve),
@@ -144,6 +149,38 @@ it("WP12 tag without an open intake is audited with Scan a tote first", async ()
   expect(rpc).toHaveBeenCalledWith(
     "station_scan",
     expect.objectContaining({ p_reason: "Scan a tote first", p_raw: "42", p_station: "reconcile" }),
+  );
+  expect(rpc).not.toHaveBeenCalledWith("reconcile_action", expect.anything());
+});
+it("WP12 vessel query is scoped to the open intake and reloads on selection", async () => {
+  setup();
+  localStorage.clear();
+  render(<ReconcileStation />);
+  const intake = await screen.findByRole("button", { name: "INT-0001" });
+  expect(mocks.vesselFilters).toEqual([]);
+  fireEvent.click(intake);
+  await screen.findByRole("button", { name: /042/ });
+  expect(mocks.vesselFilters).toContainEqual(["intake_id", "i1"]);
+  expect(mocks.vesselFilters).toContainEqual(["lifecycle_state", "occupied"]);
+});
+it("WP12 unsupported scans produce an audited floor-friendly rejection", async () => {
+  const rpc = setup();
+  render(<ReconcileStation />);
+  await screen.findByRole("button", { name: /042/ });
+  rpc.mockResolvedValueOnce({
+    data: { ok: false, reason: "Not a tag or tote", intake_id: "", vessel_id: "" },
+    error: null,
+  });
+  const reply = await mocks.send!({
+    raw: "FL:LOC:demo-plant:IF-01",
+    station: "reconcile",
+    client_action_id: "wp12-wrong-kind",
+    operator_session: null,
+  });
+  expect(reply.reason).toBe("Not a tag or tote");
+  expect(rpc).toHaveBeenCalledWith(
+    "station_scan",
+    expect.objectContaining({ p_reason: "Not a tag or tote" }),
   );
   expect(rpc).not.toHaveBeenCalledWith("reconcile_action", expect.anything());
 });

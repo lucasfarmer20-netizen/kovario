@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Database, Json } from "db";
-import { parse, variancePercent } from "rules";
+import { parse, variancePercent, sendToBlastBlockers } from "rules";
 import { useStationSession, type StationSession } from "@/components/intake/use-station-session";
 import { StationShell } from "@/src/components/station/station-shell";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
@@ -72,7 +72,12 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
     },
     [scope],
   );
+  const refreshVersion = useRef(0);
+  const invalidateRefresh = useCallback(() => {
+    ++refreshVersion.current;
+  }, []);
   const refresh = useCallback(async () => {
+    const version = ++refreshVersion.current;
     const [is, vs] = await Promise.all([
       client
         .from("intake")
@@ -80,9 +85,17 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
         .eq("state", "reconcile")
         .order("rollstock_done_at")
         .order("id"),
-      client.from("vessel").select("*,asset_tag(code)").eq("lifecycle_state", "occupied"),
+      openId
+        ? client
+            .from("vessel")
+            .select("*,asset_tag(code)")
+            .eq("intake_id", openId)
+            .eq("lifecycle_state", "occupied")
+            .order("id")
+        : Promise.resolve({ data: [], error: null }),
     ]);
     if (is.error || vs.error) throw new Error("Reconcile refresh unavailable");
+    if (version !== refreshVersion.current) return;
     setIntakes(is.data ?? []);
     setVessels(vs.data ?? []);
     if (claims.deviceId) {
@@ -102,10 +115,10 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
           .order("id", { ascending: false })
           .limit(1);
         if (r.error) throw new Error("Scale unavailable");
-        setReading(r.data[0]?.weight_lb ?? null);
+        if (version === refreshVersion.current) setReading(r.data[0]?.weight_lb ?? null);
       }
     }
-  }, [client, claims.deviceId]);
+  }, [client, claims.deviceId, openId]);
   useEffect(() => {
     const sync = (event: StorageEvent) => {
       if (event.key === scope) {
@@ -128,11 +141,12 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
     channel.subscribe();
     const timer = setInterval(reload, 15000);
     return () => {
+      invalidateRefresh();
       window.removeEventListener("storage", sync);
       clearInterval(timer);
       void client.removeChannel(channel);
     };
-  }, [client, claims.orgId, refresh, scope]);
+  }, [client, claims.orgId, refresh, scope, invalidateRefresh]);
   const send = useCallback(
     async (request: ScanRequest): Promise<ScanReply> => {
       const parsed = parse(request.raw);
@@ -142,13 +156,21 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
         : null;
       const tagAllowed = tag && (!tag.orgSlug || tag.orgSlug === org?.data?.slug);
       const current = localStorage.getItem(scope) || null;
-      if (tag && !current) {
+      const rejection =
+        tag && !current
+          ? "Scan a tote first"
+          : tag && !tagAllowed
+            ? "Tag belongs to another plant"
+            : !parsed.ok || (parsed.value.kind !== "TOTE" && !tag)
+              ? "Not a tag or tote"
+              : null;
+      if (rejection) {
         const { data, error } = await client.rpc("station_scan", {
           p_client_action_id: request.client_action_id,
           p_station: "reconcile",
           p_raw: request.raw,
-          p_parsed: tag,
-          p_reason: "Scan a tote first",
+          p_parsed: parsed.ok ? parsed.value : null,
+          p_reason: rejection,
           p_operator_session: request.operator_session ?? undefined,
         });
         if (error) {
@@ -235,6 +257,14 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
     rows = vessels.filter((v) => v.intake_id === openId);
   const actual = rows.reduce((sum, v) => sum + v.weight_lb, 0),
     variance = variancePercent(actual, open?.total_est_yield_lb ?? 0);
+  const sendBlocked =
+    sendToBlastBlockers(
+      rows.map((v) => ({
+        weightLb: v.weight_lb,
+        isExchange: v.is_exchange,
+        assetTagId: v.asset_tag_id,
+      })),
+    ).length > 0;
   const disabled = busy || pending > 0 || pinOpen;
   return (
     <StationShell
@@ -340,14 +370,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
               <button disabled={disabled || !selected} onClick={() => void mutate("remove")}>
                 Remove selected vessel
               </button>
-              <button
-                disabled={
-                  disabled ||
-                  !rows.length ||
-                  rows.some((v) => v.weight_lb <= 0 || (!v.is_exchange && !v.asset_tag_id))
-                }
-                onClick={() => void mutate("send")}
-              >
+              <button disabled={disabled || sendBlocked} onClick={() => void mutate("send")}>
                 Send to Blast Freezer
               </button>
             </>
