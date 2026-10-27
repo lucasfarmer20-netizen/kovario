@@ -63,8 +63,15 @@ const STORED = {
   ],
 };
 
+/** How many upcoming loads of the stored session fail (a lost response). */
+let failDraftLoads = 0;
+
+/** RPC values resolve as data; a function value is called per call and returns {data, error}. */
 function fakeClient(rpcs: Record<string, unknown>) {
-  const rpc = vi.fn(async (name: string) => ({ data: rpcs[name] ?? null, error: null }));
+  const rpc = vi.fn(async (name: string) => {
+    const v = rpcs[name];
+    return typeof v === "function" ? v() : { data: v ?? null, error: null };
+  });
   const from = (table: string) => {
     const result = { data: TABLES[table] ?? [], error: null };
     const q: Record<string, unknown> = {
@@ -74,7 +81,13 @@ function fakeClient(rpcs: Record<string, unknown>) {
       not: () => q,
       order: () => q,
       limit: () => q,
-      single: async () => ({ data: table === "allocation_session" ? STORED : null, error: null }),
+      single: async () => {
+        if (table === "allocation_session" && failDraftLoads > 0) {
+          failDraftLoads -= 1;
+          return { data: null, error: { message: "network down" } };
+        }
+        return { data: table === "allocation_session" ? STORED : null, error: null };
+      },
       maybeSingle: async () => ({ data: null, error: null }),
       then: (ok: (v: typeof result) => unknown, fail: (e: unknown) => unknown) =>
         Promise.resolve(result).then(ok, fail),
@@ -224,4 +237,103 @@ it("a released box is read-only and a paid settlement locks the session", async 
   render(<SessionEditor session={station(client)} initial={paid} summary={summary("priced")} />);
   await screen.findByText("Has a paid settlement");
   expect(screen.queryByText("Save & Reprice")).toBeNull();
+});
+
+/** A new session's draft (nothing stored yet): one angler, one heavy-confirmed box. */
+const unsaved = (): SessionDraft => {
+  const d = draft();
+  return {
+    ...d,
+    sessionId: null,
+    anglers: d.anglers.map((a) => ({
+      ...a,
+      id: null,
+      number: null,
+      boxes: a.boxes.map((b) => ({
+        ...b,
+        id: null,
+        number: null,
+        weight: "75",
+        heavy_allowed: true,
+      })),
+    })),
+  };
+};
+
+type SaveCall = [string, { p_client_action_id: string; p_payload: Record<string, unknown> }];
+const saves = (rpc: ReturnType<typeof fakeClient>["rpc"]) =>
+  rpc.mock.calls.filter(([name]) => name === "save_allocation_session") as unknown as SaveCall[];
+
+it("pricing fails after the save commits: the editor keeps the saved session and the retry edits it", async () => {
+  let priceCalls = 0;
+  const { client, rpc } = fakeClient({
+    save_allocation_session: summary("draft"),
+    price_session: () =>
+      ++priceCalls === 1
+        ? { data: null, error: { message: "weight split needs take-home lb" } }
+        : { data: summary("priced"), error: null },
+  });
+  const onSaved = vi.fn();
+  render(
+    <SessionEditor
+      session={station(client)}
+      initial={unsaved()}
+      summary={null}
+      onSaved={onSaved}
+    />,
+  );
+  await screen.findByRole("option", { name: "Large (≤90 lb, $15.00)" });
+
+  fireEvent.click(screen.getByText("Save & Price"));
+  expect((await screen.findByText(/ALC-0001 saved, but not priced/)).textContent).toMatch(
+    /take-home lb/,
+  );
+  expect(onSaved).not.toHaveBeenCalled();
+
+  // Still a draft (pricing never ran or failed), so the button still reads Save & Price.
+  fireEvent.click(screen.getByText("Save & Price"));
+  await screen.findByText("ALC-0001 priced.");
+  const [first, second] = saves(rpc);
+  expect(first![1].p_payload).toMatchObject({ session_id: null, settlements: [{ id: null }] });
+  // The retry edits the stored session and its rows — it never creates a second session.
+  expect(second![1].p_payload).toMatchObject({
+    session_id: "s-1",
+    settlements: [{ id: "st-1", boxes: [{ id: "b-1" }] }],
+  });
+  expect(second![1].p_client_action_id).not.toBe(first![1].p_client_action_id);
+  expect(onSaved).toHaveBeenCalledTimes(1);
+  expect(onSaved.mock.calls[0]![0]).toMatchObject({ state: "priced" });
+});
+
+it("reloading the saved rows fails: edits are held and the retry replays the same save", async () => {
+  failDraftLoads = 1;
+  const { client, rpc } = fakeClient({
+    save_allocation_session: summary("draft"),
+    price_session: summary("priced"),
+  });
+  const onSaved = vi.fn();
+  render(
+    <SessionEditor
+      session={station(client)}
+      initial={unsaved()}
+      summary={null}
+      onSaved={onSaved}
+    />,
+  );
+  await screen.findByRole("option", { name: "Large (≤90 lb, $15.00)" });
+
+  fireEvent.click(screen.getByText("Save & Price"));
+  await screen.findByText(/ALC-0001 was saved, but reloading it failed/);
+  expect(rpc.mock.calls.some(([name]) => name === "price_session")).toBe(false);
+  // Edits are held until the saved rows are adopted (they would otherwise be written twice).
+  fireEvent.change(screen.getByLabelText("Angler 1 name"), { target: { value: "Changed" } });
+  expect((screen.getByLabelText("Angler 1 name") as HTMLInputElement).value).toBe("Ann");
+
+  // Still a draft (pricing never ran or failed), so the button still reads Save & Price.
+  fireEvent.click(screen.getByText("Save & Price"));
+  await screen.findByText("ALC-0001 priced.");
+  const [first, second] = saves(rpc);
+  expect(second![1].p_client_action_id).toBe(first![1].p_client_action_id); // replay, no new write
+  expect(second![1].p_payload).toEqual(first![1].p_payload);
+  expect(onSaved).toHaveBeenCalledTimes(1);
 });

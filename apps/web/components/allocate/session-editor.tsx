@@ -65,6 +65,8 @@ export function SessionEditor({
   // One id per save/price intent: a retry after a lost response replays; any edit starts anew.
   const saveId = useRef<string | null>(null);
   const priceId = useRef<string | null>(null);
+  // Set between a committed save and adopting its stored rows (see save()).
+  const unadopted = useRef<string | null>(null);
 
   const state = summary?.state ?? "draft";
   const paid = draft.anglers.some((a) => a.paid);
@@ -92,6 +94,7 @@ export function SessionEditor({
   const preview = summary ? previewSettlements(draft, Number(summary.pool.total), fees) : null;
 
   function edit(next: SessionDraft) {
+    if (unadopted.current) return;
     saveId.current = null;
     priceId.current = null;
     setError("");
@@ -135,22 +138,38 @@ export function SessionEditor({
     setBusy(true);
     setError("");
     setNotice("");
+    const isNew = !initial.sessionId;
+    let saved: SessionSummary | null = null;
     try {
+      // The save commits on its own. Adopt the stored rows (session id, angler and box ids)
+      // before pricing, so a pricing failure leaves this editor on the saved session and a
+      // retry edits it instead of creating a second one. Until the rows are adopted the action
+      // id is kept and edits are blocked: a retry replays the same save and adopts again.
       saveId.current ??= crypto.randomUUID();
-      let result = await saveSession(client, saveId.current, built.payload);
+      saved = await saveSession(client, saveId.current, built.payload);
+      setSummary(saved);
+      unadopted.current = saved.number;
+      setDraft(await loadDraft(client, saved.session_id));
+      unadopted.current = null;
       saveId.current = null;
+      let result = saved;
       if (thenPrice) {
         priceId.current ??= crypto.randomUUID();
-        result = await priceSession(client, priceId.current, result.session_id);
+        result = await priceSession(client, priceId.current, saved.session_id);
         priceId.current = null;
+        setSummary(result);
       }
-      setSummary(result);
       setNotice(thenPrice ? `${result.number} priced.` : `${result.number} saved.`);
-      if (!draft.sessionId) onSaved?.(result);
-      // New anglers and boxes now have ids and numbers; edit the stored rows from here on.
-      else setDraft(await loadDraft(client, result.session_id));
+      if (isNew) onSaved?.(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed; try again.");
+      const message = err instanceof Error ? err.message : "Save failed; try again.";
+      setError(
+        unadopted.current
+          ? `${unadopted.current} was saved, but reloading it failed (${message}). Press Save again.`
+          : saved
+            ? `${saved.number} saved, but not priced: ${message}`
+            : message,
+      );
     } finally {
       setBusy(false);
     }
