@@ -42,7 +42,7 @@ so every environment matches what CI tested.
   staging (skipped when the secrets are absent, e.g. forks) so a migration that can't
   apply on top of the real staging history fails before merge.
 - **Vercel:** `vercel.json`/project settings documented so previews point at staging
-  and prod at prod; env var names for each environment; `app.kovario.com` per
+  and prod at prod; env var names for each environment; `app.filletry.com` per
   DECISION-16 (the DNS change itself is a human step).
 - **Preview demo org:** an idempotent script that creates/refreshes the throwaway demo
   org on staging for preview deployments.

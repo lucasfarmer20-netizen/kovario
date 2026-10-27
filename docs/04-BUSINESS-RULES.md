@@ -43,7 +43,8 @@ multiplies the factor by the species' `skin_off_multiplier` (rockfish 0.867, lin
 ### Ribbing
 Any line with condition `filleted_ribs` sets `intake.ribbing = true` and adds **one**
 ribbing charge per such line (not one per intake) at `ribbing_per_lb × lb`. Ribbing is **excluded** from the
-lodge cap.
+lodge cap and from the Fast Pass floor: a Fast Pass intake pays ribbing at the plain
+`ribbing_per_lb` rate (DECISION-19).
 
 ### Smoked exchange
 `smoked_exchange_*` methods are an exchange product: the customer's fish is swapped for
@@ -79,7 +80,9 @@ Audio + colour feedback per scan; errors: not in this wave; all totes already sc
 Complete moves every intake to `processing` and stamps `pulled_at`.
 
 ## 5. Rollstock (zero-touch loop)
-Scan tote → that intake opens (`processing|holding → rollstock`). Scan the **next** tote →
+Scan tote → that intake opens (`processing → rollstock`). A `holding` tote scanned here is a
+**rollstock bypass**: `holding → processing` (audited), then it opens as above
+(03-STATE-MACHINES is authoritative, DECISION-20). Scan the **next** tote →
 previous auto-advances to `reconcile`, next opens. The only button is a de-emphasised
 "Finish queue" for the last order. Catcher scans nothing; asset tags bind at reconcile.
 Tote completeness gate: an intake with `n` totes needs all `n` scanned across

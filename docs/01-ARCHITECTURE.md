@@ -16,7 +16,7 @@
 | Billing | Stripe Billing | Tenant subscriptions only — not card-present |
 | Offline | **Not in v1** (DECISION-04). Scan actions go through a client-side **scan queue** with retry + idempotency keys | PowerSync is a later WP behind the same data-access layer |
 
-Package manager: **pnpm**. Node 20+. Monorepo layout is a single Next app plus a
+Package manager: **pnpm**. Node 22+. Monorepo layout is a single Next app plus a
 `packages/` folder for pure libraries:
 
 ```
@@ -116,7 +116,7 @@ Nothing in `apps/web` imports a vendor SDK directly.
 - `preview` — Vercel preview per PR for UI review only, pointed at `staging` Supabase
   with a throwaway demo org (Supabase per-PR branches are post-v1).
 - `staging` — long-lived; CSP trial tenant.
-- `prod` — `app.kovario.com`.
+- `prod` — `app.filletry.com` (DECISION-16).
 
 ## 9. Observability
 
