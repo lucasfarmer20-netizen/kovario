@@ -63,7 +63,7 @@ begin
         and (i.org_id<>app.org_id() or i.state<>'holding' or i.wave_id is distinct from p_wave_id or i.tote_count<1)) then
       v_reason:='Wave intakes are no longer holding';
     elsif v_wave.state='draft' then
-      update public.wave set state='verifying' where id=p_wave_id;
+      update public.wave set state='verifying',started_at=now() where id=p_wave_id;
     else
       select coalesce(sum(i.tote_count),0) into v_expected from public.wave_intake wi join public.intake i on i.id=wi.intake_id where wi.wave_id=p_wave_id;
       select count(*) into v_scanned from public.wave_scan ws join public.intake i on i.id=ws.intake_id
@@ -72,7 +72,7 @@ begin
       if v_scanned<>v_expected then v_reason:='Scan every tote before completing';
       else
         update public.intake set state='processing',pulled_at=now() where org_id=app.org_id() and wave_id=p_wave_id;
-        update public.wave set state='done' where id=p_wave_id;
+        update public.wave set state='done',completed_at=now() where id=p_wave_id;
       end if;
     end if;
   end if;
@@ -125,3 +125,28 @@ do $$ begin
  alter publication supabase_realtime add table public.wave;
  alter publication supabase_realtime add table public.wave_scan;
 exception when duplicate_object then null; end $$;
+
+
+-- Draft reservations are reversible; cancellation also releases a verifying wave.
+create function public.cancel_wave(p_wave_id uuid, p_client_action_id text, p_operator_session uuid default null)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare v_action jsonb; v_result jsonb; v_wave public.wave; v_reason text;
+begin
+  perform app.wave_operator(p_operator_session);
+  v_action:=app.action_begin(p_client_action_id,'wave.cancel',jsonb_build_object('wave_id',p_wave_id));
+  if v_action->>'status'='done' then return v_action->'result'; end if;
+  select * into v_wave from public.wave where id=p_wave_id and org_id=app.org_id() for update;
+  if v_wave.id is null then v_reason:='Wave not found';
+  elsif v_wave.state='cancelled' then v_reason:=null;
+  elsif v_wave.state not in ('draft','verifying') then v_reason:='Completed waves cannot be cancelled';
+  else
+    perform id from public.intake where org_id=app.org_id() and wave_id=p_wave_id order by id for update;
+    update public.intake set wave_id=null where org_id=app.org_id() and wave_id=p_wave_id;
+    update public.wave set state='cancelled' where id=p_wave_id;
+  end if;
+  v_result:=jsonb_build_object('ok',v_reason is null,'reason',coalesce(v_reason,'Wave cancelled; intakes returned to holding queue'));
+  perform app.action_complete(p_client_action_id,v_result);
+  return v_result;
+end $$;
+revoke all on function public.cancel_wave(uuid,text,uuid) from public,anon;
+grant execute on function public.cancel_wave(uuid,text,uuid) to authenticated;

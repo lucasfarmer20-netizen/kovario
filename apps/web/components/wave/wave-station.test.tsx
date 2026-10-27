@@ -193,3 +193,19 @@ it("WP10 draft exposes Start Verification", async () => {
     (screen.getByRole("button", { name: "Start Verification" }) as HTMLButtonElement).disabled,
   ).toBe(false);
 });
+
+it.each(["draft", "verifying"])(
+  "WP10 Cancel wave returns %s waves to holding through an idempotent RPC",
+  async (state) => {
+    const { rpc } = setup(0, state);
+    render(<WaveStation />);
+    fireEvent.click(await screen.findByRole("button", { name: /WAVE-0001/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel wave — Return to holding" }));
+    await waitFor(() =>
+      expect(rpc).toHaveBeenCalledWith(
+        "cancel_wave",
+        expect.objectContaining({ p_wave_id: "w1", p_client_action_id: expect.any(String) }),
+      ),
+    );
+  },
+);

@@ -1875,6 +1875,9 @@ isOneToOne: false
 "billing_link_customer":
 { Args: { "p_customer_id": string,"p_org_id": string }; Returns: string
                            },
+"cancel_wave":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_wave_id": string }; Returns: Json
+                           },
 "claim_print_job":
 { Args: { "p_client_action_id": string }; Returns: Json
                            },

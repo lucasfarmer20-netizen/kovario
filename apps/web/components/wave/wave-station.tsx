@@ -145,7 +145,7 @@ function LiveWave({ client, claims, siteName }: StationSession) {
     }
     return true;
   };
-  const mutate = async (create: boolean) => {
+  const mutate = async (create: boolean, cancel = false) => {
     if (!allowed()) return;
     setBusy(true);
     setMessage("");
@@ -157,7 +157,7 @@ function LiveWave({ client, claims, siteName }: StationSession) {
             p_client_action_id: id,
             p_operator_session: proof ?? undefined,
           })
-        : await client.rpc("advance_wave", {
+        : await client.rpc(cancel ? "cancel_wave" : "advance_wave", {
             p_wave_id: active!,
             p_client_action_id: id,
             p_operator_session: proof ?? undefined,
@@ -275,6 +275,12 @@ function LiveWave({ client, claims, siteName }: StationSession) {
                 onClick={() => void mutate(false)}
               >
                 {wave.state === "draft" ? "Start Verification" : "Complete — Start Processing"}
+              </button>
+              <button
+                disabled={busy || pinOpen || pending > 0}
+                onClick={() => void mutate(false, true)}
+              >
+                Cancel wave — Return to holding
               </button>
             </>
           ) : (
