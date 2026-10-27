@@ -1,0 +1,71 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select no_plan();
+insert into public.org(id,slug,name,timezone) values ('a0000000-0000-4000-8000-00000000000a','wave-a','Wave A','UTC'),('b0000000-0000-4000-8000-00000000000b','wave-b','Wave B','UTC');
+insert into public.site(id,org_id,name) values ('a0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-00000000000a','Main');
+insert into public.customer(id,org_id,name) values ('a0000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-00000000000a','Wave customer');
+insert into auth.users(id,email) values ('a0000000-0000-4000-8000-0000000000a1','wave-test@example.test');
+insert into public.org_member(org_id,user_id,role,display_name) values ('a0000000-0000-4000-8000-00000000000a','a0000000-0000-4000-8000-0000000000a1','manager','Wave operator');
+insert into public.intake(id,org_id,number,customer_id,site_id,tote_count) values
+ ('a0000000-0000-4000-8000-000000000011','a0000000-0000-4000-8000-00000000000a','INT-0001','a0000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000001',2),
+ ('a0000000-0000-4000-8000-000000000012','a0000000-0000-4000-8000-00000000000a','INT-0002','a0000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000001',1);
+update public.intake set state='holding';
+-- Master text represents labels produced by rules/qr.encode, not a SQL QR parser.
+insert into public.tote_tag(org_id,intake_id,tote_no,of_count,qr) values
+ ('a0000000-0000-4000-8000-00000000000a','a0000000-0000-4000-8000-000000000011',1,2,'FL:TOTE:INT-0001:1'),
+ ('a0000000-0000-4000-8000-00000000000a','a0000000-0000-4000-8000-000000000011',2,2,'FL:TOTE:INT-0001:2'),
+ ('a0000000-0000-4000-8000-00000000000a','a0000000-0000-4000-8000-000000000012',1,1,'FL:TOTE:INT-0002:1');
+select set_config('request.jwt.claims','{"sub":"a0000000-0000-4000-8000-0000000000a1","role":"authenticated","org_id":"a0000000-0000-4000-8000-00000000000a","app_role":"manager"}',true);
+set local role authenticated;
+create temp table wave_test as select (public.create_wave(array['a0000000-0000-4000-8000-000000000011'::uuid],'wave-create-001')->>'wave_id')::uuid id;
+select is((select state::text from public.wave where id=(select id from wave_test)),'draft','WP10 create starts draft despite underweight target');
+select is(public.create_wave(array['a0000000-0000-4000-8000-000000000011'::uuid],'wave-create-001')->>'wave_id',(select id::text from wave_test),'WP10 create replay returns same wave');
+select throws_ok($$select public.create_wave(array['a0000000-0000-4000-8000-000000000011'::uuid],'wave-conflict-001')$$,'P0001',null,'WP10 intake cannot join two active waves');
+select is(public.advance_wave((select id from wave_test),'wave-start-001')->>'ok','true','WP10 start verification');
+select ok((select started_at is not null from public.wave where id=(select id from wave_test)),'WP10 start stamps started_at');
+select is(public.advance_wave((select id from wave_test),'wave-incomplete-001')->>'ok','false','WP10 completeness gate rejects missing totes');
+select is((select state::text from public.intake where number='INT-0001'),'holding','WP10 incomplete wave has no partial transition');
+create temp table scan_test as select public.scan_wave_tote((select id from wave_test),'FL:TOTE:INT-0001:1','wave-scan-001') r;
+select is((select r->>'ok' from scan_test),'true','WP10 accepts first tote');
+select is(public.scan_wave_tote((select id from wave_test),'FL:TOTE:INT-0001:1','wave-scan-001'),(select r from scan_test),'WP10 lost-response scan replay');
+select is(public.scan_wave_tote((select id from wave_test),'FL:TOTE:INT-0001:1','wave-duplicate-001')->>'reason','Tote already scanned','WP10 duplicate scan rejected');
+select is((select count(*)::int from public.wave_scan),1,'WP10 duplicate does not inflate parity');
+select is(public.advance_wave((select id from wave_test),'wave-incomplete-002')->>'ok','false','WP10 duplicate cannot satisfy completeness');
+select public.create_wave(array['a0000000-0000-4000-8000-000000000012'::uuid],'wave-create-002');
+select is(public.scan_wave_tote((select id from wave_test),'FL:TOTE:INT-0002:1','wave-wrong-001')->>'reason','Tote not in this wave','WP10 scan from another wave rejected');
+select is(public.scan_wave_tote((select id from wave_test),'garbage','wave-unknown-001')->>'ok','false','WP10 unknown label rejected');
+select is(public.scan_wave_tote((select id from wave_test),'FL:TOTE:INT-0001:2','wave-scan-002')->>'ok','true','WP10 accepts each distinct tote');
+select is((select count(*)::int from public.scan_log),5,'WP10 every hit and miss audited once');
+select is((select count(*)::int from public.scan_log where result='rejected'),3,'WP10 rejection reasons persist');
+select is(public.advance_wave((select id from wave_test),'wave-complete-001')->>'ok','true','WP10 complete at parity');
+select is((select state::text from public.intake where number='INT-0001'),'processing','WP10 complete moves intake to processing');
+select ok((select pulled_at is not null from public.intake where number='INT-0001'),'WP10 complete stamps pulled_at');
+select is((select state::text from public.intake where number='INT-0002'),'holding','WP10 complete leaves other wave holding');
+select is((select state::text from public.wave where id=(select id from wave_test)),'done','WP10 complete marks wave done');
+select ok((select completed_at is not null from public.wave where id=(select id from wave_test)),'WP10 complete stamps completed_at');
+select is(public.advance_wave((select id from wave_test),'wave-complete-002')->>'ok','true','WP10 repeat complete is harmless');
+select is(public.scan_wave_tote((select id from wave_test),'FL:TOTE:INT-0001:2','wave-done-scan')->>'reason','Wave already complete','WP10 scan after completion rejected');
+select is(public.cancel_wave((select id from wave_test),'wave-cancel-done')->>'ok','false','WP10 completed wave cannot be cancelled');
+create temp table cancelled_draft as select id from public.wave where state='draft';
+select is(public.cancel_wave((select id from cancelled_draft),'wave-cancel-draft')->>'ok','true','WP10 draft cancellation succeeds');
+select is((select state::text from public.wave where id=(select id from cancelled_draft)),'cancelled','WP10 draft enters cancelled');
+select ok((select wave_id is null and state='holding' from public.intake where number='INT-0002'),'WP10 cancelled draft returns intake to holding queue');
+select is(public.cancel_wave((select id from cancelled_draft),'wave-cancel-draft')->>'ok','true','WP10 cancellation replay is harmless');
+create temp table cancelled_verifying as select (public.create_wave(array['a0000000-0000-4000-8000-000000000012'::uuid],'wave-recreate-001')->>'wave_id')::uuid id;
+select is(public.advance_wave((select id from cancelled_verifying),'wave-restart-001')->>'ok','true','WP10 cancelled draft intake can join another wave');
+select public.scan_wave_tote((select id from cancelled_verifying),'FL:TOTE:INT-0002:1','wave-cancel-scan');
+select is(public.cancel_wave((select id from cancelled_verifying),'wave-cancel-verifying')->>'ok','true','WP10 verifying cancellation succeeds');
+select ok((select wave_id is null and state='holding' from public.intake where number='INT-0002'),'WP10 verifying cancellation clears intake assignment without processing');
+select is((select count(*)::int from public.wave_scan where wave_id=(select id from cancelled_verifying)),1,'WP10 cancellation preserves scan history');
+select is(public.cancel_wave((select id from cancelled_verifying),'wave-cancel-again')->>'ok','true','WP10 repeat cancellation no-ops');
+select is(public.advance_wave((select id from cancelled_verifying),'wave-cancel-advance')->>'ok','false','WP10 cancelled wave cannot advance');
+reset role;
+select set_config('request.jwt.claims','{"sub":"a0000000-0000-4000-8000-0000000000a1","role":"authenticated","org_id":"b0000000-0000-4000-8000-00000000000b","app_role":"manager"}',true);
+set local role authenticated;
+select is_empty('select id from public.wave','WP10 RLS hides another tenant wave');
+select is(public.advance_wave((select id from wave_test),'wave-cross-001')->>'ok','false','WP10 cross-tenant wave cannot be completed');
+select is(public.cancel_wave((select id from cancelled_verifying),'wave-cross-cancel')->>'ok','false','WP10 cross-tenant wave cannot be cancelled');
+reset role;
+select * from finish();
+rollback;

@@ -24,12 +24,41 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
+      - name: Install receipt renderer browser
+        run: pnpm --filter labels exec playwright install --with-deps chromium
       - run: pnpm test                         # root script: vitest run --passWithNoTests across the workspace
       - uses: supabase/setup-cli@v1
         with: { version: 2.122.0 }               # the CLI version packages/db/src/types.ts was generated with
+      # The local-stack images (~10, several GB) come from registries that rate-limit popular
+      # images across all users, so a cold pull often fails. Cache them per CLI version: one
+      # green run fills the cache, later runs load it and pull nothing.
+      - name: Restore Supabase image cache
+        id: imgcache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/supabase-images.tar.zst
+          key: supabase-images-cli2.122.0-v2
+      - name: Load cached Supabase images
+        if: steps.imgcache.outputs.cache-hit == 'true'
+        run: zstd -dc /tmp/supabase-images.tar.zst | docker load
+      - name: Pre-pull local Supabase images (cache miss; one at a time, with retries)
+        if: steps.imgcache.outputs.cache-hit != 'true'
+        run: |
+          # authenticated pulls get a far better share of ghcr.io's per-image rate limit
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          scripts/ci-pull-supabase-images.sh studio logflare
+      - name: Start the local stack
+        run: |
+          # retry a start that a throttled pull failed (a cold cache can still miss an image),
+          # cleaning up the half-started stack in between
+          for i in 1 2 3; do
+            supabase start -x studio,imgproxy,logflare,vector && break
+            [ "$i" = 3 ] && exit 1
+            supabase stop --no-backup || true
+            sleep $((i * 15))
+          done
       - name: Reference data comes from migrations (hosted deploys never seed)
         run: |
-          supabase start -x studio,imgproxy,logflare,vector
           supabase db reset --no-seed
           supabase test db supabase/tests/08_reference_data.test.sql
       - name: Apply migrations and the demo seed on a fresh local database
@@ -38,6 +67,18 @@ jobs:
       - name: Report types drift (non-blocking)
         run: git diff --exit-code -- packages/db/src/types.ts || echo "::warning file=packages/db/src/types.ts::generated types differ from the committed file; run pnpm db:types"
       - run: pnpm test:db                       # SQL/integration tests against the local DB (passes when none exist)
+      - name: Save Supabase images to the cache (cache miss only; after test:db pulled pg_prove)
+        if: steps.imgcache.outputs.cache-hit != 'true'
+        run: |
+          docker save $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E '(^|/)(supabase|postgrest)/' | sort -u) \
+            | zstd -T0 -3 -o /tmp/supabase-images.tar.zst
+          ls -lh /tmp/supabase-images.tar.zst
+      - name: Upload Supabase image cache
+        if: steps.imgcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/supabase-images.tar.zst
+          key: ${{ steps.imgcache.outputs.cache-primary-key }}
       - run: pnpm build
       - name: e2e smoke (only once apps/web/e2e exists)
         if: ${{ hashFiles('apps/web/e2e/**') != '' }}

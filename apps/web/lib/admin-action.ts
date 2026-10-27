@@ -3,7 +3,12 @@ import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { ForbiddenError, requireManager, type ManagerSession } from "./auth";
 
-export type ActionState = { ok?: string; error?: string };
+export type ActionState = {
+  ok?: string;
+  error?: string;
+  /** A fresh ID for the next intentional submission, issued only after success. */
+  nextActionId?: string;
+};
 
 const actionIdSchema = z.uuid();
 

@@ -68,6 +68,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "allocation_intake_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "allocation_intake_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
@@ -484,6 +490,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "intake_split_from_id_fkey"
+      columns: ["split_from_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "intake_wave_id_fkey"
       columns: ["wave_id"]
 isOneToOne: false
@@ -509,6 +521,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "intake_line_org_id_condition_code_fkey"
       columns: ["org_id","condition_code"]
@@ -753,14 +771,14 @@ isOneToOne: false
                   ]
                 },"print_agent": {
                   Row: {
-                    "capabilities": NonNullable<Json>,"created_at": string,"id": string,"last_seen_at": string | null,"name": string,"org_id": string,"site_id": string | null,"token_hash": string | null,"updated_at": string
+                    "auth_user_id": string | null,"capabilities": NonNullable<Json>,"created_at": string,"id": string,"last_seen_at": string | null,"name": string,"org_id": string,"pairing_expires_at": string | null,"pairing_key": string,"site_id": string | null,"token_hash": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "capabilities"?: NonNullable<Json>,"created_at"?: string,"id"?: string,"last_seen_at"?: string | null,"name": string,"org_id": string,"site_id"?: string | null,"token_hash"?: string | null,"updated_at"?: string
+                    "auth_user_id"?: string | null,"capabilities"?: NonNullable<Json>,"created_at"?: string,"id"?: string,"last_seen_at"?: string | null,"name": string,"org_id": string,"pairing_expires_at"?: string | null,"pairing_key"?: string,"site_id"?: string | null,"token_hash"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "capabilities"?: NonNullable<Json>,"created_at"?: string,"id"?: string,"last_seen_at"?: string | null,"name"?: string,"org_id"?: string,"site_id"?: string | null,"token_hash"?: string | null,"updated_at"?: string
+                    "auth_user_id"?: string | null,"capabilities"?: NonNullable<Json>,"created_at"?: string,"id"?: string,"last_seen_at"?: string | null,"name"?: string,"org_id"?: string,"pairing_expires_at"?: string | null,"pairing_key"?: string,"site_id"?: string | null,"token_hash"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -779,17 +797,23 @@ isOneToOne: false
                   ]
                 },"print_job": {
                   Row: {
-                    "copies": number,"created_at": string,"error": string | null,"id": string,"kind": Database["public"]['Enums']["print_job_kind"],"org_id": string,"payload": string,"payload_type": Database["public"]['Enums']["print_job_payload_type"],"printer_id": string,"source": NonNullable<Json>,"state": Database["public"]['Enums']["print_job_state"],"updated_at": string
+                    "attempts": number,"claimed_by": string | null,"copies": number,"created_at": string,"error": string | null,"id": string,"kind": Database["public"]['Enums']["print_job_kind"],"org_id": string,"payload": string,"payload_type": Database["public"]['Enums']["print_job_payload_type"],"printer_id": string,"source": NonNullable<Json>,"state": Database["public"]['Enums']["print_job_state"],"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "copies"?: number,"created_at"?: string,"error"?: string | null,"id"?: string,"kind": Database["public"]['Enums']["print_job_kind"],"org_id": string,"payload": string,"payload_type": Database["public"]['Enums']["print_job_payload_type"],"printer_id": string,"source"?: NonNullable<Json>,"state"?: Database["public"]['Enums']["print_job_state"],"updated_at"?: string
+                    "attempts"?: number,"claimed_by"?: string | null,"copies"?: number,"created_at"?: string,"error"?: string | null,"id"?: string,"kind": Database["public"]['Enums']["print_job_kind"],"org_id": string,"payload": string,"payload_type": Database["public"]['Enums']["print_job_payload_type"],"printer_id": string,"source"?: NonNullable<Json>,"state"?: Database["public"]['Enums']["print_job_state"],"updated_at"?: string
                   }
                   Update: {
-                    "copies"?: number,"created_at"?: string,"error"?: string | null,"id"?: string,"kind"?: Database["public"]['Enums']["print_job_kind"],"org_id"?: string,"payload"?: string,"payload_type"?: Database["public"]['Enums']["print_job_payload_type"],"printer_id"?: string,"source"?: NonNullable<Json>,"state"?: Database["public"]['Enums']["print_job_state"],"updated_at"?: string
+                    "attempts"?: number,"claimed_by"?: string | null,"copies"?: number,"created_at"?: string,"error"?: string | null,"id"?: string,"kind"?: Database["public"]['Enums']["print_job_kind"],"org_id"?: string,"payload"?: string,"payload_type"?: Database["public"]['Enums']["print_job_payload_type"],"printer_id"?: string,"source"?: NonNullable<Json>,"state"?: Database["public"]['Enums']["print_job_state"],"updated_at"?: string
                   }
                   Relationships: [
                     {
+      foreignKeyName: "print_job_claimed_by_fkey"
+      columns: ["claimed_by"]
+isOneToOne: false
+      referencedRelation: "print_agent"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "print_job_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
@@ -952,6 +976,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "reconcile_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "reconcile_line_intake_line_id_fkey"
       columns: ["intake_line_id"]
 isOneToOne: true
@@ -1053,6 +1083,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "release_audit_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "release_audit_org_id_fkey"
       columns: ["org_id"]
@@ -1167,6 +1203,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "scan_log_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "scan_log_location_id_fkey"
       columns: ["location_id"]
@@ -1520,6 +1562,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "tote_tag_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "tote_tag_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
@@ -1563,6 +1611,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "vessel_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "vessel_location_id_fkey"
       columns: ["location_id"]
@@ -1616,6 +1670,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "wave_intake_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "wave_intake_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
@@ -1647,6 +1707,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "wave_scan_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "wave_scan_operator_id_fkey"
       columns: ["operator_id"]
@@ -1741,6 +1807,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "reconcile_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "reconcile_line_intake_line_id_fkey"
       columns: ["intake_line_id"]
 isOneToOne: true
@@ -1748,6 +1820,26 @@ isOneToOne: true
       referencedColumns: ["id"]
     },{
       foreignKeyName: "reconcile_line_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"rollstock_tote_progress": {
+                  Row: {
+                    "intake_id": string,"org_id": string,"scanned": number | null,"tote_count": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                           "intake_id"?: string | null,"org_id"?: string | null,"scanned"?: never,"tote_count"?: number | null
+                         }
+                        Update: {
+                           "intake_id"?: string | null,"org_id"?: string | null,"scanned"?: never,"tote_count"?: number | null
+                         }
+                        Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
       referencedRelation: "org"
@@ -1786,6 +1878,9 @@ isOneToOne: false
 "admin_create_lodge":
 { Args: { "p_client_action_id": string,"p_contact"?: Json,"p_name": string,"p_pricing_cap": number }; Returns: Json
                            },
+"admin_create_print_agent":
+{ Args: { "p_client_action_id": string,"p_name": string,"p_site_id"?: string }; Returns: Json
+                           },
 "admin_create_rate_card":
 { Args: { "p_client_action_id": string,"p_copy_from"?: string,"p_ends_on": string,"p_name": string,"p_starts_on": string }; Returns: Json
                            },
@@ -1813,8 +1908,16 @@ isOneToOne: false
 "admin_merge_customers":
 { Args: { "p_client_action_id": string,"p_keep_id": string,"p_merge_id": string }; Returns: Json
                            },
+"admin_print_agent_pairing_code":
+{ Args: { "p_agent_id": string,"p_client_action_id": string }; Returns: {
+              "active": boolean,"code": string,"expires_at": string
+            }[]
+                           },
 "admin_rename_site":
 { Args: { "p_client_action_id": string,"p_name": string,"p_site_id": string }; Returns: Json
+                           },
+"admin_save_printer":
+{ Args: { "p_address": string,"p_agent_id": string,"p_client_action_id": string,"p_kind": Database["public"]['Enums']["printer_kind"],"p_name": string,"p_printer_id"?: string,"p_site_id"?: string }; Returns: Json
                            },
 "admin_seed_reference":
 { Args: { "p_client_action_id": string,"p_reference": Json }; Returns: Json
@@ -1849,17 +1952,29 @@ isOneToOne: false
 "admin_update_species":
 { Args: { "p_client_action_id": string,"p_is_active": boolean,"p_name": string,"p_shorthand": string,"p_sort": number,"p_species_id": string }; Returns: Json
                            },
+"advance_wave":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_wave_id": string }; Returns: Json
+                           },
 "billing_apply_subscription":
 { Args: { "p_customer_id": string,"p_event_created": string,"p_event_id": string,"p_kind": string,"p_org_hint"?: string,"p_plan": string,"p_status": string,"p_subscription_id": string }; Returns: Json
                            },
 "billing_link_customer":
 { Args: { "p_customer_id": string,"p_org_id": string }; Returns: string
                            },
+"cancel_wave":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_wave_id": string }; Returns: Json
+                           },
+"claim_print_job":
+{ Args: { "p_client_action_id": string }; Returns: Json
+                           },
 "create_customer":
 { Args: { "p_client_action_id": string,"p_email"?: string,"p_name": string,"p_phone": string }; Returns: Json
                            },
 "create_org":
 { Args: { "p_client_action_id": string,"p_display_name": string,"p_name": string,"p_reference": Json,"p_site_name"?: string,"p_slug": string,"p_timezone": string }; Returns: Json
+                           },
+"create_wave":
+{ Args: { "p_client_action_id": string,"p_intake_ids": (string)[],"p_operator_session"?: string }; Returns: Json
                            },
 "device_bind_auth_user":
 { Args: { "p_device_id": string,"p_user_id": string }; Returns: undefined
@@ -1878,6 +1993,12 @@ isOneToOne: false
 "elevation_status":
 { Args: { "p_token": string }; Returns: Json
                            },
+"enqueue_print_job":
+{ Args: { "p_client_action_id": string,"p_copies"?: number,"p_kind": Database["public"]['Enums']["print_job_kind"],"p_payload": string,"p_payload_type": Database["public"]['Enums']["print_job_payload_type"],"p_printer_id": string,"p_source"?: Json }; Returns: Json
+                           },
+"finish_print_job":
+{ Args: { "p_client_action_id": string,"p_error"?: string,"p_job_id": string }; Returns: Json
+                           },
 "force_transition":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_entity": string,"p_id": string,"p_reason": string,"p_to_state": string }; Returns: Json
                            },
@@ -1895,14 +2016,31 @@ isOneToOne: false
 "operator_identify":
 { Args: { "p_pin": string }; Returns: Json
                            },
+"print_agent_bind_auth_user":
+{ Args: { "p_agent_id": string,"p_user_id": string }; Returns: undefined
+                           },
+"print_agent_heartbeat":
+{ Args: { "p_client_action_id": string }; Returns: Json
+                           },
+"print_agent_redeem_pairing":
+{ Args: { "p_code": string }; Returns: {
+              "agent_id": string,"auth_user_id": string,"org_id": string
+            }[]
+                           },
 "print_intake_receipt":
 { Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
                            },
 "reprint_intake_tote_tags":
 { Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
                            },
+"rollstock_scan_advance":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_open_intake_id": string,"p_operator_session"?: string,"p_override_reason"?: string,"p_raw": string }; Returns: Json
+                           },
 "save_intake":
 { Args: { "p_client_action_id": string,"p_payload": Json }; Returns: Json
+                           },
+"scan_wave_tote":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_raw": string,"p_wave_id": string }; Returns: Json
                            },
 "search_customers":
 { Args: { "p_limit"?: number,"p_org_id": string,"p_q": string }; Returns: {

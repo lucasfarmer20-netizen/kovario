@@ -438,3 +438,6 @@ verify_jwt = false
 
 [functions.billing-webhook]
 verify_jwt = false
+
+[functions.print-agent-pair]
+verify_jwt = false

@@ -3,11 +3,13 @@
 import { useActionState, type ReactNode } from "react";
 import type { ActionState } from "@/lib/admin-action";
 import { cn } from "@/lib/utils";
+import { submitAdminForm } from "./action-form-state";
 import { Button } from "@/components/ui/form";
 
 /**
  * A form posting to an admin Server Action with a `client_action_id` (AGENTS.md hard rule 3).
- * `actionId` is minted per server render, so a double submit replays instead of repeating.
+ * `actionId` is minted per server render. Repeatable actions return nextActionId
+ * after success; retries retain the current ID and replay instead of repeating.
  */
 export function ActionForm({
   action,
@@ -22,10 +24,13 @@ export function ActionForm({
   className?: string;
   children?: ReactNode;
 }) {
-  const [state, formAction, pending] = useActionState(action, {});
+  const [state, formAction, pending] = useActionState(
+    (previous: ActionState, form: FormData) => submitAdminForm(action, previous, form),
+    {},
+  );
   return (
     <form action={formAction} className={cn("flex flex-wrap items-end gap-2", className)}>
-      <input type="hidden" name="client_action_id" value={actionId} />
+      <input type="hidden" name="client_action_id" value={state.nextActionId ?? actionId} />
       {children}
       <Button type="submit" disabled={pending} variant="secondary">
         {submitLabel}

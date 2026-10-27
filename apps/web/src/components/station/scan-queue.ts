@@ -1,4 +1,6 @@
 export type ScanRequest = {
+  /** Persist the originating wave with the scan, including across reconnects. */
+  wave_id?: string;
   client_action_id: string;
   raw: string;
   station: "wave" | "rollstock" | "reconcile" | "blast" | "locate" | "boxing";

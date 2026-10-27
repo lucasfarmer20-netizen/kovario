@@ -1,0 +1,55 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`QR label round trips (CSP §1) > assets: render → extract → qr.parse 1`] = `
+"^XA^CI28^PW812^LL1218
+^FO25,25^A0N,200,200^FH_^FD_30_34_32^FS
+^FO25,280^BCN,120,Y,N,N^FD042^FS
+^FO25,520^BQN,2,7^FDLA,FL:TAG:demo-plant:042^FS
+^XZ
+^XA^CI28^PW812^LL1218
+^FO25,25^A0N,200,200^FH_^FD_30_30_37^FS
+^FO25,280^BCN,120,Y,N,N^FD007^FS
+^FO25,520^BQN,2,7^FDLA,FL:TAG:demo-plant:007^FS
+^XZ"
+`;
+
+exports[`QR label round trips (CSP §1) > box: render → extract → qr.parse 1`] = `
+"^XA^CI28^PW812^LL1218
+^FO25,25^A0N,100,100^FH_^FD_42_4f_58_2d_30_30_30_31^FS
+^FO25,170^A0N,44,44^FH_^FD_43_75_73_74_6f_6d_65_72^FS
+^FO25,250^A0N,36,36^FH_^FD_32_35_20_6c_62_20_73_6f_63_6b_65_79_65^FS
+^FO25,720^BQN,2,7^FDLA,FL:BOX:settlement_token^FS
+^XZ"
+`;
+
+exports[`QR label round trips (CSP §1) > location: render → extract → qr.parse 1`] = `
+"^XA^CI28^PW812^LL1218
+^FO25,20^A0N,62,38^FH_^FD_52_20_20_49_46_2d_41_2d_30_31_2d_31_2d_52^FS
+^FO25,140^BQN,2,7^FDLA,FL:LOC:demo-plant:IF-A-01-1-R^FS
+^FO25,620^A0N,62,38^FH_^FD_46_20_20_49_46_2d_41_2d_30_31_2d_31_2d_46^FS
+^FO25,750^BQN,2,7^FDLA,FL:LOC:demo-plant:IF-A-01-1-F^FS
+^XZ"
+`;
+
+exports[`QR label round trips (CSP §1) > storage: render → extract → qr.parse 1`] = `
+"^XA^CI28^PW812^LL1218
+^FO25,30^A0N,100,100^FH_^FD_53_54_47_2d_30_30_30_31^FS
+^FO25,180^A0N,44,44^FH_^FD_43_75_73_74_6f_6d_65_72^FS
+^FO25,260^A0N,36,36^FH_^FD_42_6f_78_20_34_20_c2_b7_20_32_30_32_36_2d_31_30_2d_32_36^FS
+^FO25,380^BQN,2,7^FDLA,FL:SBOX:STG-0001:4^FS
+^XZ"
+`;
+
+exports[`QR label round trips (CSP §1) > tote: render → extract → qr.parse 1`] = `
+"^XA^CI28^PW812^LL1218
+^FO20,20^A0N,282,88^FH_^FD_49_4e_54_2d_30_30_30_31^FS
+^FO24,320^A0N,38,38^FH_^FD_41_20_26_20_42^FS
+^FO24,375^A0N,36,36^FH_^FD_32_30_32_36_2d_31_30_2d_32_36_20_20_20_20_54_6f_74_65_20_32_20_6f_66_20_33^FS
+^FO24,435^A0N,36,36^FH_^FD_53_6f_63_6b_65_79_65_20_32_35_20_6c_62_20_46_5a^FS
+^FO24,740^BQN,2,7^FDLA,FL:TOTE:INT-0001:2^FS
+^FO330,770^A0N,42,25^FH_^FD_46_41_53_54_20_50_41_53_53^FS
+^FO330,855^A0N,42,25^FH_^FD_44_49_52_54_59^FS
+^FO330,940^A0N,42,25^FH_^FD_52_49_42_42_49_4e_47^FS
+^FO330,1025^A0N,42,25^FH_^FD_53_4d_4f_4b_45_44_20_45_58_43_48_41_4e_47_45^FS
+^XZ"
+`;
