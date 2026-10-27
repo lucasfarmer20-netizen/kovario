@@ -1,0 +1,17 @@
+{
+  "object_id": "adr_3c2b0000000000000000000000000001",
+  "is_complete": true,
+  "validation_results": { "is_valid": true, "messages": [] },
+  "name": "Pat Party",
+  "company": "",
+  "street1": "1200 W DIMOND BLVD",
+  "street2": "",
+  "city": "ANCHORAGE",
+  "state": "AK",
+  "zip": "99515-1234",
+  "country": "US",
+  "phone": "",
+  "email": "",
+  "is_residential": true,
+  "test": true
+}

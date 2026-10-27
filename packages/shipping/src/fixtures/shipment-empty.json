@@ -1,0 +1,14 @@
+{
+  "object_id": "shp_9b8a0000000000000000000000000001",
+  "status": "SUCCESS",
+  "address_from": { "object_id": "adr_from" },
+  "address_to": { "object_id": "adr_to" },
+  "parcels": [
+    { "object_id": "prcl_5d4a0000000000000000000000000001" },
+    { "object_id": "prcl_5d4a0000000000000000000000000002" }
+  ],
+  "rates": [],
+  "messages": [],
+  "metadata": "SHP-0001",
+  "test": true
+}
