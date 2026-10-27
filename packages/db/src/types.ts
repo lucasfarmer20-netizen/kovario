@@ -231,14 +231,14 @@ isOneToOne: false
                   ]
                 },"charge": {
                   Row: {
-                    "amount": number | null,"comp_reason": string | null,"created_at": string,"customer_id": string,"description": string | null,"id": string,"kind": Database["public"]['Enums']["charge_kind"],"number": string,"org_id": string,"qty": number,"settled_payment_id": string | null,"source_id": string | null,"source_type": Database["public"]['Enums']["charge_source_type"],"state": Database["public"]['Enums']["charge_state"],"tax_code": string | null,"unit": string,"unit_price": number,"updated_at": string
+                    "amount": number | null,"comp_reason": string | null,"created_at": string,"customer_id": string,"description": string | null,"id": string,"intake_line_id": string | null,"kind": Database["public"]['Enums']["charge_kind"],"number": string,"org_id": string,"qty": number,"rate_key": string | null,"settled_payment_id": string | null,"source_id": string | null,"source_type": Database["public"]['Enums']["charge_source_type"],"state": Database["public"]['Enums']["charge_state"],"tax_code": string | null,"unit": string,"unit_price": number,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount"?: never,"comp_reason"?: string | null,"created_at"?: string,"customer_id": string,"description"?: string | null,"id"?: string,"kind": Database["public"]['Enums']["charge_kind"],"number": string,"org_id": string,"qty": number,"settled_payment_id"?: string | null,"source_id"?: string | null,"source_type": Database["public"]['Enums']["charge_source_type"],"state"?: Database["public"]['Enums']["charge_state"],"tax_code"?: string | null,"unit": string,"unit_price": number,"updated_at"?: string
+                    "amount"?: never,"comp_reason"?: string | null,"created_at"?: string,"customer_id": string,"description"?: string | null,"id"?: string,"intake_line_id"?: string | null,"kind": Database["public"]['Enums']["charge_kind"],"number": string,"org_id": string,"qty": number,"rate_key"?: string | null,"settled_payment_id"?: string | null,"source_id"?: string | null,"source_type": Database["public"]['Enums']["charge_source_type"],"state"?: Database["public"]['Enums']["charge_state"],"tax_code"?: string | null,"unit": string,"unit_price": number,"updated_at"?: string
                   }
                   Update: {
-                    "amount"?: never,"comp_reason"?: string | null,"created_at"?: string,"customer_id"?: string,"description"?: string | null,"id"?: string,"kind"?: Database["public"]['Enums']["charge_kind"],"number"?: string,"org_id"?: string,"qty"?: number,"settled_payment_id"?: string | null,"source_id"?: string | null,"source_type"?: Database["public"]['Enums']["charge_source_type"],"state"?: Database["public"]['Enums']["charge_state"],"tax_code"?: string | null,"unit"?: string,"unit_price"?: number,"updated_at"?: string
+                    "amount"?: never,"comp_reason"?: string | null,"created_at"?: string,"customer_id"?: string,"description"?: string | null,"id"?: string,"intake_line_id"?: string | null,"kind"?: Database["public"]['Enums']["charge_kind"],"number"?: string,"org_id"?: string,"qty"?: number,"rate_key"?: string | null,"settled_payment_id"?: string | null,"source_id"?: string | null,"source_type"?: Database["public"]['Enums']["charge_source_type"],"state"?: Database["public"]['Enums']["charge_state"],"tax_code"?: string | null,"unit"?: string,"unit_price"?: number,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -246,6 +246,12 @@ isOneToOne: false
       columns: ["customer_id"]
 isOneToOne: false
       referencedRelation: "customer"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "charge_intake_line_id_fkey"
+      columns: ["intake_line_id"]
+isOneToOne: false
+      referencedRelation: "intake_line"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "charge_org_id_fkey"
@@ -1875,6 +1881,9 @@ isOneToOne: false
 "force_transition":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_entity": string,"p_id": string,"p_reason": string,"p_to_state": string }; Returns: Json
                            },
+"intake_price_context":
+{ Args: { "p_customer_id"?: string,"p_intake_id"?: string }; Returns: Json
+                           },
 "member_lookup_user":
 { Args: { "p_email": string }; Returns: string
                            },
@@ -1885,6 +1894,15 @@ isOneToOne: false
                            },
 "operator_identify":
 { Args: { "p_pin": string }; Returns: Json
+                           },
+"print_intake_receipt":
+{ Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
+                           },
+"reprint_intake_tote_tags":
+{ Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
+                           },
+"save_intake":
+{ Args: { "p_client_action_id": string,"p_payload": Json }; Returns: Json
                            },
 "search_customers":
 { Args: { "p_limit"?: number,"p_org_id": string,"p_q": string }; Returns: {
@@ -1905,6 +1923,9 @@ isOneToOne: false
                            },
 "station_scan":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed": Json,"p_raw": string,"p_reason"?: string,"p_station": Database["public"]['Enums']["device_station"] }; Returns: Json
+                           },
+"unlock_intake":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_intake_id": string,"p_reason"?: string }; Returns: Json
                            }
           }
           Enums: {

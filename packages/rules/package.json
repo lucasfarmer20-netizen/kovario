@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run --coverage",
-    "gen:states": "tsx scripts/gen-states.ts"
+    "gen:states": "tsx scripts/gen-states.ts",
+    "gen:sql": "tsx scripts/gen-sql.ts"
   },
   "devDependencies": {
     "@types/node": "20.19.43",
