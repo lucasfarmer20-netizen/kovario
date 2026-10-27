@@ -139,6 +139,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"billing_event": {
+                  Row: {
+                    "applied": boolean,"created_at": string,"event_created_at": string,"id": string,"kind": string,"org_id": string,"plan": string | null,"reason": string | null,"status": string | null,"stripe_event_id": string,"subscription_id": string | null,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "applied"?: boolean,"created_at"?: string,"event_created_at": string,"id"?: string,"kind": string,"org_id": string,"plan"?: string | null,"reason"?: string | null,"status"?: string | null,"stripe_event_id": string,"subscription_id"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "applied"?: boolean,"created_at"?: string,"event_created_at"?: string,"id"?: string,"kind"?: string,"org_id"?: string,"plan"?: string | null,"reason"?: string | null,"status"?: string | null,"stripe_event_id"?: string,"subscription_id"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "billing_event_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"box_plan": {
                   Row: {
                     "box_size_id": string | null,"created_at": string,"fulfillment_state": Database["public"]['Enums']["box_plan_fulfillment_state"],"heavy_allowed": boolean,"id": string,"label_printed_at": string | null,"method": Database["public"]['Enums']["box_plan_method"],"number": string,"org_id": string,"retail_to_box": boolean,"session_id": string,"settlement_id": string,"shipment_id": string | null,"updated_at": string,"weight_lb": number
@@ -211,14 +231,14 @@ isOneToOne: false
                   ]
                 },"charge": {
                   Row: {
-                    "amount": number | null,"comp_reason": string | null,"created_at": string,"customer_id": string,"description": string | null,"id": string,"kind": Database["public"]['Enums']["charge_kind"],"number": string,"org_id": string,"qty": number,"settled_payment_id": string | null,"source_id": string | null,"source_type": Database["public"]['Enums']["charge_source_type"],"state": Database["public"]['Enums']["charge_state"],"tax_code": string | null,"unit": string,"unit_price": number,"updated_at": string
+                    "amount": number | null,"comp_reason": string | null,"created_at": string,"customer_id": string,"description": string | null,"id": string,"intake_line_id": string | null,"kind": Database["public"]['Enums']["charge_kind"],"number": string,"org_id": string,"qty": number,"rate_key": string | null,"settled_payment_id": string | null,"source_id": string | null,"source_type": Database["public"]['Enums']["charge_source_type"],"state": Database["public"]['Enums']["charge_state"],"tax_code": string | null,"unit": string,"unit_price": number,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount"?: never,"comp_reason"?: string | null,"created_at"?: string,"customer_id": string,"description"?: string | null,"id"?: string,"kind": Database["public"]['Enums']["charge_kind"],"number": string,"org_id": string,"qty": number,"settled_payment_id"?: string | null,"source_id"?: string | null,"source_type": Database["public"]['Enums']["charge_source_type"],"state"?: Database["public"]['Enums']["charge_state"],"tax_code"?: string | null,"unit": string,"unit_price": number,"updated_at"?: string
+                    "amount"?: never,"comp_reason"?: string | null,"created_at"?: string,"customer_id": string,"description"?: string | null,"id"?: string,"intake_line_id"?: string | null,"kind": Database["public"]['Enums']["charge_kind"],"number": string,"org_id": string,"qty": number,"rate_key"?: string | null,"settled_payment_id"?: string | null,"source_id"?: string | null,"source_type": Database["public"]['Enums']["charge_source_type"],"state"?: Database["public"]['Enums']["charge_state"],"tax_code"?: string | null,"unit": string,"unit_price": number,"updated_at"?: string
                   }
                   Update: {
-                    "amount"?: never,"comp_reason"?: string | null,"created_at"?: string,"customer_id"?: string,"description"?: string | null,"id"?: string,"kind"?: Database["public"]['Enums']["charge_kind"],"number"?: string,"org_id"?: string,"qty"?: number,"settled_payment_id"?: string | null,"source_id"?: string | null,"source_type"?: Database["public"]['Enums']["charge_source_type"],"state"?: Database["public"]['Enums']["charge_state"],"tax_code"?: string | null,"unit"?: string,"unit_price"?: number,"updated_at"?: string
+                    "amount"?: never,"comp_reason"?: string | null,"created_at"?: string,"customer_id"?: string,"description"?: string | null,"id"?: string,"intake_line_id"?: string | null,"kind"?: Database["public"]['Enums']["charge_kind"],"number"?: string,"org_id"?: string,"qty"?: number,"rate_key"?: string | null,"settled_payment_id"?: string | null,"source_id"?: string | null,"source_type"?: Database["public"]['Enums']["charge_source_type"],"state"?: Database["public"]['Enums']["charge_state"],"tax_code"?: string | null,"unit"?: string,"unit_price"?: number,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -226,6 +246,12 @@ isOneToOne: false
       columns: ["customer_id"]
 isOneToOne: false
       referencedRelation: "customer"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "charge_intake_line_id_fkey"
+      columns: ["intake_line_id"]
+isOneToOne: false
+      referencedRelation: "intake_line"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "charge_org_id_fkey"
@@ -589,14 +615,14 @@ isOneToOne: false
                   ]
                 },"org": {
                   Row: {
-                    "created_at": string,"id": string,"is_active": boolean,"name": string,"plan": string | null,"settings": NonNullable<Json>,"slug": string,"stripe_customer_id": string | null,"timezone": string,"updated_at": string
+                    "created_at": string,"id": string,"is_active": boolean,"name": string,"plan": string | null,"plan_changed_at": string | null,"settings": NonNullable<Json>,"slug": string,"stripe_customer_id": string | null,"stripe_subscription_id": string | null,"subscription_status": string | null,"timezone": string,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"plan"?: string | null,"settings"?: NonNullable<Json>,"slug": string,"stripe_customer_id"?: string | null,"timezone": string,"updated_at"?: string
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"plan"?: string | null,"plan_changed_at"?: string | null,"settings"?: NonNullable<Json>,"slug": string,"stripe_customer_id"?: string | null,"stripe_subscription_id"?: string | null,"subscription_status"?: string | null,"timezone": string,"updated_at"?: string
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"plan"?: string | null,"settings"?: NonNullable<Json>,"slug"?: string,"stripe_customer_id"?: string | null,"timezone"?: string,"updated_at"?: string
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"plan"?: string | null,"plan_changed_at"?: string | null,"settings"?: NonNullable<Json>,"slug"?: string,"stripe_customer_id"?: string | null,"stripe_subscription_id"?: string | null,"subscription_status"?: string | null,"timezone"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     
@@ -1341,6 +1367,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"station_operator_session": {
+                  Row: {
+                    "created_at": string,"expires_at": string,"id": string,"operator_id": string,"org_id": string,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"expires_at"?: string,"id"?: string,"operator_id": string,"org_id": string,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"expires_at"?: string,"id"?: string,"operator_id"?: string,"org_id"?: string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "station_operator_session_operator_id_fkey"
+      columns: ["operator_id"]
+isOneToOne: false
+      referencedRelation: "org_member"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "station_operator_session_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"storage_box": {
                   Row: {
                     "batch_id": string | null,"box_no": number,"created_at": string,"description": string | null,"id": string,"label": string,"org_id": string,"released_at": string | null,"released_by": string | null,"state": Database["public"]['Enums']["storage_box_state"],"storage_intake_id": string,"updated_at": string,"weight_lb": number | null
@@ -1743,6 +1795,9 @@ isOneToOne: false
 "admin_create_print_agent":
 { Args: { "p_client_action_id": string,"p_name": string,"p_site_id"?: string }; Returns: Json
                            },
+"admin_create_rate_card":
+{ Args: { "p_client_action_id": string,"p_copy_from"?: string,"p_ends_on": string,"p_name": string,"p_starts_on": string }; Returns: Json
+                           },
 "admin_create_site":
 { Args: { "p_client_action_id": string,"p_name": string }; Returns: Json
                            },
@@ -1750,6 +1805,9 @@ isOneToOne: false
 { Args: { "p_limit"?: number }; Returns: {
               "customers": Json,"phone": string
             }[]
+                           },
+"admin_delete_rate_card":
+{ Args: { "p_client_action_id": string,"p_rate_card_id": string }; Returns: Json
                            },
 "admin_device_pairing_code":
 { Args: { "p_client_action_id": string,"p_device_id": string }; Returns: {
@@ -1775,6 +1833,9 @@ isOneToOne: false
 "admin_save_printer":
 { Args: { "p_address": string,"p_agent_id": string,"p_client_action_id": string,"p_kind": Database["public"]['Enums']["printer_kind"],"p_name": string,"p_printer_id"?: string,"p_site_id"?: string }; Returns: Json
                            },
+"admin_seed_reference":
+{ Args: { "p_client_action_id": string,"p_reference": Json }; Returns: Json
+                           },
 "admin_set_default_site":
 { Args: { "p_client_action_id": string,"p_site_id": string }; Returns: Json
                            },
@@ -1784,17 +1845,41 @@ isOneToOne: false
 "admin_set_member_role":
 { Args: { "p_client_action_id": string,"p_member_id": string,"p_role": Database["public"]['Enums']["org_member_role"] }; Returns: Json
                            },
+"admin_set_rate_card_lines":
+{ Args: { "p_client_action_id": string,"p_lines": Json,"p_rate_card_id": string }; Returns: Json
+                           },
 "admin_update_customer":
 { Args: { "p_client_action_id": string,"p_customer_id": string,"p_email": string,"p_name": string,"p_notes": string,"p_phone": string }; Returns: Json
                            },
 "admin_update_lodge":
 { Args: { "p_client_action_id": string,"p_contact"?: Json,"p_lodge_id": string,"p_name": string,"p_pricing_cap": number }; Returns: Json
                            },
+"admin_update_org":
+{ Args: { "p_client_action_id": string,"p_name": string,"p_settings": Json,"p_timezone": string }; Returns: Json
+                           },
+"admin_update_processing_method":
+{ Args: { "p_client_action_id": string,"p_is_active": boolean,"p_lodge_cappable": boolean,"p_method_id": string,"p_name": string }; Returns: Json
+                           },
+"admin_update_rate_card":
+{ Args: { "p_client_action_id": string,"p_ends_on": string,"p_name": string,"p_rate_card_id": string,"p_starts_on": string }; Returns: Json
+                           },
+"admin_update_species":
+{ Args: { "p_client_action_id": string,"p_is_active": boolean,"p_name": string,"p_shorthand": string,"p_sort": number,"p_species_id": string }; Returns: Json
+                           },
+"billing_apply_subscription":
+{ Args: { "p_customer_id": string,"p_event_created": string,"p_event_id": string,"p_kind": string,"p_org_hint"?: string,"p_plan": string,"p_status": string,"p_subscription_id": string }; Returns: Json
+                           },
+"billing_link_customer":
+{ Args: { "p_customer_id": string,"p_org_id": string }; Returns: string
+                           },
 "claim_print_job":
 { Args: { "p_client_action_id": string }; Returns: Json
                            },
 "create_customer":
 { Args: { "p_client_action_id": string,"p_email"?: string,"p_name": string,"p_phone": string }; Returns: Json
+                           },
+"create_org":
+{ Args: { "p_client_action_id": string,"p_display_name": string,"p_name": string,"p_reference": Json,"p_site_name"?: string,"p_slug": string,"p_timezone": string }; Returns: Json
                            },
 "device_bind_auth_user":
 { Args: { "p_device_id": string,"p_user_id": string }; Returns: undefined
@@ -1822,6 +1907,9 @@ isOneToOne: false
 "force_transition":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_entity": string,"p_id": string,"p_reason": string,"p_to_state": string }; Returns: Json
                            },
+"intake_price_context":
+{ Args: { "p_customer_id"?: string,"p_intake_id"?: string }; Returns: Json
+                           },
 "member_lookup_user":
 { Args: { "p_email": string }; Returns: string
                            },
@@ -1844,16 +1932,37 @@ isOneToOne: false
               "agent_id": string,"auth_user_id": string,"org_id": string
             }[]
                            },
+"print_intake_receipt":
+{ Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
+                           },
+"reprint_intake_tote_tags":
+{ Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
+                           },
+"save_intake":
+{ Args: { "p_client_action_id": string,"p_payload": Json }; Returns: Json
+                           },
 "search_customers":
 { Args: { "p_limit"?: number,"p_org_id": string,"p_q": string }; Returns: {
               "id": string,"is_lodge_guest": boolean,"last_visit_at": string,"lodge_id": string,"lodge_name": string,"name": string,"phone": string
             }[]
+                           },
+"seed_org_reference":
+{ Args: { "p_org_id": string,"p_reference": Json }; Returns: Json
                            },
 "set_default_org":
 { Args: { "p_org_id": string }; Returns: undefined
                            },
 "set_lodge_guest":
 { Args: { "p_client_action_id": string,"p_customer_id": string,"p_is_lodge_guest": boolean,"p_lodge_id"?: string }; Returns: Json
+                           },
+"station_identify":
+{ Args: { "p_pin": string }; Returns: Json
+                           },
+"station_scan":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed": Json,"p_raw": string,"p_reason"?: string,"p_station": Database["public"]['Enums']["device_station"] }; Returns: Json
+                           },
+"unlock_intake":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_intake_id": string,"p_reason"?: string }; Returns: Json
                            }
           }
           Enums: {

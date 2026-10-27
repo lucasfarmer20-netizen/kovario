@@ -10,6 +10,10 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      # supabase start pulls ~10 images; the default registry (public.ecr.aws) rate-limits
+      # anonymous pulls from shared runners ("toomanyrequests: Data limit exceeded").
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

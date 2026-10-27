@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { adminMutation, unwrap, type ActionState } from "@/lib/admin-action";
+import { requirePlan } from "@/lib/plan";
 
 const role = z.enum(Constants.public.Enums.org_member_role);
 
@@ -22,6 +23,7 @@ export async function inviteMember(_state: ActionState, formData: FormData): Pro
   const result = await adminMutation(
     formData,
     async ({ supabase }, id) => {
+      await requirePlan("users", supabase);
       // member-invite records the membership with this id (admin_add_member), so a retry
       // after a lost response replays instead of adding the member twice.
       const { data, error } = await supabase.functions.invoke<Json>("member-invite", {

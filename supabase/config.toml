@@ -427,5 +427,17 @@ verify_jwt = false
 [functions.member-invite]
 verify_jwt = false
 
+# WP-22 Stripe Billing. billing-checkout / billing-portal verify the caller's JWT themselves;
+# billing-webhook is called by Stripe and verifies the Stripe-Signature header instead.
+# Secrets (function env, never in code): STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET.
+[functions.billing-checkout]
+verify_jwt = false
+
+[functions.billing-portal]
+verify_jwt = false
+
+[functions.billing-webhook]
+verify_jwt = false
+
 [functions.print-agent-pair]
 verify_jwt = false
