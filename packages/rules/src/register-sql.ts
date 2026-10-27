@@ -4,7 +4,7 @@
 // file is stale, and packages/db register.db.test.ts checks app.tax_amount ≡ computeTax.
 import { TAX_MODES } from "./tax.ts";
 
-export const REGISTER_SQL_PATH = "supabase/migrations/20261027223000_register_rules_sql.sql";
+export const REGISTER_SQL_PATH = "supabase/migrations/20261028000000_register_rules_sql.sql";
 
 export function renderRegisterSql(): string {
   const modes = TAX_MODES.map((m) => `'${m}'`).join(", ");
