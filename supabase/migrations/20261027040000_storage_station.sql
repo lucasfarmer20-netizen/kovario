@@ -453,10 +453,33 @@ begin
 end;
 $$;
 
+-- The unreleased batch (pending or void) of this intake that holds any of `p_box_ids` with
+-- money captured — a payment still approved (a refund/void of it lifts the hold), or a
+-- release failure. Its boxes must not be batched or charged again until a manager Force
+-- Releases it or the payment is refunded (S6: no recharge). Null when none.
+create or replace function app.storage_paid_hold(p_storage_intake_id uuid, p_box_ids uuid[])
+returns public.storage_pickup_batch
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select pb.*
+  from public.storage_pickup_batch pb
+  left join public.payment p on p.id = pb.payment_id
+  where pb.storage_intake_id = p_storage_intake_id
+    and pb.state <> 'released'
+    and pb.box_ids && p_box_ids
+    and (pb.release_failed or pb.payment_id is not null)
+    and coalesce(p.state = 'approved', true)
+  order by pb.created_at, pb.id
+  limit 1
+$$;
+
 -- Select boxes → a pending batch snapshotting rate/days/amount, with one storage charge.
 -- Every pending batch of the intake sharing a box is superseded (void) — the register cart
--- mirrors the server (S3). A box held by a batch whose money was captured but whose release
--- failed is refused: a manager must Force Release it first (S6, no recharge).
+-- mirrors the server (S3). A box held by a paid but unreleased batch (release failed, or
+-- paid while void) is refused: Force Release it or refund the payment first (S6, no recharge).
 create or replace function public.create_pickup_batch(
   p_client_action_id text, p_storage_intake_id uuid, p_box_ids uuid[]
 )
@@ -491,14 +514,10 @@ begin
   if v_intake.state not in ('stored', 'partial') then
     raise exception 'storage intake % has no boxes in storage', v_intake.number using errcode = '55000';
   end if;
-  select * into v_old from public.storage_pickup_batch
-  where storage_intake_id = v_intake.id and state = 'pending' and box_ids && p_box_ids
-    and (release_failed or payment_id is not null)
-  order by created_at
-  limit 1;
-  if found then
-    raise exception '% was paid but not released; a manager must Force Release it', v_old.number
-      using errcode = '55000';
+  v_old := app.storage_paid_hold(v_intake.id, p_box_ids);
+  if v_old.id is not null then
+    raise exception '% was paid but not released; a manager must Force Release it or refund the payment',
+      v_old.number using errcode = '55000';
   end if;
 
   v_snapshot := app.storage_snapshot(v_intake.id, p_box_ids);
@@ -698,6 +717,18 @@ begin
       perform app.storage_batch_note(v_batch.id, 'critical', 'paid_while_void',
         format('payment %s (%s) arrived for a void batch; not released — Force Release or refund at the register',
                v_payment.number, v_ref));
+      -- Its boxes are now held by this money: an unpaid pending batch over them must not be
+      -- collected as well (S6, no double charge). Intake row already locked (S5).
+      for v_other in
+        select * from public.storage_pickup_batch
+        where storage_intake_id = v_intake.id and state = 'pending' and id <> v_batch.id
+          and box_ids && v_batch.box_ids and payment_id is null and not release_failed
+        order by id
+        for update
+      loop
+        perform app.void_pickup_batch(v_other.id,
+          format('voided: its boxes are held by %s, paid while void', v_batch.number));
+      end loop;
       return v_result || jsonb_build_object('status', 'paid_while_void');
     end if;
 
@@ -1013,6 +1044,7 @@ revoke all on function
   app.next_free_number(uuid, text, regclass),
   app.storage_label_data(uuid),
   app.void_pickup_batch(uuid, text),
+  app.storage_paid_hold(uuid, uuid[]),
   app.release_pickup_batch(uuid, text, text, uuid, text, uuid, numeric),
   app.release_pickup_batches(uuid[], uuid, text, jsonb)
 from public;

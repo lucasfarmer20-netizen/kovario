@@ -442,6 +442,48 @@ select pg_temp.chk('S6', 'the stale quote is noted on the batch (billed 2, 3 as 
   true);
 select pg_temp.chk('S4', 'a same-day release notes nothing', (pg_temp.b('B2')).notes !~ 'stale|later day', true);
 
+-- S6 money on a void batch holds its boxes ------------------------------------------------------
+
+insert into t_ids select 'si7', pg_temp.confirm('wp09-confirm-0007', '[{},{}]') ->> 'storage_intake_id';
+insert into t_ids select 'h' || box_no, id::text from public.storage_box where storage_intake_id = pg_temp.id('si7');
+reset role;
+insert into public.payment (id, org_id, number, customer_id, provider, amount, state, provider_ref)
+values ('a9000000-0000-4000-8000-0000000005a7', 'a9000000-0000-4000-8000-00000000000a', 'PAY-0007',
+        'a9000000-0000-4000-8000-0000000002a1', 'manual', 10, 'approved', 'REF-777');
+set local role authenticated;
+-- The cart's batch is cancelled and re-quoted; then the first one's payment lands late.
+insert into t_ids select 'V1', pg_temp.batch('wp09-batch-v1', 'si7', array['h1']) ->> 'batch_id';
+insert into t_ids values ('x-v1', public.cancel_pickup_batch('wp09-cancel-v1', pg_temp.id('V1'))::text);
+insert into t_ids select 'V2', pg_temp.batch('wp09-batch-v2', 'si7', array['h1', 'h2']) ->> 'batch_id';
+reset role;
+select pg_temp.chk('S6', 'late payment on the cancelled batch: paid while void',
+  pg_temp.pay(array['V1'], 7) -> 0 ->> 'status', 'paid_while_void');
+set local role authenticated;
+select pg_temp.chk('S6', '… the unpaid pending batch over the same box is voided (cannot be collected too)',
+  (select format('%s:%s', state, notes ~ 'held by SPB-\d+, paid while void') from pg_temp.b('V2'))
+    || ':' || pg_temp.charge_of('V2'), 'void:t:voided:-:-');
+select pg_temp.chk('S6', 're-batching a box held by the paid void batch is refused',
+  pg_temp.err($$select pg_temp.batch('wp09-batch-v3', 'si7', array['h1'])$$)
+    || ':' || pg_temp.err($$select pg_temp.batch('wp09-batch-v3b', 'si7', array['h1', 'h2'])$$),
+  '55000:55000');
+select pg_temp.chk('S6', '… and no pending batch was created',
+  (select count(*) from public.storage_pickup_batch where storage_intake_id = pg_temp.id('si7') and state = 'pending'), 0);
+select throws_ok($$select pg_temp.batch('wp09-batch-v3c', 'si7', array['h1'])$$, '55000',
+  format('%s was paid but not released; a manager must Force Release it or refund the payment', (pg_temp.b('V1')).number),
+  'S6 — the refusal names the paid batch and the remedy');
+insert into t_ids select 'V4', pg_temp.batch('wp09-batch-v4', 'si7', array['h2']) ->> 'batch_id';
+select pg_temp.chk('S6', 'a box the paid batch does not hold can still be batched',
+  (pg_temp.b('V4')).state::text, 'pending');
+-- Refund reconciliation at the register lifts the hold.
+reset role;
+select set_config('app.forced_transition', 'payment:a9000000-0000-4000-8000-0000000005a7:refunded', true);
+update public.payment set state = 'refunded' where id = 'a9000000-0000-4000-8000-0000000005a7';
+select set_config('app.forced_transition', '', true);
+set local role authenticated;
+insert into t_ids select 'V5', pg_temp.batch('wp09-batch-v5', 'si7', array['h1']) ->> 'batch_id';
+select pg_temp.chk('S6', 'after the payment is refunded the box can be batched again',
+  (pg_temp.b('V5')).state::text, 'pending');
+
 -- Wizard cancel + tenancy -----------------------------------------------------------------------
 
 insert into t_ids select 'si5', pg_temp.confirm('wp09-confirm-0005', '[{}]') ->> 'storage_intake_id';
