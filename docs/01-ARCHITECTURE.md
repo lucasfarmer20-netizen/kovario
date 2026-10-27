@@ -16,7 +16,7 @@
 | Billing | Stripe Billing | Tenant subscriptions only — not card-present |
 | Offline | **Not in v1** (DECISION-04). Scan actions go through a client-side **scan queue** with retry + idempotency keys | PowerSync is a later WP behind the same data-access layer |
 
-Package manager: **pnpm**. Node 20+. Monorepo layout is a single Next app plus a
+Package manager: **pnpm**. Node 22+. Monorepo layout is a single Next app plus a
 `packages/` folder for pure libraries:
 
 ```

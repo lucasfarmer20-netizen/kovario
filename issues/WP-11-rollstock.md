@@ -27,7 +27,8 @@
 
 ## Deliverables
 - `rollstock_scan_advance(raw, open_intake_id, client_action_id)` SQL function: opens
-  the scanned intake (`processing|holding → rollstock`, bypass writes an audit note),
+  the scanned intake (`processing → rollstock`; a `holding` tote first takes the audited
+  `holding → processing` bypass, DECISION-20),
   auto-advances the previously open intake to `reconcile` when its totes are complete,
   otherwise flags the X-of-X gap and keeps it open; manager override path.
 - Screen: OPEN panel + NEXT UP list + de-emphasised Finish queue.

@@ -48,13 +48,17 @@ my_review() {
 }
 
 # Merge an approved non-critical PR. GitHub refuses auto-merge on a PR that is already
-# mergeable ("clean": CI green + approved), so fall back to a direct squash merge; branch
-# protection on main still refuses it unless the required check and approval are in place.
+# mergeable, so a PR whose merge state is CLEAN (required check green + approved) is
+# squash-merged directly; anything else gets auto-merge. The reviewer account has write
+# access only (no admin or bypass), so branch protection on main still gates both.
 merge_approved() {
-  local num="$1"
-  GH_TOKEN="$REVIEWER_PAT" gh pr merge "$num" -R "$REPO" --auto --squash 2>/dev/null \
-    || GH_TOKEN="$REVIEWER_PAT" gh pr merge "$num" -R "$REPO" --squash \
-    || echo "!! merge of #$num failed; retrying next pass"
+  local num="$1" mstate
+  mstate=$(gh pr view "$num" -R "$REPO" --json mergeStateStatus -q .mergeStateStatus)
+  if [ "$mstate" = CLEAN ]; then
+    GH_TOKEN="$REVIEWER_PAT" gh pr merge "$num" -R "$REPO" --squash
+  else
+    GH_TOKEN="$REVIEWER_PAT" gh pr merge "$num" -R "$REPO" --auto --squash
+  fi || echo "!! merge of #$num ($mstate) failed; retrying next pass"
 }
 
 # Prints AO's verdict for (pr url, branch, head sha): none (not an AO PR) | pending | failed |
