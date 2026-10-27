@@ -1,6 +1,15 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { encode, normalizeTagCode, parse, type QrFields, type QrKind } from "./qr.ts";
+import {
+  encode,
+  normalizePairingCode,
+  normalizeTagCode,
+  PAIRING_ALPHABET,
+  PAIRING_CODE_LENGTH,
+  parse,
+  type QrFields,
+  type QrKind,
+} from "./qr.ts";
 
 const intakeNumber = fc.nat({ max: 99_999_999 }).map((n) => `INT-${String(n).padStart(4, "0")}`);
 const storageNumber = fc.nat({ max: 99_999_999 }).map((n) => `STG-${String(n).padStart(4, "0")}`);
@@ -9,6 +18,12 @@ const orgSlug = fc.stringMatching(/^[a-z0-9]{1,12}(?:-[a-z0-9]{1,12}){0,3}$/);
 const tagCode = fc.nat({ max: 99_999 }).map((n) => String(n).padStart(3, "0"));
 const locationCode = fc.stringMatching(/^[A-Z0-9]{1,8}(?:-[A-Z0-9]{1,8}){0,5}$/);
 const token = fc.stringMatching(/^[A-Za-z0-9_-]{1,64}$/);
+const pairingCode = fc
+  .array(fc.constantFrom(...PAIRING_ALPHABET), {
+    minLength: PAIRING_CODE_LENGTH,
+    maxLength: PAIRING_CODE_LENGTH,
+  })
+  .map((chars) => chars.join(""));
 
 const payloads: { [K in QrKind]: fc.Arbitrary<QrFields[K]> } = {
   TOTE: fc.record({ intakeNumber, toteNo: count }),
@@ -16,6 +31,7 @@ const payloads: { [K in QrKind]: fc.Arbitrary<QrFields[K]> } = {
   LOC: fc.record({ orgSlug, code: locationCode }),
   BOX: fc.record({ token }),
   SBOX: fc.record({ storageNumber, boxNo: count }),
+  PAIR: fc.record({ code: pairingCode }),
 };
 
 describe("qr round-trip (property)", () => {
@@ -68,6 +84,11 @@ describe("encode", () => {
     );
     expect(encode("BOX", { token: "aB3_x-9" })).toBe("KV:BOX:aB3_x-9");
     expect(encode("SBOX", { storageNumber: "STG-0001", boxNo: 2 })).toBe("KV:SBOX:STG-0001:2");
+    expect(encode("PAIR", { code: "ABCD2345" })).toBe("KV:PAIR:ABCD2345");
+  });
+
+  it("canonicalises a typed pairing code on encode", () => {
+    expect(encode("PAIR", { code: "abcd-2345" })).toBe("KV:PAIR:ABCD2345");
   });
 
   it("refuses fields that would not parse back", () => {
@@ -79,6 +100,9 @@ describe("encode", () => {
     expect(() => encode("LOC", { orgSlug: "demo", code: "IF:A" })).toThrow(RangeError);
     expect(() => encode("BOX", { token: "a:b" })).toThrow(RangeError);
     expect(() => encode("SBOX", { storageNumber: "INT-0001", boxNo: 1 })).toThrow(RangeError);
+    expect(() => encode("PAIR", { code: "ABCD0OIL" })).toThrow(RangeError);
+    expect(() => encode("PAIR", { code: "ABC2345" })).toThrow(RangeError);
+    expect(() => encode("PAIR", { code: "ABCD:345" })).toThrow(RangeError);
   });
 });
 
@@ -111,6 +135,9 @@ describe("parse", () => {
       "XX:TOTE:INT-0001:1",
       "IF-A-01-1-F",
       "kv:tote:INT-0001:1",
+      "kv:pair:ABCD2345",
+      // A bare 8-character code is not a station scan; only /pair accepts it typed.
+      "ABCD2345",
     ]) {
       expect(parse(raw)).toEqual({ ok: false, reason: "unknown_format" });
     }
@@ -132,9 +159,60 @@ describe("parse", () => {
       "KV:SBOX:STG-0001:x",
       "KV:SBOX:STG-01:1",
       "KV:TOTE",
+      "KV:PAIR:",
+      "KV:PAIR:ABCDL345",
+      "KV:PAIR:ABCD-2345",
+      "KV:PAIR:ABCD23456",
+      "KV:PAIR:ABCD2345:1",
     ]) {
       expect(parse(raw), raw).toEqual({ ok: false, reason: "bad_field" });
     }
+  });
+});
+
+describe("PAIR", () => {
+  it("parses a scanned pairing payload, normalising letter case", () => {
+    expect(parse("KV:PAIR:abcd2345\r\n")).toEqual({
+      ok: true,
+      value: { kind: "PAIR", code: "ABCD2345", legacy: false },
+    });
+  });
+
+  it("all-digit pairing codes stay pairing codes when encoded", () => {
+    // A bare "23456789" would parse as a legacy asset tag; the KV:PAIR wrapper prevents that.
+    expect(parse(encode("PAIR", { code: "23456789" }))).toEqual({
+      ok: true,
+      value: { kind: "PAIR", code: "23456789", legacy: false },
+    });
+  });
+});
+
+describe("normalizePairingCode", () => {
+  it("strips spaces and dashes and upper-cases", () => {
+    expect(normalizePairingCode(" abcd-2345 ")).toBe("ABCD2345");
+  });
+
+  it("accepts exactly the pairing alphabet and length", () => {
+    fc.assert(
+      fc.property(pairingCode, (code) => {
+        expect(normalizePairingCode(code)).toBe(code);
+      }),
+    );
+    for (const bad of ["ABCD0345", "ABCDO345", "ABCD1345", "ABCDI345", "ABCDL345", "ABCDU345"]) {
+      expect(normalizePairingCode(bad), bad).toBeNull();
+    }
+    expect(normalizePairingCode("ABC2345")).toBeNull();
+    expect(normalizePairingCode("ABCD23456")).toBeNull();
+    expect(normalizePairingCode("KV:PAIR:ABCD2345")).toBeNull();
+  });
+
+  it("is idempotent", () => {
+    fc.assert(
+      fc.property(fc.string(), (raw) => {
+        const once = normalizePairingCode(raw);
+        expect(once === null ? null : normalizePairingCode(once)).toBe(once);
+      }),
+    );
   });
 });
 

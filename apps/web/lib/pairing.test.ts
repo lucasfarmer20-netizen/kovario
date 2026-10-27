@@ -1,21 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { normalisePairingCode, PAIRING_CODE_PATTERN, pairingUrl } from "./pairing";
+import { pairingQrText, readPairingInput } from "./pairing";
 
-describe("pairing", () => {
-  it("builds the /pair URL with the code", () => {
-    expect(pairingUrl("http://localhost:3000", "ABCD2345")).toBe(
-      "http://localhost:3000/pair?code=ABCD2345",
-    );
+describe("pairing QR", () => {
+  it("is produced by the rules QR codec", () => {
+    expect(pairingQrText("ABCD2345")).toBe("KV:PAIR:ABCD2345");
+    expect(() => pairingQrText("ABCD0OIL")).toThrow(RangeError);
   });
 
-  it("normalises typed codes", () => {
-    expect(normalisePairingCode(" abcd-2345 ")).toBe("ABCD2345");
+  it("round-trips through what /pair reads from a scan", () => {
+    for (const code of ["ABCD2345", "23456789", "ZZZZZZZZ"]) {
+      expect(readPairingInput(pairingQrText(code))).toBe(code);
+      // Keyboard-wedge scanners append CR/LF.
+      expect(readPairingInput(`${pairingQrText(code)}\r\n`)).toBe(code);
+    }
   });
 
-  it("accepts only the unambiguous alphabet", () => {
-    expect(PAIRING_CODE_PATTERN.test("ABCD2345")).toBe(true);
-    expect(PAIRING_CODE_PATTERN.test("ABCD0OIL")).toBe(false);
-    expect(PAIRING_CODE_PATTERN.test("ABC2345")).toBe(false);
-    expect(PAIRING_CODE_PATTERN.test("ABCDL345")).toBe(false);
+  it("accepts a typed code, including all-digit codes", () => {
+    expect(readPairingInput(" abcd-2345 ")).toBe("ABCD2345");
+    expect(readPairingInput("23456789")).toBe("23456789");
+  });
+
+  it("rejects other QR kinds and invalid codes", () => {
+    expect(readPairingInput("KV:TOTE:INT-0001:1")).toBeNull();
+    expect(readPairingInput("KV:TAG:demo-plant:042")).toBeNull();
+    expect(readPairingInput("KV:PAIR:ABCDL345")).toBeNull();
+    expect(readPairingInput("ABCD0OIL")).toBeNull();
+    expect(readPairingInput("")).toBeNull();
   });
 });
