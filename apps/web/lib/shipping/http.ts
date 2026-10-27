@@ -26,14 +26,16 @@ function serviceClient(): FilletryClient {
   return createClient<Database>(supabaseEnv().url, key, noSession);
 }
 
-async function callerFor(req: Request): Promise<FilletryClient> {
+/** The caller's client and, for a bearer caller, its JWT (getClaims has no stored session to read). */
+async function callerFor(req: Request): Promise<{ client: FilletryClient; jwt?: string }> {
   const header = req.headers.get("authorization") ?? "";
-  if (!header.startsWith("Bearer ")) return createSupabaseServer();
+  if (!header.startsWith("Bearer ")) return { client: await createSupabaseServer() };
   const env = supabaseEnv();
-  return createClient<Database>(env.url, env.anonKey, {
+  const client = createClient<Database>(env.url, env.anonKey, {
     ...noSession,
     global: { headers: { Authorization: header } },
   });
+  return { client, jwt: header.slice(7) };
 }
 
 const id = z.uuid();
@@ -83,14 +85,16 @@ export type MakeDeps = (req: Request) => Promise<ShippingDeps>;
 
 /** Production dependencies: the caller's session (org from its verified claims), service role, Shippo. */
 export const defaultDeps: MakeDeps = async (req) => {
-  const caller = await callerFor(req);
-  const { data, error } = await caller.auth.getClaims();
+  const { client: caller, jwt } = await callerFor(req);
+  const { data, error } = await caller.auth.getClaims(jwt);
   const orgId = typeof data?.claims.org_id === "string" ? data.claims.org_id : null;
   if (error || !data || !orgId) throw new ShippingRequestError("Sign in first", 401);
+  const deviceId = typeof data.claims.device_id === "string" ? data.claims.device_id : null;
   return {
     caller,
     service: serviceClient(),
     orgId,
+    deviceId,
     shippoFor: (apiKey) => shippoClient({ apiKey }),
   };
 };

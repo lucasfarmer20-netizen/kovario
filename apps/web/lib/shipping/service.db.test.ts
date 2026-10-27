@@ -13,11 +13,12 @@ import {
   type FakeFetch,
   type FakeRoute,
 } from "shipping";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   createOrg,
   createUser,
   dropOrg,
+  localSupabase,
   serviceRoleClient,
   type TestOrg,
   type TestUser,
@@ -31,6 +32,7 @@ import {
   verifyAddress,
   type ShippingDeps,
 } from "./service";
+import { defaultDeps } from "./http";
 
 type Shipment = {
   shipment_id: string;
@@ -112,6 +114,7 @@ describe("shipping route flow (recorded Shippo fixtures)", { timeout: 60_000 }, 
       caller: staff.client,
       service: withKey(key),
       orgId: org.id,
+      deviceId: null,
       shippoFor: (apiKey) =>
         shippoClient({
           apiKey,
@@ -432,6 +435,27 @@ describe("shipping route flow (recorded Shippo fixtures)", { timeout: 60_000 }, 
     });
     expect(new Set(quote.rates.map((r) => r.carrier))).toEqual(new Set(["usps", "ups", "fedex"]));
     expect(quote.cheapest).toMatchObject({ carrier: "usps", amount: 64.1 });
+  });
+
+  it("a paired station's bearer token is a signed-in caller (claims read from the JWT itself)", async () => {
+    const s = localSupabase();
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", s.API_URL);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", s.ANON_KEY);
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", s.SERVICE_ROLE_KEY);
+    try {
+      const { data } = await staff.client.auth.getSession();
+      const req = new Request("http://test/api/shipping/verify", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${data.session!.access_token}` },
+      });
+      const d = await defaultDeps(req);
+      expect(d.orgId).toBe(org.id);
+      expect(d.deviceId).toBeNull();
+      const queue = await d.caller.rpc("shipping_queue", { p_days: 1 });
+      expect(queue.error).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("refuses clearly: no Shippo key, a box size without dims", async () => {

@@ -36,6 +36,8 @@ export type ShippingDeps = {
   /** Service role: Vault key + recording provider results. Route handlers only. */
   service: FilletryClient;
   orgId: string;
+  /** The paired station's device (its site's ship-from), null for a staff session. */
+  deviceId: string | null;
   /** Builds the Shippo client for the org's key (tests pass a fixture-backed fake). */
   shippoFor: (apiKey: string) => ShippoClient;
 };
@@ -268,8 +270,7 @@ export async function rateCheck(
   deps: ShippingDeps,
   input: { to: Address; parcels: Parcel[]; bypassAllowlist: boolean },
 ): Promise<RateShop & { cheapest: RateShop["rates"][number] | null }> {
-  const { data: claims } = await deps.caller.auth.getClaims();
-  const deviceId = typeof claims?.claims.device_id === "string" ? claims.claims.device_id : null;
+  const deviceId = deps.deviceId;
   const [{ data: device }, { data: sites }, { data: org }] = await Promise.all([
     deviceId
       ? deps.caller.from("device").select("site_id").eq("id", deviceId).maybeSingle()
