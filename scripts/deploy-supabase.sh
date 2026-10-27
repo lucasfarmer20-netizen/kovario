@@ -89,8 +89,8 @@ if [ -n "${SITE_URL:-}" ]; then
   done
   # Hosted auth policy (docs/11-DEPLOY.md §2). config.toml's [auth] is tuned for local dev
   # (no confirmations, 6-char passwords); these override it on hosted projects only.
-  # Signup stays open: tenants self-serve through /signup (WP-22), and its confirmation link
-  # lands on /onboarding. Devices (email_confirm) and invited members are unaffected.
+  # Signup stays open: tenants self-serve through /signup (WP-22); confirming the email does
+  # not yet sign them in (#57). Devices (email_confirm) and invited members are unaffected.
   cat >>"$work/supabase/config.toml" <<EOF
 
 # Appended by scripts/deploy-supabase.sh for $target; applies only to this project ref.

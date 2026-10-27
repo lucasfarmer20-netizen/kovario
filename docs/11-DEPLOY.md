@@ -136,7 +136,7 @@ rely on the deploy itself.
    | Setting | Local (`config.toml`) | Hosted (staging, prod) | Why |
    |---|---|---|---|
    | `auth.enable_signup`, `auth.email.enable_signup` | true | true | tenants self-serve through `/signup` (WP-22) |
-   | `auth.email.enable_confirmations` | false | **true** | an address must be proven before it owns an org; the link lands on `/onboarding` |
+   | `auth.email.enable_confirmations` | false | **true** | an address must be proven before it owns an org (see the known gap below) |
    | `auth.minimum_password_length` | 6 | **8** | matches the `/signup` form |
    | `auth.password_requirements` | none | **`letters_digits`** | `/signup` maps `weak_password`; device passwords are 64 hex chars |
    | `auth.email.secure_password_change` | false | **true** | password change needs a recent login |
@@ -147,6 +147,17 @@ rely on the deploy itself.
    Confirmation mail goes through Supabase's built-in SMTP, which only delivers to the
    project's team members and is rate-limited: fine for staging; **prod needs custom SMTP**
    (Resend, `docs/07-INTEGRATIONS.md`) configured in the dashboard before real tenants sign up.
+
+   **Known gap (#57):** the confirmation link redirects to `/onboarding?code=…` (PKCE), but no
+   route in `apps/web` exchanges the code for a session yet, so a newly confirmed user lands on
+   `/login` and has to sign in once before onboarding. A `/auth/callback` route fixes it.
+
+   **Email rate limit:** `config push` sends `auth.rate_limit.email_sent` only when
+   `[auth.email.smtp]` is enabled in `config.toml` (CLI 2.122.0 `pkg/config/auth.go`); it is not,
+   so the hosted value stays whatever the dashboard says. When custom SMTP is set up on prod,
+   raise *Authentication → Rate Limits → emails per hour* there: confirmations, member invites
+   and password resets share it. The other `[auth.rate_limit]` values in `config.toml` are pushed
+   and match Supabase's defaults.
 3. Runs on `main` are not cancelled by newer pushes; deploys are serialised per environment.
 
 ## 3. Rolling back a bad migration (forward-fix)
