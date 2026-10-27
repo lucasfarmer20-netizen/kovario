@@ -145,8 +145,10 @@ max_catalogs = 2
 # [storage.analytics.buckets.my-warehouse]
 
 # Store vector embeddings in S3 for large and durable datasets
+# Off: vector buckets need a paid Supabase plan (staging is free tier, so `config push` got
+# HTTP 402), and nothing uses them.
 [storage.vector]
-enabled = true
+enabled = false
 max_buckets = 10
 max_indexes = 5
 
