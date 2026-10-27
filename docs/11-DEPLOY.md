@@ -39,7 +39,7 @@ Rules:
    | Group | Permission | Level | Used by |
    |---|---|---|---|
    | Project | Project Settings | Read-write | `config push` |
-   | Database | Migrations | Read-write | `db push` |
+   | Database | Migrations | Read-write | migration history; `db push` itself needs no token scope when the pooler host is set (kept because it was in the verified set) |
    | Database | Database config | Read-write | `config push` (DB settings) |
    | Database | Database pooling config | Read | `db push` pooler lookup when `SUPABASE_*_POOLER_HOST` is unset |
    | Application services | Edge Functions | Read-write | `functions deploy` |
@@ -52,7 +52,10 @@ Rules:
    The deploy script never runs `supabase link` (every command takes `--project-ref`), so no
    API-key scopes are needed. A missing scope fails the step with
    `Missing required permission(s): <scope>`; a 402 means a paid-plan feature is enabled in
-   `supabase/config.toml` (vector buckets are off for this reason).
+   `supabase/config.toml` (vector buckets are off for this reason); *IPv6 is not supported* from
+   `db push` means the session-pooler host is unset (`SUPABASE_*_POOLER_HOST`, below) and the
+   token lacks Database pooling config Read. GitHub runners are IPv4-only and free-plan direct
+   database hosts are IPv6-only, so `db push` must go through the pooler.
    - **prod** token, the same scopes on the prod project only.
 
 ### GitHub (`Settings → Secrets and variables → Actions`, `Settings → Environments`)
