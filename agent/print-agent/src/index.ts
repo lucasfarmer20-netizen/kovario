@@ -98,6 +98,7 @@ export async function fileLog(
     | "delivered"
     | "delivery_failed"
     | "queue_failed"
+    | "scale_failed"
     | "heartbeat_failed"
     | "fatal",
   jobId?: string,

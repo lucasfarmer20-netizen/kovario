@@ -14,3 +14,4 @@ export * from "./hold.ts";
 export * from "./wave.ts";
 export * from "./states.ts";
 export * from "./reference-seed.ts";
+export * from "./reconcile";
