@@ -11,6 +11,10 @@ const NAV = [
   { href: "/admin/sites", label: "Sites" },
   { href: "/admin/customers", label: "Customers" },
   { href: "/admin/lodges", label: "Lodges" },
+  { href: "/admin/rate-cards", label: "Rate cards" },
+  { href: "/admin/species", label: "Species" },
+  { href: "/admin/settings", label: "Settings" },
+  { href: "/admin/subscription", label: "Subscription" },
 ];
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
@@ -43,7 +47,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         {!claims ? (
           <p>
             Your account is not a member of any active organisation yet. Ask a manager to invite
-            you.
+            you, or{" "}
+            <Link href="/onboarding" className="underline">
+              set up a new plant
+            </Link>
+            .
           </p>
         ) : !isManager(claims) ? (
           <p>Admin pages are for owners and managers.</p>

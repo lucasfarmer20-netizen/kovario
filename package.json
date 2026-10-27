@@ -16,6 +16,7 @@
     "test:db": "node scripts/test-db.mjs",
     "db:types": "supabase gen types typescript --local > packages/db/src/types.ts",
     "db:demo-owner": "node scripts/demo-owner.mjs",
+    "db:seed-demo": "node --experimental-strip-types scripts/seed-demo-org.ts",
     "e2e": "pnpm --filter web run --if-present e2e"
   },
   "devDependencies": {
