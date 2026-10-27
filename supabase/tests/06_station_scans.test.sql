@@ -49,5 +49,22 @@ update public.station_operator_session set expires_at = now() - interval '1 seco
 set local role authenticated;
 select is(public.station_scan('scan-expired-pin-001','unknown','wave',null,'unknown_format','a0000000-0000-4000-8000-000000000004')->>'reason','operator_pin_required','expired operator session requires identification');
 reset role;
+-- A manager may reassign a device while older station scans remain queued.
+insert into auth.users(id,email) values ('a0000000-0000-4000-8000-0000000000d1','reassigned-device@example.test');
+insert into public.device(id,org_id,name,station,auth_user_id) values
+ ('a0000000-0000-4000-8000-000000000006','a0000000-0000-4000-8000-00000000000a','Reassigned station','locate','a0000000-0000-4000-8000-0000000000d1');
+insert into public.station_operator_session(id,org_id,user_id,operator_id) values
+ ('a0000000-0000-4000-8000-000000000007','a0000000-0000-4000-8000-00000000000a','a0000000-0000-4000-8000-0000000000d1','a0000000-0000-4000-8000-000000000003');
+select set_config('request.jwt.claims','{"sub":"a0000000-0000-4000-8000-0000000000d1","role":"authenticated","org_id":"a0000000-0000-4000-8000-00000000000a","app_role":"station","device_id":"a0000000-0000-4000-8000-000000000006"}',true);
+set local role authenticated;
+create temp table mismatch as select public.station_scan('scan-mismatch-001','FL:TOTE:INT-0001:1','wave','{"kind":"TOTE","intakeNumber":"INT-0001","toteNo":1}',null,'a0000000-0000-4000-8000-000000000007') r;
+select is((select r->>'reason' from mismatch),'station_mismatch','station mismatch is a business rejection instead of a thrown permission error');
+select is((select result::text from public.scan_log where id=(select (r->>'scan_id')::uuid from mismatch)),'rejected','station mismatch writes a rejected scan_log row');
+select is((select device_id from public.scan_log where id=(select (r->>'scan_id')::uuid from mismatch)),'a0000000-0000-4000-8000-000000000006'::uuid,'mismatch audit identifies the org-owned device');
+select ok((select completed_at is not null from public.action_log where client_action_id='scan-mismatch-001'),'station mismatch completes its action atomically');
+select is(public.station_scan('scan-mismatch-001','FL:TOTE:INT-0001:1','wave','{"kind":"TOTE","intakeNumber":"INT-0001","toteNo":1}',null,'a0000000-0000-4000-8000-000000000007'),(select r from mismatch),'station mismatch replay returns its audited rejection');
+select is((select count(*)::int from public.scan_log where reason='station_mismatch'),1,'station mismatch replay does not duplicate the audit');
+select is(public.station_scan('scan-after-mismatch-001','FL:TOTE:INT-0001:1','locate','{"kind":"TOTE","intakeNumber":"INT-0001","toteNo":1}',null,'a0000000-0000-4000-8000-000000000007')->>'ok','true','a valid scan at the reassigned station succeeds after the rejected scan');
+reset role;
 select * from finish();
 rollback;

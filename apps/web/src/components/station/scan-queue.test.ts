@@ -165,3 +165,19 @@ it("delivers a valid scan after an audited large-tote rejection without retrying
   expect(await s.store.read()).toEqual([]);
   expect(s.changed).toHaveBeenLastCalledWith(0);
 });
+
+it("a permanently rejected head does not block the next scan", async () => {
+  const s = setup();
+  s.send.mockResolvedValueOnce({ ok: false, reason: "scan_not_permitted" });
+  await s.queue.enqueue(request("permanent-head"));
+  await s.queue.enqueue(request("next-valid"));
+  await s.queue.drain();
+  await s.queue.drain();
+  expect(s.send.mock.calls.map(([row]) => row.client_action_id)).toEqual([
+    "permanent-head",
+    "next-valid",
+  ]);
+  expect(s.replied.mock.calls.map(([reply]) => reply.ok)).toEqual([false, true]);
+  expect(await s.store.read()).toEqual([]);
+  expect(s.changed).toHaveBeenLastCalledWith(0);
+});

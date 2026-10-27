@@ -1,4 +1,9 @@
 const messages: Record<string, string> = {
+  station_mismatch: "This device has changed stations. Reopen the station before scanning again.",
+  station_sign_in_required: "Station sign-in required. Sign in or pair this device again.",
+  scan_not_permitted: "This scan is not permitted for this station account.",
+  scan_conflict: "This scan action conflicts with an earlier action. Scan again.",
+  scan_request_rejected: "This scan request cannot be processed. Check the label and scan again.",
   empty: "No label received. Scan again.",
   unknown_format: "Label not recognized. Scan a tote tag.",
   bad_field: "Label is incomplete or damaged.",

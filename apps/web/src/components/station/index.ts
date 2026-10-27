@@ -5,3 +5,4 @@ export { QueueList, useRealtimeQueue, type QueueItem } from "./queue-list";
 export { OperatorPinOverlay, ManagerPinOverlay, type PinResult } from "./pin-overlay";
 export { useScanAction } from "./use-scan-action";
 export type { ScanRequest, ScanReply } from "./scan-queue";
+export { useOperatorIdle } from "./use-operator-idle";

@@ -27,7 +27,9 @@ end;
 $$;
 
 -- p_parsed comes from the server's rules/qr parser. This endpoint only audits;
--- station-specific domain writes belong in their own transactional scan RPCs.
+-- Authenticated callers can supply inconsistent p_raw/p_parsed/p_reason: this is audit-only.
+-- Domain-writing RPCs must validate master rows and transitions, never use parsed as proof.
+-- Station-specific domain writes belong in their own transactional scan RPCs.
 create function public.station_scan(
   p_client_action_id text, p_raw text, p_station public.device_station,
   p_parsed jsonb, p_reason text default null, p_operator_session uuid default null
@@ -39,14 +41,14 @@ begin
   perform app.require_role('{owner,manager,staff,cashier,station}');
   if app.device_id() is not null then
     select * into v_device from public.device where id = app.device_id()
-      and org_id = app.org_id() and auth_user_id = app.user_id() and is_active;
-    if v_device.id is null or v_device.station <> p_station then
-      raise exception 'station does not match device' using errcode = '42501';
+      and org_id = app.org_id() and auth_user_id = app.user_id();
+    if v_device.id is null or not v_device.is_active or v_device.station <> p_station then
+      v_reason := 'station_mismatch';
     end if;
   end if;
   v_action := app.action_begin(p_client_action_id, 'station.scan', jsonb_build_object('station', p_station));
   if v_action->>'status' = 'done' then return v_action->'result'; end if;
-  if app.role() = 'station' then
+  if app.role() = 'station' and v_reason is distinct from 'station_mismatch' then
     select operator_id into v_operator from public.station_operator_session
       where id = p_operator_session and org_id = app.org_id() and user_id = app.user_id()
         and expires_at > now();
@@ -56,7 +58,7 @@ begin
       update public.station_operator_session set expires_at = now() + interval '15 minutes'
         where id = p_operator_session;
     end if;
-  else
+  elsif app.role() <> 'station' then
     select id into v_operator from public.org_member
       where org_id = app.org_id() and user_id = app.user_id();
   end if;
@@ -72,7 +74,7 @@ begin
     end if;
   end if;
   insert into public.scan_log(org_id, station, device_id, operator_id, raw, parsed, result, reason, intake_id)
-  values (app.org_id(), p_station, app.device_id(), v_operator, p_raw, p_parsed,
+  values (app.org_id(), p_station, v_device.id, v_operator, p_raw, p_parsed,
     case when v_reason is null then 'ok'::public.scan_log_result else 'rejected'::public.scan_log_result end,
     v_reason, v_intake) returning id into v_id;
   v_result := jsonb_build_object('ok', v_reason is null, 'reason', coalesce(v_reason, 'Tote accepted'), 'scan_id', v_id);

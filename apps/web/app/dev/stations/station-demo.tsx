@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { filletryClaims, type FilletryClaims, type FilletryClient } from "db";
 import Link from "next/link";
 import { encode } from "rules";
@@ -9,6 +9,8 @@ import { StationShell } from "@/src/components/station/station-shell";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
 import { OperatorPinOverlay, ManagerPinOverlay } from "@/src/components/station/pin-overlay";
 import { QueueList, useRealtimeQueue, type QueueItem } from "@/src/components/station/queue-list";
+import { useOperatorIdle } from "@/src/components/station/use-operator-idle";
+import { permanentScanFailure } from "@/src/components/station/scan-failure";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import type { ScanRequest } from "@/src/components/station/scan-queue";
 import { demoScan } from "./actions";
@@ -86,20 +88,31 @@ function LiveStation({ client, claims, station, site }: Context) {
   const [managerMessage, setManagerMessage] = useState("");
   const [items, setItems] = useState<QueueItem[]>([]);
   const [queueError, setQueueError] = useState("");
-  const lastInteraction = useRef(0);
+  const expireOperator = useCallback(() => {
+    setOperator(null);
+    setOperatorSession(null);
+    setPinOpen(true);
+  }, []);
+  const { reset: resetIdle, check: checkIdle } = useOperatorIdle(
+    isDevice && operator !== null,
+    expireOperator,
+  );
   const send = useCallback(
     async (request: ScanRequest) => {
-      const { data } = await client.auth.getSession();
-      if (!data.session) throw new Error("Sign in required");
+      const { data, error } = await client.auth.getSession();
+      if (error) {
+        const rejection = permanentScanFailure(error);
+        if (rejection) return rejection;
+        throw new Error("Station session unavailable");
+      }
+      if (!data.session) return { ok: false, reason: "station_sign_in_required" };
       const reply = await demoScan(request, data.session.access_token);
       if (reply.reason === "operator_pin_required") {
-        setOperator(null);
-        setOperatorSession(null);
-        setPinOpen(true);
+        expireOperator();
       }
       return reply;
     },
-    [client],
+    [client, expireOperator],
   );
   const { scan, pending, feedback } = useScanAction(
     `${claims.orgId}:${claims.userId}:${station}`,
@@ -125,30 +138,6 @@ function LiveStation({ client, claims, station, site }: Context) {
       });
   }, [client]);
   useRealtimeQueue(client, claims.orgId, refresh);
-  useEffect(() => {
-    if (!isDevice) return;
-    const activity = () => {
-      if (Date.now() - lastInteraction.current >= 15 * 60_000) {
-        setOperator(null);
-        setOperatorSession(null);
-        setPinOpen(true);
-      } else if (operator) lastInteraction.current = Date.now();
-    };
-    window.addEventListener("pointerdown", activity);
-    window.addEventListener("keydown", activity);
-    const timer = setInterval(() => {
-      if (Date.now() - lastInteraction.current >= 15 * 60_000) {
-        setOperator(null);
-        setOperatorSession(null);
-        setPinOpen(true);
-      }
-    }, 1000);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener("pointerdown", activity);
-      window.removeEventListener("keydown", activity);
-    };
-  }, [isDevice, operator]);
   return (
     <StationShell
       name="Station gallery"
@@ -158,7 +147,7 @@ function LiveStation({ client, claims, station, site }: Context) {
       paused={pinOpen || managerOpen}
       status={<ScanFeedback feedback={feedback} />}
       onScan={(raw) => {
-        if (isDevice && (!operator || Date.now() - lastInteraction.current >= 15 * 60_000)) {
+        if (isDevice && (!operator || checkIdle())) {
           setPinOpen(true);
           return;
         }
@@ -213,7 +202,7 @@ function LiveStation({ client, claims, station, site }: Context) {
               };
             setOperator(result.member?.display_name ?? "Operator");
             setOperatorSession(result.session_id);
-            lastInteraction.current = Date.now();
+            resetIdle();
             return { ok: true };
           }}
         />

@@ -58,3 +58,21 @@ describe("withAction", () => {
     expect(fn).not.toHaveBeenCalled();
   });
 });
+
+it("preserves lookup error codes so callers can distinguish permanent failures", async () => {
+  const client = createClient<Database>("http://fake.local", "anon", {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: async () =>
+        new Response(JSON.stringify({ code: "42501", message: "permission denied" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        }),
+    },
+  });
+  const fn = vi.fn(async () => ({ ok: true }));
+  await expect(withAction(client, "act-denied-001", fn)).rejects.toMatchObject({
+    cause: { code: "42501" },
+  });
+  expect(fn).not.toHaveBeenCalled();
+});
