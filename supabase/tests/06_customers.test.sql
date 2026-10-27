@@ -163,8 +163,8 @@ select is(
      || (payload ->> 'previous_is_lodge_guest') || '|' || (payload ->> 'lodge_id') || '|'
      || (processed_at is null)::text
    from public.domain_event where id = (select v::uuid from t_ids where k = 'flip1')),
-  'customer_lodge_flag_changed|a6000000-0000-4000-8000-0000000002a4|true|false|a6000000-0000-4000-8000-0000000001a1|true',
-  'the flip writes an unprocessed customer_lodge_flag_changed event for the reprice consumer');
+  'customer_lodge_flag_changed|a6000000-0000-4000-8000-0000000002a4|true|false|a6000000-0000-4000-8000-0000000001a1|false',
+  'the flip writes a customer_lodge_flag_changed event, consumed by the WP-07 reprice in the same transaction');
 
 select is(public.set_lodge_guest('lodge-act-0001', 'a6000000-0000-4000-8000-0000000002a4', true,
     'a6000000-0000-4000-8000-0000000001a1') ->> 'event_id',
@@ -224,8 +224,9 @@ insert into public.intake (id, org_id, number, customer_id) values
 insert into public.charge (id, org_id, number, customer_id, kind, source_type, source_id, qty, unit, unit_price) values
   ('a6000000-0000-4000-8000-0000000004a1', 'a6000000-0000-4000-8000-00000000000a', 'CHG-0001',
    'a6000000-0000-4000-8000-0000000002a2', 'processing', 'intake', 'a6000000-0000-4000-8000-0000000003a1', 10, 'lb', 2.00);
+-- A still-pending customer event (lodge flips are consumed on insert by the WP-07 reprice).
 insert into public.domain_event (org_id, kind, subject_id) values
-  ('a6000000-0000-4000-8000-00000000000a', 'customer_lodge_flag_changed', 'a6000000-0000-4000-8000-0000000002a2');
+  ('a6000000-0000-4000-8000-00000000000a', 'customer_pending_probe', 'a6000000-0000-4000-8000-0000000002a2');
 set local role authenticated;
 
 select throws_ok($$ select public.admin_merge_customers('merge-act-0001', 'a6000000-0000-4000-8000-0000000002a1',
@@ -255,7 +256,7 @@ select is((select customer_id::text from public.intake where id = 'a6000000-0000
 select is((select customer_id::text from public.charge where id = 'a6000000-0000-4000-8000-0000000004a1'),
   'a6000000-0000-4000-8000-0000000002a1', 'its charges move to the kept customer');
 select is((select count(*)::int from public.domain_event
-           where subject_id = 'a6000000-0000-4000-8000-0000000002a1' and kind = 'customer_lodge_flag_changed'),
+           where subject_id = 'a6000000-0000-4000-8000-0000000002a1' and kind = 'customer_pending_probe'),
   1, 'its pending customer events follow the kept customer');
 select is((select last_visit_at::date::text from public.customer where id = 'a6000000-0000-4000-8000-0000000002a1'),
   '2026-07-10', 'the kept customer keeps the latest visit');
