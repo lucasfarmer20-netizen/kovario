@@ -1,3 +1,4 @@
+import { encode } from "rules";
 import { describe, expect, it } from "vitest";
 import {
   KeystrokeTimer,
@@ -24,8 +25,9 @@ describe("canSearch — phone first, >= 3 digits", () => {
   });
 
   it("never searches a scanned QR payload", () => {
-    expect(canSearch("KV:TOTE:INT-0001:1")).toBe(false);
-    expect(canSearch("kv:tag:demo:042")).toBe(false);
+    const tote = encode("TOTE", { intakeNumber: "INT-0001", toteNo: 1 });
+    expect(canSearch(tote)).toBe(false);
+    expect(canSearch(encode("TAG", { orgSlug: "demo", code: "042" }).toLowerCase())).toBe(false);
   });
 });
 
@@ -86,7 +88,7 @@ describe("KeystrokeTimer — scanner-safe Enter", () => {
   });
 
   it("treats a QR payload as a scan however it was typed", () => {
-    expect(typed([300, 300]).isScan("KV:TAG:demo:042")).toBe(true);
+    expect(typed([300, 300]).isScan(encode("TAG", { orgSlug: "demo", code: "042" }))).toBe(true);
   });
 
   it("starts over after reset", () => {

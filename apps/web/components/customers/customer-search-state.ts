@@ -1,4 +1,4 @@
-import { MIN_SEARCH_DIGITS, normalizePhone, phoneDigits } from "rules";
+import { MIN_SEARCH_DIGITS, QR_PREFIX, normalizePhone, phoneDigits } from "rules";
 
 /** One row of public.search_customers: what the dropdown shows (docs/06-STATIONS-UX.md). */
 export type CustomerHit = {
@@ -24,7 +24,7 @@ export const SCAN_MIN_CHARS = 4;
 
 /** A scanned QR payload (packages/rules qr.ts) rather than a phone or name. */
 function looksLikeQr(q: string): boolean {
-  return /^KV:/i.test(q.trim());
+  return q.trim().toUpperCase().startsWith(`${QR_PREFIX}:`);
 }
 
 /**

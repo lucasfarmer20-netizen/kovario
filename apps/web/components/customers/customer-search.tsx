@@ -21,7 +21,7 @@ const DEBOUNCE_MS = 200;
  * Phone-first customer lookup (docs/06-STATIONS-UX.md, Intake): from 3 digits a live
  * dropdown shows name, phone, last visit and a lodge badge; ↑/↓ move, Enter picks, Esc
  * closes; the last option creates a customer inline. Scanner-safe: a keyboard-wedge burst
- * (or a `KV:` payload) ending in Enter is handed to `onScan` and never picks a customer.
+ * (or a QR payload from packages/rules qr.ts) ending in Enter is handed to `onScan` and never picks a customer.
  *
  * `search` / `create` are injected so the same component serves admin (Server Actions) and
  * stations (device session); `create` must pass `clientActionId` to `create_customer`.
