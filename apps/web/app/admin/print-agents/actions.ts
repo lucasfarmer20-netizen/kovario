@@ -40,7 +40,7 @@ export async function pairAgent(_state: ActionState, form: FormData): Promise<Ac
       );
       const code = data?.[0];
       if (code?.active)
-        message = `Pairing code: ${code.code} � expires ${code.expires_at}. Run the agent with --pair.`;
+        message = `Pairing code: ${code.code} - expires ${code.expires_at}. Run the agent with --pair.`;
       return {};
     },
     message,

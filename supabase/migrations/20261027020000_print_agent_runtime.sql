@@ -26,17 +26,85 @@ grant execute on function app.custom_access_token_hook(jsonb) to supabase_auth_a
 create function app.agent_id() returns uuid language sql stable set search_path = '' as $$
   select case when app.role()='agent' then nullif(app.claims()->>'agent_id','')::uuid end
 $$;
--- Restrictive policies also protect tables whose ordinary SELECT policy admits every
--- member of an org. Agent JWTs must never read customers/payments/action_log/etc.
-do $$ declare t record; predicate text; begin
-  for t in select c.oid::regclass tbl, c.relname from pg_class c join pg_namespace n on n.oid=c.relnamespace
-    where n.nspname='public' and c.relkind='r' and c.relrowsecurity loop
-    predicate := case t.relname
-      when 'print_agent' then 'id = (select app.agent_id())'
-      when 'printer' then 'agent_id = (select app.agent_id())'
-      when 'print_job' then 'printer_id in (select id from public.printer where agent_id = (select app.agent_id()))'
-      else 'false' end;
-    execute format('create policy agent_scope on %s as restrictive to authenticated using ((select app.role()) is distinct from ''agent'' or (%s)) with check ((select app.role()) is distinct from ''agent'')',t.tbl,predicate);
+-- Agent scope is deny-by-default, including for tables added by later work packages.
+-- Keep this separate so the existing-table backfill does not reset column grants.
+create or replace function app.apply_agent_scope(tbl regclass)
+returns void language plpgsql set search_path = '' as $$
+declare predicate text := 'false';
+begin
+  predicate := case tbl
+    when 'public.print_agent'::regclass then 'id = (select app.agent_id())'
+    when 'public.printer'::regclass then 'agent_id = (select app.agent_id())'
+    when 'public.print_job'::regclass then 'printer_id in (select id from public.printer where agent_id = (select app.agent_id()))'
+    else 'false' end;
+  execute format('drop policy if exists agent_scope on %s', tbl);
+  execute format('create policy agent_scope on %s as restrictive to authenticated using ((select app.role()) is distinct from ''agent'' or (%s)) with check ((select app.role()) is distinct from ''agent'')', tbl, predicate);
+end $$;
+revoke all on function app.apply_agent_scope(regclass) from public;
+
+-- Install the restriction before the read-only early return as well as for writable
+-- tables. The original grant/tenant/write-role behavior is otherwise unchanged.
+create or replace function app.enable_org_rls(tbl regclass, write_roles text[] default null)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  write_check text;
+begin
+  if not exists (
+    select 1 from pg_catalog.pg_attribute
+    where attrelid = tbl and attname = 'org_id' and not attisdropped
+  ) then
+    raise exception 'enable_org_rls: % has no org_id column', tbl;
+  end if;
+
+  execute format('alter table %s enable row level security', tbl);
+  execute format('revoke all on %s from anon, authenticated', tbl);
+  execute format('grant select on %s to authenticated', tbl);
+  execute format('grant all on %s to service_role', tbl);
+
+  execute format('drop policy if exists org_select on %s', tbl);
+  execute format('drop policy if exists org_insert on %s', tbl);
+  execute format('drop policy if exists org_update on %s', tbl);
+  execute format('drop policy if exists org_delete on %s', tbl);
+
+  execute format(
+    'create policy org_select on %s for select to authenticated using (org_id = (select app.org_id()))',
+    tbl
+  );
+
+  perform app.apply_agent_scope(tbl);
+
+  if write_roles is not null and cardinality(write_roles) = 0 then
+    return; -- read-only for clients
+  end if;
+
+  execute format('grant insert, update, delete on %s to authenticated', tbl);
+
+  write_check := 'org_id = (select app.org_id())';
+  if write_roles is not null then
+    write_check := write_check || format(' and (select app.role()) = any (%L::text[])', write_roles);
+  end if;
+  write_check := '(' || write_check || ')';
+
+  execute format('create policy org_insert on %s for insert to authenticated with check %s', tbl, write_check);
+  execute format(
+    'create policy org_update on %s for update to authenticated using %s with check %s',
+    tbl, write_check, write_check
+  );
+  execute format('create policy org_delete on %s for delete to authenticated using %s', tbl, write_check);
+end;
+$$;
+
+revoke all on function app.enable_org_rls(regclass, text[]) from public;
+
+-- Backfill all existing RLS tables; future tables inherit it via enable_org_rls.
+-- scale_reading deliberately stays denied until the optional scale module ships.
+do $$ declare t record; begin
+  for t in select c.oid::regclass tbl from pg_class c join pg_namespace n on n.oid=c.relnamespace
+    where n.nspname='public' and c.relkind in ('r','p') and c.relrowsecurity loop
+    perform app.apply_agent_scope(t.tbl);
   end loop;
 end $$;
 

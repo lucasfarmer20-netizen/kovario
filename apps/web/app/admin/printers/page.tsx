@@ -77,7 +77,7 @@ export default async function PrintersPage() {
       {printers.data?.map((p) => (
         <section key={p.id} className="border-t py-4">
           <h2>
-            {p.name} �{" "}
+            {p.name} -{" "}
             {agentOnline(agents.data?.find((a) => a.id === p.agent_id)?.last_seen_at ?? null)
               ? "Online"
               : "Offline"}
@@ -100,8 +100,8 @@ export default async function PrintersPage() {
       <ul>
         {jobs.data?.map((j) => (
           <li key={j.id}>
-            {printers.data?.find((p) => p.id === j.printer_id)?.name} � {j.state} � {j.created_at}
-            {j.error ? ` � ${j.error}` : ""}
+            {printers.data?.find((p) => p.id === j.printer_id)?.name} - {j.state} - {j.created_at}
+            {j.error ? ` - ${j.error}` : ""}
           </li>
         ))}
       </ul>

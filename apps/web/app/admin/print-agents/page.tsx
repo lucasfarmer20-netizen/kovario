@@ -40,10 +40,10 @@ export default async function AgentsPage() {
         {agents.data?.map((a) => (
           <li key={a.id} className="py-4">
             <h2 className="font-semibold">
-              {a.name} � {agentOnline(a.last_seen_at) ? "Online" : "Offline"}
+              {a.name} - {agentOnline(a.last_seen_at) ? "Online" : "Offline"}
             </h2>
             <p>
-              Last seen: {a.last_seen_at ?? "Never"} �{" "}
+              Last seen: {a.last_seen_at ?? "Never"} -{" "}
               {sites.data?.find((s) => s.id === a.site_id)?.name ?? "No site"}
             </p>
             <ActionForm action={pairAgent} actionId={randomUUID()} submitLabel="New pairing code">

@@ -108,3 +108,6 @@ sent under the existing `location_tag` job kind (the domain enum has no asset ki
 Box labels and pick lists use the settlement boxing QR; no undocumented QR format
 is invented. Intake status-page URLs are external URLs, not KV scanner codes.
 The optional serial scale module and Labelary dev preview are not part of this WP.
+Agent sessions therefore cannot read or write `scale_reading` yet; that scope must
+be added explicitly when the scale module ships. New RLS tables deny agent access
+by default through `app.enable_org_rls`.
