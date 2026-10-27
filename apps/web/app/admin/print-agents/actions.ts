@@ -1,4 +1,5 @@
 "use server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { adminMutation, unwrap, type ActionState } from "@/lib/admin-action";
@@ -44,5 +45,5 @@ export async function pairAgent(_state: ActionState, form: FormData): Promise<Ac
     },
     message,
   );
-  return result.error ? result : { ok: message };
+  return result.error ? result : { ok: message, nextActionId: randomUUID() };
 }

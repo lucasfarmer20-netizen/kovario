@@ -1,4 +1,5 @@
 "use server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { enqueuePrintJob } from "db";
@@ -39,7 +40,7 @@ export async function savePrinter(_state: ActionState, form: FormData): Promise<
 export async function testPrint(_state: ActionState, form: FormData): Promise<ActionState> {
   const id = z.uuid().safeParse(form.get("printer_id"));
   if (!id.success) return { error: "Invalid printer." };
-  return adminMutation(
+  const result = await adminMutation(
     form,
     async ({ supabase }, actionId) => {
       const printer = unwrap(
@@ -75,4 +76,5 @@ export async function testPrint(_state: ActionState, form: FormData): Promise<Ac
     },
     "Test print queued. Check the printer and job status.",
   );
+  return result.error ? result : { ...result, nextActionId: randomUUID() };
 }
