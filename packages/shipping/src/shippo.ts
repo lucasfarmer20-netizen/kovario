@@ -376,7 +376,12 @@ export function shippoClient(opts: ShippoOptions) {
     return { labels, adopted };
   }
 
-  return { carrierAccounts, validateAddress, rateShop, buyLabels };
+  /** Whether Shippo holds any live (non-ERROR) transaction for the rate — i.e. it was bought. */
+  async function hasPurchase(rateId: string): Promise<boolean> {
+    return (await transactionsForRate(rateId)).some((t) => t.status !== "ERROR");
+  }
+
+  return { carrierAccounts, validateAddress, rateShop, buyLabels, hasPurchase };
 }
 
 export type ShippoClient = ReturnType<typeof shippoClient>;

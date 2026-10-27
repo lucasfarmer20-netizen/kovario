@@ -446,11 +446,101 @@ describe("shipping route flow (recorded Shippo fixtures)", { timeout: 60_000 }, 
     expect((await detail(sh.shipment_id)).state).toBe("label_bought");
   });
 
+  it("rate changes during the provider call are refused; paid labels are recovered with no second charge", async () => {
+    const sh = await shipment(2, today());
+    await readyToBuy(sh);
+    const interference: unknown[] = [];
+    const list = (json: unknown) => ({ json });
+    const d = deps(
+      tagged(
+        [
+          {
+            method: "POST",
+            url: "/transactions",
+            reply: { json: f.transactionSuccess },
+            // While Shippo is charging rate_ups_2da, another desk picks a cheaper rate and
+            // a rate shop lands.
+            before: async () => {
+              interference.push(
+                await rpc("select_shipment_rate", {
+                  p_client_action_id: cid("rate"),
+                  p_shipment_id: sh.shipment_id,
+                  p_rate_id: "rate_usps_priority",
+                }).catch((e: unknown) => e),
+              );
+              interference.push(
+                await shopRates(deps(happyPathRoutes()), { shipmentId: sh.shipment_id }).catch(
+                  (e: unknown) => e,
+                ),
+              );
+            },
+          },
+          {
+            method: "GET",
+            url: "/transactions?rate=",
+            // adopt check: none → charged; polls see 1 of 2 labels; the failure check sees the
+            // purchase; the retry adopts both.
+            reply: [
+              list(f.transactionsNone),
+              list(f.transactionsPartial),
+              list(f.transactionsPartial),
+              list(f.transactionsPartial),
+              list(f.transactionsPartial),
+              list(f.transactionsAll),
+            ],
+          },
+          ...happyPathRoutes(),
+        ],
+        "pin",
+      ),
+    );
+
+    await expect(
+      buyLabel(d, { clientActionId: cid("buy"), shipmentId: sh.shipment_id }),
+    ).rejects.toMatchObject({ code: "labels_incomplete" });
+    expect(interference).toHaveLength(2);
+    for (const e of interference) expect(String((e as Error).message)).toMatch(/purchase/);
+    expect((interference[1] as ShippingRequestError).status).toBe(409);
+
+    const failed = (await detail(sh.shipment_id)) as Shipment & {
+      shippo_rate_id: string;
+      purchase_outstanding: boolean;
+    };
+    expect(failed).toMatchObject({
+      state: "draft",
+      buying: false,
+      shippo_rate_id: "rate_ups_2da",
+      purchase_outstanding: true,
+    });
+    // Still pinned after the failure: no desk can swap the paid rate out.
+    await expect(
+      rpc("select_shipment_rate", {
+        p_client_action_id: cid("rate"),
+        p_shipment_id: sh.shipment_id,
+        p_rate_id: "rate_usps_priority",
+      }),
+    ).rejects.toThrow(/not recorded yet/);
+
+    const retry = (await buyLabel(d, {
+      clientActionId: cid("buy"),
+      shipmentId: sh.shipment_id,
+    })) as {
+      status: string;
+      adopted: boolean;
+      shipment: Shipment & { purchase_outstanding: boolean };
+    };
+    expect(retry).toMatchObject({ status: "bought", adopted: true });
+    expect(retry.shipment).toMatchObject({ state: "label_bought", purchase_outstanding: false });
+    expect(d.fetch.count("/transactions", "POST")).toBe(1); // the original charge only
+  });
+
   it("replaying a buy after it failed and the shipment was cancelled never reaches Shippo", async () => {
     const sh = await shipment(1, today());
     await readyToBuy(sh);
     const d = deps([
       { method: "POST", url: "/transactions", reply: { json: f.transactionError } },
+      // Shippo refused the purchase: no transaction exists for the rate, so the rate unpins.
+      { method: "GET", url: "/transactions?rate=", reply: { json: f.transactionsNone } },
       ...tagged(happyPathRoutes(), "replay"),
     ]);
     const clientActionId = cid("buy");

@@ -260,6 +260,16 @@ describe("buy label per parcel", () => {
   });
 });
 
+describe("was anything bought for a rate?", () => {
+  it("live transactions → yes; none or only failed ones → no", async () => {
+    const at = (json: unknown) =>
+      client([{ method: "GET", url: "/transactions?rate=", reply: { json } }]).shippo;
+    expect(await at(f.transactionsAll).hasPurchase("rate_ups_2da")).toBe(true);
+    expect(await at(f.transactionsNone).hasPurchase("rate_ups_2da")).toBe(false);
+    expect(await at({ results: [f.transactionError] }).hasPurchase("rate_ups_2da")).toBe(false);
+  });
+});
+
 describe("errors never carry the key", () => {
   it("an HTTP error names the call and Shippo's detail only", async () => {
     const { shippo } = client([

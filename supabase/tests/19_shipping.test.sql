@@ -294,8 +294,14 @@ select throws_like($$select public.shipping_start_purchase('a1900000-0000-4000-8
 select throws_like($$select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), gen_random_uuid(),
   'rate_a1', pg_temp.labels('ann', 2))$$, '%no longer current%',
   'PURCHASE — labels are recorded only against the claim that started the purchase');
-select is((public.shipping_buy_failed('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), gen_random_uuid(), 'stale handler') ->> 'buying')::boolean,
+select is((public.shipping_buy_failed('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), gen_random_uuid(), 'stale handler', null) ->> 'buying')::boolean,
   true, 'PURCHASE — a stale handler''s failure report cannot clear the live claim');
+select throws_like($$select public.shipping_record_rates('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), (pg_temp.sh('ann')).ship_to,
+  pg_temp.shop('rate_new'))$$, '%not recorded yet%',
+  'PIN — a rate shop answering during the purchase cannot replace or clear the rate being paid for');
+select is((public.shipping_record_address('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), (pg_temp.sh('ann')).ship_to, true,
+  '{"name": "X", "street1": "9 Other St", "city": "Kenai", "state": "AK", "zip": "99611"}', '[]') ->> 'stale')::boolean,
+  true, 'PIN — nor can an address check answering during the purchase (it would clear the rate)');
 select throws_like($$select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), pg_temp.claim('ann'),
   'rate_a1', pg_temp.labels('ann', 1))$$, '%every parcel needs its label%',
   'LABELS — a two-parcel shipment is never recorded with one label (fetch every label)');
@@ -317,16 +323,40 @@ select is(public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', 
 select is(public.shipping_start_purchase('a1900000-0000-4000-8000-00000000000a', pg_temp.id('bo'), pg_temp.claim('bo')) ->> 'rate_id', 'rate_b1',
   'PURCHASE — a Buy Now claim re-checks the gate with its forced flag');
 select is(public.shipping_buy_failed('a1900000-0000-4000-8000-00000000000a', pg_temp.id('bo'), pg_temp.claim('bo'),
-  'only 1 of 2 labels are ready at Shippo') ->> 'buy_error', 'only 1 of 2 labels are ready at Shippo',
+  'only 1 of 2 labels are ready at Shippo', true) ->> 'buy_error', 'only 1 of 2 labels are ready at Shippo',
   'CLAIM — a failed buy releases the claim and keeps the reason');
-select ok((pg_temp.sh('bo')).notes like '%was sent to Shippo but not recorded%press Buy again%',
-  'CLAIM — a purchase that reached Shippo but was not recorded is noted for the desk');
--- …the desk then cancels it, and the original request is replayed: refused before any money moves.
+select ok((pg_temp.sh('bo')).notes like '%was charged by Shippo but not recorded%press Buy to fetch the labels%',
+  'CLAIM — a purchase Shippo charged but that was not recorded is noted for the desk');
+select is((pg_temp.sh('bo')).buy_outstanding_rate_id, 'rate_b1',
+  'PIN — after a charged failure the paid rate stays pinned (the claim is gone)');
+select throws_like($$select public.shipping_record_rates('a1900000-0000-4000-8000-00000000000a', pg_temp.id('bo'), (pg_temp.sh('bo')).ship_to,
+  pg_temp.shop('rate_new'))$$, '%not recorded yet%', 'PIN — a re-shop cannot replace the pinned rate');
 reset role;
 set local role authenticated;
 select pg_temp.as_role('a1900000-0000-4000-8000-00000000000a', 'staff');
-select is(public.cancel_shipment('wp19-cancel-bo', pg_temp.id('bo'), 'customer changed mind') ->> 'state', 'cancelled',
-  'CANCEL — a shipment whose buy failed cancels (no live claim)');
+select throws_like($$select public.select_shipment_rate('wp19-rate-bo-3', pg_temp.id('bo'), 'rate_b1_b')$$,
+  '%not recorded yet%', 'PIN — another desk cannot choose a different rate over a paid one');
+select throws_like($$select public.update_shipment('wp19-upd-bo-2', pg_temp.id('bo'), pg_temp.addr(), current_date + 1)$$,
+  '%not recorded yet%', 'PIN — nor edit the shipment (an address change would clear the rate)');
+select is(public.shipment_detail(pg_temp.id('bo')) ->> 'shippo_rate_id', 'rate_b1', 'PIN — the paid rate is unchanged');
+-- The next Buy recovers on the SAME rate (and Shippo adopts the paid transaction — route test).
+select is(public.begin_label_buy('wp19-buy-bo-7', pg_temp.id('bo'), true, 'wp19-elevation') ->> 'rate_id', 'rate_b1',
+  'PIN — the next Buy claims the pinned rate');
+reset role;
+set local role service_role;
+select public.shipping_buy_failed('a1900000-0000-4000-8000-00000000000a', pg_temp.id('bo'), pg_temp.claim('bo'), 'Shippo unreachable', null);
+select is((pg_temp.sh('bo')).buy_outstanding_rate_id, 'rate_b1',
+  'PIN — an unstarted claim failing with an unknown outcome keeps the pin');
+-- …the desk gives up and cancels; the original request is then replayed: refused before any money moves.
+reset role;
+set local role authenticated;
+select pg_temp.as_role('a1900000-0000-4000-8000-00000000000a', 'staff');
+select throws_ok($$select public.cancel_shipment('wp19-cancel-bo', pg_temp.id('bo'), 'customer changed mind')$$,
+  '42501', null, 'PIN — cancelling over an unrecorded purchase needs a manager');
+select is(public.cancel_shipment('wp19-cancel-bo-2', pg_temp.id('bo'), 'customer changed mind', 'wp19-elevation') ->> 'state',
+  'cancelled', 'CANCEL — a manager cancels it');
+select ok((pg_temp.sh('bo')).notes like '%unrecorded purchase on rate rate_b1: check Shippo and refund%',
+  'CANCEL — the possible charge is noted for a refund');
 select is(public.begin_label_buy('wp19-buy-bo-5', pg_temp.id('bo'), true, 'wp19-elevation') ->> 'replayed', 'true',
   'REPLAY — the failed buy''s action id replays its old claim');
 insert into t_ids select 'bo_old_claim', public.begin_label_buy('wp19-buy-bo-5', pg_temp.id('bo'), true,
@@ -336,6 +366,16 @@ set local role service_role;
 select throws_like($$select public.shipping_start_purchase('a1900000-0000-4000-8000-00000000000a', pg_temp.id('bo'), pg_temp.id('bo_old_claim'))$$,
   '%no longer current%',
   'REPLAY — replaying a buy after it failed and the shipment was cancelled can never start a purchase');
+
+-- A failure where Shippo confirms nothing was bought unpins the rate.
+reset role;
+update public.shipment set shippo_rate_id = 'rate_n', buy_claim_id = 'a1900000-0000-4000-8000-00000000c1a2',
+  buy_claimed_at = now(), buy_purchase_started_at = now(), buy_outstanding_rate_id = 'rate_n'
+where id = pg_temp.id('nodate');
+set local role service_role;
+select is(public.shipping_buy_failed('a1900000-0000-4000-8000-00000000000a', pg_temp.id('nodate'), 'a1900000-0000-4000-8000-00000000c1a2',
+  'The rate has expired', false) ->> 'rate_lock', null,
+  'PIN — when Shippo shows no transaction for the rate, the failure unpins it');
 
 -- Print / reprint (P24) ------------------------------------------------------------------------
 

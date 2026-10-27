@@ -56,6 +56,8 @@ const held: Shipment = {
   blockers: ["bad_address"],
   buying: false,
   buy_error: null,
+  purchase_outstanding: false,
+  rate_lock: null,
   gate: { held: true, blockers: ["bad_address", "no_service"], can_buy: false, can_reprint: false },
   today: "2026-07-20",
   parcels: [

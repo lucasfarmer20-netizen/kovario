@@ -105,7 +105,7 @@ export function ShipmentPanel({
           <div className="station-actions">
             <button
               type="button"
-              disabled={!!busy}
+              disabled={!!busy || !!s.rate_lock}
               onClick={() =>
                 void run("save", async () => show(await actions.update(shipTo, shipDate || null)))
               }
@@ -114,7 +114,7 @@ export function ShipmentPanel({
             </button>
             <button
               type="button"
-              disabled={!!busy}
+              disabled={!!busy || !!s.rate_lock}
               onClick={() =>
                 void run("verify", async () => {
                   const next = await actions.verify();
@@ -160,10 +160,11 @@ export function ShipmentPanel({
       {editable && (
         <>
           <h3>Rate</h3>
+          {s.rate_lock && <p role="alert">Rate fixed: {s.rate_lock}</p>}
           <div className="station-actions">
             <button
               type="button"
-              disabled={!!busy}
+              disabled={!!busy || !!s.rate_lock}
               onClick={() => void run("shop", async () => show(await actions.shop()))}
             >
               {busy === "shop" ? "Shopping rates…" : rates.length ? "Re-shop rates" : "Shop rates"}
@@ -189,7 +190,7 @@ export function ShipmentPanel({
                       type="radio"
                       name={`rate-${s.shipment_id}`}
                       checked={s.shippo_rate_id === r.rateId}
-                      disabled={!!busy}
+                      disabled={!!busy || !!s.rate_lock}
                       onChange={() =>
                         void run("select", async () => show(await actions.select(r.rateId)))
                       }

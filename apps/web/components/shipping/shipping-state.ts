@@ -62,6 +62,10 @@ export type Shipment = {
   blockers: string[];
   buying: boolean;
   buy_error: string | null;
+  /** A purchase reached Shippo and is not recorded: the rate is pinned until Buy fetches it. */
+  purchase_outstanding: boolean;
+  /** Why the rate cannot change now (live purchase / outstanding purchase), else null. */
+  rate_lock: string | null;
   gate: Gate;
   today: string;
   parcels: ShipmentParcelRow[];
@@ -163,6 +167,7 @@ export function statusLine(s: Shipment): string {
     return `Shipped${s.tracking_status ? ` · ${s.tracking_status.toLowerCase().replaceAll("_", " ")}` : ""}`;
   if (s.state === "label_bought") return "Label bought — print and hand to the carrier";
   if (s.buying) return "Buying label…";
+  if (s.purchase_outstanding) return "Label purchase not recorded — press Buy to fetch the labels";
   const parts: string[] = [];
   if (s.gate.held) parts.push(`Held — ships ${s.ship_date}, buy opens nearer the date`);
   if (s.gate.blockers.length)

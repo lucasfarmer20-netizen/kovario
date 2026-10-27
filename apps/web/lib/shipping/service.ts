@@ -256,11 +256,12 @@ export async function buyLabel(
     }),
   );
 
+  let client: ShippoClient | null = null;
   try {
     if (!started.shippo_shipment_id || started.parcel_count < 1) {
       throw new ShippingRequestError("Shop rates again before buying", 409, "no_rate");
     }
-    const client = await shippo(deps);
+    client = await shippo(deps);
     const { labels, adopted } = await client
       .buyLabels({
         shippoShipmentId: started.shippo_shipment_id,
@@ -281,11 +282,15 @@ export async function buyLabel(
     return { status: "bought", adopted, shipment } as unknown as Json;
   } catch (e) {
     const reason = e instanceof Error ? e.message : "label purchase failed";
+    // Did Shippo sell anything for this rate? Never reached Shippo → no; Shippo lists a live
+    // transaction → yes; cannot tell → unknown (null). Only "no" unpins the rate.
+    const charged = client ? await client.hasPurchase(started.rate_id).catch(() => null) : false;
     await deps.service.rpc("shipping_buy_failed", {
       p_org_id: deps.orgId,
       p_shipment_id: started.shipment_id,
       p_claim_id: started.claim_id,
       p_error: reason,
+      p_charged: charged as boolean, // null = unknown; the generated type cannot say so
     });
     throw e;
   }

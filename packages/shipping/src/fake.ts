@@ -10,6 +10,8 @@ export type FakeRoute = {
   /** Substring of the URL, or a regex over it. */
   url: string | RegExp;
   reply: FakeReply | FakeReply[];
+  /** Runs while the call is "in flight", before it answers (to race other work against it). */
+  before?: (url: string) => Promise<void> | void;
 };
 export type FakeCall = { method: string; url: string; authorized: boolean; body: unknown };
 
@@ -34,6 +36,7 @@ export function fakeFetch(routes: FakeRoute[]): FakeFetch {
       return new Response(JSON.stringify({ detail: `no fake for ${method} ${url}` }), {
         status: 404,
       });
+    await route.before?.(url);
     const list = Array.isArray(route.reply) ? route.reply : [route.reply];
     const n = played.get(route) ?? 0;
     played.set(route, n + 1);

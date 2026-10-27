@@ -34,6 +34,11 @@ alter table public.shipment
   add column if not exists buy_claimed_at timestamptz,
   add column if not exists buy_claim_forced boolean not null default false,
   add column if not exists buy_purchase_started_at timestamptz,
+  -- The rate a started purchase is (or may be) paying for. Set when the purchase starts; kept
+  -- through failures and claim expiry; cleared only when its labels are recorded, when Shippo
+  -- confirms nothing was bought for it, or by a manager cancel. While set, the chosen rate is
+  -- pinned, so the next Buy adopts the paid labels instead of buying a different rate.
+  add column if not exists buy_outstanding_rate_id text,
   add column if not exists buy_error text,
   add column if not exists tracking_status text,
   add column if not exists shipped_at timestamptz,
@@ -181,6 +186,38 @@ begin
 end;
 $$;
 
+-- Why the chosen rate cannot change right now, or null: a live purchase claim, or a purchase
+-- that reached Shippo and is not recorded yet. Every rate-changing path checks this.
+create or replace function app.shipment_rate_lock(p_sh public.shipment)
+returns text
+language sql
+stable
+set search_path = ''
+as $$
+  select case
+    when p_sh.buy_outstanding_rate_id is not null then
+      format('a label purchase for %s (rate %s) reached Shippo and is not recorded yet; press Buy to fetch it, or a manager cancels and refunds it',
+             p_sh.number, p_sh.buy_outstanding_rate_id)
+    when p_sh.buy_claimed_at > now() - interval '5 minutes' then
+      format('a label purchase for %s is in progress', p_sh.number)
+  end
+$$;
+
+create or replace function app.require_rate_unlocked(p_sh public.shipment)
+returns void
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_reason text := app.shipment_rate_lock(p_sh);
+begin
+  if v_reason is not null then
+    raise exception '%', v_reason using errcode = '55006';
+  end if;
+end;
+$$;
+
 -- Re-evaluates the date hold after a write: draft → held when the gate says held. (A held
 -- shipment stays `held` — there is no held → draft edge; the gate is evaluated live on every
 -- buy and on the queue, so a stale `held` never blocks a buy.)
@@ -254,6 +291,8 @@ as $$
     'blockers', sh.blockers,
     'buying', sh.buy_claimed_at is not null and sh.buy_claimed_at > now() - interval '5 minutes',
     'buy_error', sh.buy_error,
+    'purchase_outstanding', sh.buy_outstanding_rate_id is not null,
+    'rate_lock', app.shipment_rate_lock(sh),
     'gate', app.shipment_gate(sh, false),
     'today', app.org_today(sh.org_id),
     'allowlist', coalesce(o.settings #> '{shipping,carrier_allowlist}', '"*"'::jsonb),
@@ -446,9 +485,7 @@ begin
     raise exception '% has a label (%); cancel it to change the address or date', v_sh.number, v_sh.state
       using errcode = '55000';
   end if;
-  if v_sh.buy_claimed_at > now() - interval '5 minutes' then
-    raise exception 'a label purchase for % is in progress' , v_sh.number using errcode = '55006';
-  end if;
+  perform app.require_rate_unlocked(v_sh);
 
   v_to := app.clean_address(coalesce(p_ship_to, '{}'::jsonb));
   if v_to is distinct from v_sh.ship_to then
@@ -494,9 +531,7 @@ begin
   if v_sh.state not in ('draft', 'held') then
     raise exception '% already has a label' , v_sh.number using errcode = '55000';
   end if;
-  if v_sh.buy_claimed_at > now() - interval '5 minutes' then
-    raise exception 'a label purchase for % is in progress', v_sh.number using errcode = '55006';
-  end if;
+  perform app.require_rate_unlocked(v_sh);
   select r into v_rate
   from jsonb_array_elements(coalesce(v_sh.rate_shop -> 'rates', '[]'::jsonb)) r
   where r ->> 'rateId' = p_rate_id;
@@ -567,6 +602,12 @@ begin
   end if;
   if v_sh.buy_claimed_at > now() - interval '5 minutes' then
     raise exception 'a label purchase for % is already in progress', v_sh.number using errcode = '55006';
+  end if;
+  -- An outstanding purchase is recovered on its own rate (the pin makes these equal).
+  if v_sh.buy_outstanding_rate_id is not null
+     and v_sh.buy_outstanding_rate_id is distinct from v_sh.shippo_rate_id then
+    raise exception '% has an outstanding purchase on rate %; it must be recovered first', v_sh.number,
+      v_sh.buy_outstanding_rate_id using errcode = '55000';
   end if;
 
   v_gate := app.shipment_gate(v_sh, v_force);
@@ -739,11 +780,15 @@ begin
   if v_sh.buy_claimed_at > now() - interval '5 minutes' then
     raise exception 'a label purchase for % is in progress', v_sh.number using errcode = '55006';
   end if;
-  if v_sh.state = 'label_bought' then
+  if v_sh.state = 'label_bought' or v_sh.buy_outstanding_rate_id is not null then
     v_manager := app.require_elevation(p_elevation_token);
   end if;
 
-  update public.shipment set state = 'cancelled' where id = v_sh.id;
+  update public.shipment set state = 'cancelled', buy_outstanding_rate_id = null where id = v_sh.id;
+  if v_sh.buy_outstanding_rate_id is not null then
+    perform app.shipment_note(v_sh.id, 'Cancelled with an unrecorded purchase on rate '
+      || v_sh.buy_outstanding_rate_id || ': check Shippo and refund any label bought for it');
+  end if;
   update public.box_plan set shipment_id = null where shipment_id = v_sh.id;
   perform app.shipment_note(v_sh.id, 'Cancelled: ' || btrim(p_reason)
     || case when v_sh.state = 'label_bought'
@@ -965,6 +1010,10 @@ begin
   if v_sh.state not in ('draft', 'held') or v_sh.ship_to is distinct from p_checked then
     return jsonb_build_object('stale', true, 'shipment', app.shipment_json(v_sh.id));
   end if;
+  if app.shipment_rate_lock(v_sh) is not null then
+    return jsonb_build_object('stale', true, 'reason', app.shipment_rate_lock(v_sh),
+      'shipment', app.shipment_json(v_sh.id));
+  end if;
   v_normalized := case when p_valid and jsonb_typeof(p_normalized) = 'object'
                        then app.clean_address(p_normalized) else v_sh.ship_to end;
   if p_valid then
@@ -1009,6 +1058,8 @@ begin
   if v_sh.state not in ('draft', 'held') or v_sh.ship_to is distinct from p_checked then
     return jsonb_build_object('stale', true, 'shipment', app.shipment_json(v_sh.id));
   end if;
+  -- A rate shop already in flight when a purchase started must not replace or clear its rate.
+  perform app.require_rate_unlocked(v_sh);
   if jsonb_typeof(p_shop) <> 'object' or jsonb_typeof(p_shop -> 'rates') <> 'array' then
     raise exception 'rate shop must be an object with rates' using errcode = '22023';
   end if;
@@ -1088,7 +1139,7 @@ begin
   set state = 'label_bought', shippo_transaction_id = v_first ->> 'transactionId',
       tracking_number = v_first ->> 'trackingNumber', label_url = v_first ->> 'labelUrl',
       buy_claim_id = null, buy_claimed_at = null, buy_claim_forced = false,
-      buy_purchase_started_at = null, buy_error = null
+      buy_purchase_started_at = null, buy_outstanding_rate_id = null, buy_error = null
   where id = v_sh.id;
   return app.shipment_json(v_sh.id);
 end;
@@ -1096,10 +1147,12 @@ $$;
 
 -- A buy that did not finish, reported by the handler that holds the claim (a stale or replayed
 -- handler's report is ignored, so it cannot clear a live claim). Clears the claim and keeps the
--- reason. If the purchase had been sent to Shippo the money may be spent: that is noted, and
--- the next Buy adopts whatever Shippo sold for the rate — never buys it twice.
+-- reason. p_charged is what the handler found at Shippo afterwards for the rate: false = no
+-- transaction exists (nothing was bought) → the rate is unpinned; true or null (unknown) → the
+-- rate stays pinned and the desk is told, so the next Buy adopts the paid labels — never buys a
+-- different rate on top of them.
 create or replace function public.shipping_buy_failed(
-  p_org_id uuid, p_shipment_id uuid, p_claim_id uuid, p_error text
+  p_org_id uuid, p_shipment_id uuid, p_claim_id uuid, p_error text, p_charged boolean
 )
 returns jsonb
 language plpgsql
@@ -1108,19 +1161,23 @@ set search_path = ''
 as $$
 declare
   v_sh public.shipment;
+  v_unpin boolean;
 begin
   v_sh := app.lock_shipment(p_org_id, p_shipment_id);
   if v_sh.buy_claim_id is distinct from p_claim_id then
     return app.shipment_json(v_sh.id);
   end if;
+  v_unpin := p_charged is not distinct from false;
   update public.shipment
   set buy_claim_id = null, buy_claimed_at = null, buy_claim_forced = false,
-      buy_purchase_started_at = null, buy_error = left(coalesce(p_error, 'failed'), 500)
+      buy_purchase_started_at = null, buy_error = left(coalesce(p_error, 'failed'), 500),
+      buy_outstanding_rate_id = case when v_unpin then null else buy_outstanding_rate_id end
   where id = v_sh.id;
-  if v_sh.buy_purchase_started_at is not null then
-    perform app.shipment_note(v_sh.id, 'Label purchase for rate ' || coalesce(v_sh.shippo_rate_id, '?')
-      || ' was sent to Shippo but not recorded (' || left(coalesce(p_error, 'failed'), 200)
-      || '): press Buy again to fetch the labels, or refund them in Shippo if cancelling');
+  if not v_unpin and v_sh.buy_outstanding_rate_id is not null then
+    perform app.shipment_note(v_sh.id, 'Label purchase for rate ' || v_sh.buy_outstanding_rate_id
+      || case when p_charged then ' was charged by Shippo' else ' may have been charged by Shippo' end
+      || ' but not recorded (' || left(coalesce(p_error, 'failed'), 200)
+      || '): the rate stays fixed — press Buy to fetch the labels, or a manager cancels and refunds them');
   end if;
   return app.shipment_json(v_sh.id);
 end;
@@ -1159,7 +1216,9 @@ begin
     raise exception '% can no longer be bought (%)', v_sh.number, v_sh.state using errcode = '55000';
   end if;
   select count(*) into v_parcels from public.shipment_parcel where shipment_id = v_sh.id;
-  update public.shipment set buy_purchase_started_at = now() where id = v_sh.id;
+  update public.shipment
+  set buy_purchase_started_at = now(), buy_outstanding_rate_id = v_sh.shippo_rate_id
+  where id = v_sh.id;
   return jsonb_build_object('shipment_id', v_sh.id, 'number', v_sh.number, 'claim_id', p_claim_id,
     'rate_id', v_sh.shippo_rate_id, 'shippo_shipment_id', v_sh.shippo_shipment_id,
     'parcel_count', v_parcels);
@@ -1223,6 +1282,8 @@ revoke all on function
   app.caller_site(),
   app.shipment_note(uuid, text),
   app.lock_shipment(uuid, uuid),
+  app.shipment_rate_lock(public.shipment),
+  app.require_rate_unlocked(public.shipment),
   app.shipment_sync_hold(uuid),
   app.shipment_parcels(uuid),
   app.shipment_json(uuid),
@@ -1265,7 +1326,7 @@ revoke all on function
   public.shipping_record_address(uuid, uuid, jsonb, boolean, jsonb, jsonb),
   public.shipping_record_rates(uuid, uuid, jsonb, jsonb),
   public.shipping_record_labels(uuid, uuid, uuid, text, jsonb),
-  public.shipping_buy_failed(uuid, uuid, uuid, text),
+  public.shipping_buy_failed(uuid, uuid, uuid, text, boolean),
   public.shipping_start_purchase(uuid, uuid, uuid),
   public.shipping_apply_tracking(text, text, text, boolean, text)
 from public, anon, authenticated;
@@ -1275,7 +1336,7 @@ grant execute on function
   public.shipping_record_address(uuid, uuid, jsonb, boolean, jsonb, jsonb),
   public.shipping_record_rates(uuid, uuid, jsonb, jsonb),
   public.shipping_record_labels(uuid, uuid, uuid, text, jsonb),
-  public.shipping_buy_failed(uuid, uuid, uuid, text),
+  public.shipping_buy_failed(uuid, uuid, uuid, text, boolean),
   public.shipping_start_purchase(uuid, uuid, uuid),
   public.shipping_apply_tracking(text, text, text, boolean, text)
 to service_role;

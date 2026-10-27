@@ -24,6 +24,8 @@ const base: Shipment = {
   blockers: [],
   buying: false,
   buy_error: null,
+  purchase_outstanding: false,
+  rate_lock: null,
   gate: { held: false, blockers: [], can_buy: true, can_reprint: false },
   today: "2026-07-20",
   parcels: [
