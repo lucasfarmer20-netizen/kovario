@@ -1,0 +1,34 @@
+{
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "object_id": "ca_7f1e0000000000000000000000000001",
+      "carrier": "usps",
+      "account_id": "shippo_usps_account",
+      "active": true,
+      "test": true
+    },
+    {
+      "object_id": "ca_7f1e0000000000000000000000000002",
+      "carrier": "ups",
+      "account_id": "shippo_ups_account",
+      "active": true,
+      "test": true
+    },
+    {
+      "object_id": "ca_7f1e0000000000000000000000000003",
+      "carrier": "fedex",
+      "account_id": "shippo_fedex_account",
+      "active": true,
+      "test": true
+    },
+    {
+      "object_id": "ca_7f1e0000000000000000000000000004",
+      "carrier": "dhl_express",
+      "account_id": "shippo_dhlexpress_account",
+      "active": false,
+      "test": true
+    }
+  ]
+}

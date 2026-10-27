@@ -1,0 +1,55 @@
+{
+  "object_id": "shp_9b8a0000000000000000000000000001",
+  "status": "SUCCESS",
+  "address_from": { "object_id": "adr_from" },
+  "address_to": { "object_id": "adr_to" },
+  "parcels": [
+    { "object_id": "prcl_5d4a0000000000000000000000000001" },
+    { "object_id": "prcl_5d4a0000000000000000000000000002" }
+  ],
+  "rates": [
+    {
+      "object_id": "rate_usps_priority",
+      "provider": "USPS",
+      "carrier_account": "ca_7f1e0000000000000000000000000001",
+      "servicelevel": { "name": "Priority Mail", "token": "usps_priority" },
+      "amount": "64.10",
+      "currency": "USD",
+      "estimated_days": 2,
+      "shipment": "shp_9b8a0000000000000000000000000001"
+    },
+    {
+      "object_id": "rate_usps_express",
+      "provider": "USPS",
+      "carrier_account": "ca_7f1e0000000000000000000000000001",
+      "servicelevel": { "name": "Priority Mail Express", "token": "usps_priority_express" },
+      "amount": "112.50",
+      "currency": "USD",
+      "estimated_days": 1,
+      "shipment": "shp_9b8a0000000000000000000000000001"
+    },
+    {
+      "object_id": "rate_fedex_2day",
+      "provider": "FedEx",
+      "carrier_account": "ca_7f1e0000000000000000000000000003",
+      "servicelevel": { "name": "FedEx 2Day", "token": "fedex_2_day" },
+      "amount": "118.40",
+      "currency": "USD",
+      "estimated_days": 2,
+      "shipment": "shp_9b8a0000000000000000000000000001"
+    },
+    {
+      "object_id": "rate_fedex_po",
+      "provider": "FedEx",
+      "carrier_account": "ca_7f1e0000000000000000000000000003",
+      "servicelevel": { "name": "Priority Overnight", "token": "fedex_priority_overnight" },
+      "amount": "175.20",
+      "currency": "USD",
+      "estimated_days": 1,
+      "shipment": "shp_9b8a0000000000000000000000000001"
+    }
+  ],
+  "messages": [{ "source": "UPS", "code": "", "text": "Ship To address is invalid for UPS." }],
+  "metadata": "SHP-0001",
+  "test": true
+}

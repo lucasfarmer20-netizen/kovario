@@ -13,10 +13,7 @@
 #   SUPABASE_POOLER_HOST  optional session-pooler host for db push (see db_push below)
 # --dry-run runs `supabase db push --dry-run` only; nothing is written.
 # No `supabase link`: every command takes --project-ref, so the token needs no API-key scopes.
-# Token scopes (`supabase <cmd> --help`): db push — database pooling config read, database
-# write (migrations); functions deploy — edge functions read-write; config push — the auth /
-# database / data-api / storage / realtime config read scopes plus auth_config_write and
-# project_admin_write.
+# Token permissions: docs/11-DEPLOY.md §1 (the verified table; the one source of truth).
 # Seed files are never run against a hosted project.
 set -euo pipefail
 

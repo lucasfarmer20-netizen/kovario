@@ -1,0 +1,35 @@
+{
+  "object_id": "shp_9b8a0000000000000000000000000001",
+  "status": "SUCCESS",
+  "address_from": { "object_id": "adr_from" },
+  "address_to": { "object_id": "adr_to" },
+  "parcels": [
+    { "object_id": "prcl_5d4a0000000000000000000000000001" },
+    { "object_id": "prcl_5d4a0000000000000000000000000002" }
+  ],
+  "rates": [
+    {
+      "object_id": "rate_usps_priority",
+      "provider": "USPS",
+      "carrier_account": "ca_7f1e0000000000000000000000000001",
+      "servicelevel": { "name": "Priority Mail", "token": "usps_priority" },
+      "amount": "64.10",
+      "currency": "USD",
+      "estimated_days": 2,
+      "shipment": "shp_9b8a0000000000000000000000000001"
+    },
+    {
+      "object_id": "rate_usps_express",
+      "provider": "USPS",
+      "carrier_account": "ca_7f1e0000000000000000000000000001",
+      "servicelevel": { "name": "Priority Mail Express", "token": "usps_priority_express" },
+      "amount": "112.50",
+      "currency": "USD",
+      "estimated_days": 1,
+      "shipment": "shp_9b8a0000000000000000000000000001"
+    }
+  ],
+  "messages": [],
+  "metadata": "SHP-0001",
+  "test": true
+}

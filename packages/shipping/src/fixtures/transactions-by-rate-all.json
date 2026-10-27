@@ -1,0 +1,38 @@
+{
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "object_id": "txn_2e1d0000000000000000000000000002",
+      "object_created": "2026-07-21T17:00:01.000Z",
+      "status": "SUCCESS",
+      "object_state": "VALID",
+      "rate": "rate_ups_2da",
+      "parcel": "prcl_5d4a0000000000000000000000000002",
+      "tracking_number": "1Z999AA10123456791",
+      "tracking_status": "UNKNOWN",
+      "tracking_url_provider": "https://www.ups.com/track?tracknum=1Z999AA10123456791",
+      "label_url": "https://deliver.goshippo.com/txn_2e1d0000000000000000000000000002.zpl",
+      "commercial_invoice_url": null,
+      "messages": [],
+      "metadata": "SHP-0001",
+      "test": true
+    },
+    {
+      "object_id": "txn_2e1d0000000000000000000000000001",
+      "object_created": "2026-07-21T17:00:00.000Z",
+      "status": "SUCCESS",
+      "object_state": "VALID",
+      "rate": "rate_ups_2da",
+      "parcel": "prcl_5d4a0000000000000000000000000001",
+      "tracking_number": "1Z999AA10123456784",
+      "tracking_status": "UNKNOWN",
+      "tracking_url_provider": "https://www.ups.com/track?tracknum=1Z999AA10123456784",
+      "label_url": "https://deliver.goshippo.com/txn_2e1d0000000000000000000000000001.zpl",
+      "commercial_invoice_url": null,
+      "messages": [],
+      "metadata": "SHP-0001",
+      "test": true
+    }
+  ]
+}

@@ -2,15 +2,30 @@ import { randomUUID } from "node:crypto";
 import { ActionForm } from "@/components/admin/action-form";
 import { Input, Label } from "@/components/ui/form";
 import { adminPageSession } from "@/lib/auth";
-import { createSite, makeDefaultSite, renameSite } from "./actions";
+import { orgWebhookUrl } from "@/lib/shipping/webhook-url";
+import { createSite, makeDefaultSite, renameSite, setShipFrom } from "./actions";
+
+type ShipFrom = Partial<Record<(typeof SHIP_FROM_FIELDS)[number][0], string>>;
+
+const SHIP_FROM_FIELDS = [
+  ["name", "Ship-from name"],
+  ["company", "Company"],
+  ["street1", "Street"],
+  ["street2", "Suite"],
+  ["city", "City"],
+  ["state", "State"],
+  ["zip", "ZIP"],
+  ["phone", "Phone"],
+] as const;
 
 export default async function SitesPage() {
   const session = await adminPageSession();
   if (!session) return null;
   const { data: sites, error } = await session.supabase
     .from("site")
-    .select("id, name, is_default")
+    .select("id, name, is_default, ship_from")
     .order("name");
+  const webhookUrl = await orgWebhookUrl(session.claims.orgId);
 
   return (
     <div className="flex flex-col gap-8">
@@ -18,7 +33,7 @@ export default async function SitesPage() {
         <h1 className="text-xl font-semibold">Sites</h1>
         <p className="text-sm text-muted-foreground">
           Physical locations of this plant (e.g. Main, Lodge). Devices and printers are routed per
-          site.
+          site. Each site&apos;s ship-from address is where its shipments ship from.
         </p>
         <ActionForm action={createSite} actionId={randomUUID()} submitLabel="Add site">
           <Label>
@@ -26,6 +41,23 @@ export default async function SitesPage() {
             <Input name="name" required maxLength={80} />
           </Label>
         </ActionForm>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg font-semibold">Shippo tracking webhook</h2>
+        {webhookUrl ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              In this plant&apos;s Shippo account, add a webhook for <code>track_updated</code> with
+              this URL. It is this plant&apos;s own credential; keep it private.
+            </p>
+            <code className="break-all text-sm">{webhookUrl}</code>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Tracking webhooks are not configured on this server (SHIPPO_WEBHOOK_TOKEN).
+          </p>
+        )}
       </section>
 
       {error ? <p className="text-destructive">{error.message}</p> : null}
@@ -54,6 +86,25 @@ export default async function SitesPage() {
                 <input type="hidden" name="site_id" value={s.id} />
               </ActionForm>
             )}
+            <ActionForm
+              action={setShipFrom}
+              actionId={randomUUID()}
+              submitLabel="Save ship-from"
+              className="w-full"
+            >
+              <input type="hidden" name="site_id" value={s.id} />
+              {SHIP_FROM_FIELDS.map(([k, label]) => (
+                <Label key={k}>
+                  {label}
+                  <Input
+                    name={k}
+                    defaultValue={(s.ship_from as ShipFrom | null)?.[k] ?? ""}
+                    maxLength={200}
+                    className={k === "state" ? "w-16" : k === "zip" ? "w-28" : undefined}
+                  />
+                </Label>
+              ))}
+            </ActionForm>
           </li>
         ))}
       </ul>

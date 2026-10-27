@@ -1,0 +1,12 @@
+{
+  "object_id": "txn_2e1d00000000000000000000000000ee",
+  "status": "ERROR",
+  "object_state": "INVALID",
+  "rate": "rate_ups_2da",
+  "tracking_number": "",
+  "label_url": "",
+  "messages": [
+    { "source": "UPS", "code": "", "text": "The rate has expired. Please re-rate the shipment." }
+  ],
+  "test": true
+}

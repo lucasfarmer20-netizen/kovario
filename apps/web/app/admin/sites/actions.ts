@@ -70,3 +70,43 @@ export async function makeDefaultSite(
   revalidatePath("/admin/sites");
   return result;
 }
+
+const ADDRESS_KEYS = [
+  "name",
+  "company",
+  "street1",
+  "street2",
+  "city",
+  "state",
+  "zip",
+  "phone",
+] as const;
+const shipFromSchema = z.object({
+  site_id: z.uuid(),
+  ...Object.fromEntries(ADDRESS_KEYS.map((k) => [k, z.string().trim().max(200).optional()])),
+});
+
+/** Where this site's shipments ship from (Shippo address_from, docs/07 §4). */
+export async function setShipFrom(_state: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = shipFromSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Unknown site." };
+  const { site_id, ...fields } = parsed.data as { site_id: string } & Record<
+    string,
+    string | undefined
+  >;
+  const address = Object.fromEntries(Object.entries(fields).filter(([, v]) => v));
+  const result = await adminMutation(
+    formData,
+    async ({ supabase }, id) =>
+      unwrap(
+        await supabase.rpc("admin_set_ship_from", {
+          p_client_action_id: id,
+          p_site_id: site_id,
+          p_address: { ...address, country: "US" },
+        }),
+      ),
+    "Ship-from saved.",
+  );
+  revalidatePath("/admin/sites");
+  return result;
+}

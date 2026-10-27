@@ -5,6 +5,7 @@ import { z } from "zod";
 import { adminMutation, unwrap, type ActionState } from "@/lib/admin-action";
 
 const dim = z.union([z.literal(""), z.coerce.number().positive().max(999)]);
+const weight = z.union([z.literal(""), z.coerce.number().min(0).max(999)]);
 
 const sizeSchema = z.object({
   box_size_id: z.union([z.literal(""), z.uuid()]).optional(),
@@ -14,6 +15,9 @@ const sizeSchema = z.object({
   length_in: dim,
   width_in: dim,
   height_in: dim,
+  // Cold chain (docs/07 §4): added to the box's weight when shipping is quoted.
+  packaging_lb: weight,
+  dry_ice_lb: weight,
   // A checkbox: present = active.
   is_active: z.literal("on").optional(),
 });
@@ -22,10 +26,13 @@ const sizeSchema = z.object({
 export async function saveBoxSize(_state: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = sizeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success)
-    return { error: "Enter a name, a max lb above 0, a fee of 0 or more and positive inches." };
+    return {
+      error:
+        "Enter a name, a max lb above 0, a fee of 0 or more, positive inches and cold-chain lb of 0 or more.",
+    };
   const d = parsed.data;
   const dims = Object.fromEntries(
-    (["length_in", "width_in", "height_in"] as const)
+    (["length_in", "width_in", "height_in", "packaging_lb", "dry_ice_lb"] as const)
       .filter((k) => d[k] !== "")
       .map((k) => [k, d[k] as number]),
   );

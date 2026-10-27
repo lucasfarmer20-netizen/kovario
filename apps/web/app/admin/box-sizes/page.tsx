@@ -4,7 +4,13 @@ import { Input, Label } from "@/components/ui/form";
 import { adminPageSession } from "@/lib/auth";
 import { saveBoxSize } from "./actions";
 
-type Dims = { length_in?: number; width_in?: number; height_in?: number };
+type Dims = {
+  length_in?: number;
+  width_in?: number;
+  height_in?: number;
+  packaging_lb?: number;
+  dry_ice_lb?: number;
+};
 
 function SizeFields({
   name = "",
@@ -62,6 +68,19 @@ function SizeFields({
           />
         </Label>
       ))}
+      {(["packaging_lb", "dry_ice_lb"] as const).map((k) => (
+        <Label key={k}>
+          {k === "packaging_lb" ? "Packaging lb" : "Dry ice lb"}
+          <Input
+            name={k}
+            type="number"
+            min={0}
+            step="0.1"
+            defaultValue={dims[k] ?? ""}
+            className="w-20"
+          />
+        </Label>
+      ))}
       <Label>
         Active
         <input name="is_active" type="checkbox" defaultChecked={isActive} />
@@ -85,7 +104,8 @@ export default async function BoxSizesPage() {
         <p className="text-sm text-muted-foreground">
           The catalogue the counter plans boxes from. Each planned box adds its size&apos;s fee to
           the angler&apos;s settlement. Boxes over 70 lb need the heavy check at the counter.
-          Uncheck Active to retire a size; boxes already planned with it keep it.
+          Uncheck Active to retire a size; boxes already planned with it keep it. Shipping quotes a
+          box at its weight plus the size&apos;s packaging and dry ice lb, with L×W×H as the parcel.
         </p>
         <ActionForm action={saveBoxSize} actionId={randomUUID()} submitLabel="Add box size">
           <SizeFields />
