@@ -1,11 +1,11 @@
-# AGENTS.md — Kovario
+# AGENTS.md — Filletry
 
-You are one of several coding agents building Kovario in parallel, each on one GitHub
+You are one of several coding agents building Filletry in parallel, each on one GitHub
 issue, in your own git worktree, delivering one PR. Humans are mostly not watching.
 This file is the contract. `CLAUDE.md` and `.agent-rules.md` point here.
 
 ## What you are building
-Kovario: multi-tenant SaaS for sport-caught-fish processors. Read `docs/00-PRD.md` first,
+Filletry: multi-tenant SaaS for sport-caught-fish processors. Read `docs/00-PRD.md` first,
 then the docs your issue lists. The docs are the spec. The issue is the task. If they
 conflict, the doc wins and you say so in the PR.
 

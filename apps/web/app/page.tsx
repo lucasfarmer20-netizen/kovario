@@ -1,7 +1,7 @@
 export default function Home() {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-2 p-8">
-      <h1 className="text-4xl font-semibold tracking-tight">Kovario</h1>
+      <h1 className="text-4xl font-semibold tracking-tight">Filletry</h1>
       <p className="text-muted-foreground">Processing stations for sport-caught fish.</p>
     </main>
   );

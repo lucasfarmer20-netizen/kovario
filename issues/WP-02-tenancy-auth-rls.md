@@ -32,7 +32,7 @@ sessions, per-org sequences, RLS on every table, JWT `org_id` claim.
 - `next_seq(org_id, kind)` (row-locked counter; returns formatted `INT-0001` style via a
   per-kind prefix table).
 - Device pairing: manager generates a pairing code (QR) → the device exchanges it for a
-  session of a per-device `auth.users` row (`device-<id>@devices.kovario.internal`,
+  session of a per-device `auth.users` row (`device-<id>@devices.filletry.internal`,
   `app_role = station`) stored on the device; operator PIN check function;
   manager PIN elevation that mints a short-lived token (Edge Function).
 - `packages/db`: typed client factories (`serverClient`, `deviceClient`), `withAction(

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { kovarioClaims } from "./claims";
-import type { KovarioClient } from "./clients";
+import { filletryClaims } from "./claims";
+import type { FilletryClient } from "./clients";
 import {
   createOrg,
   createUser,
@@ -14,7 +14,7 @@ import type { Json } from "./types";
 import { withAction } from "./with-action";
 
 /** One atomic admin mutation: claims the id, inserts the site, stores the result. */
-async function createSite(client: KovarioClient, id: string, name: string): Promise<Json> {
+async function createSite(client: FilletryClient, id: string, name: string): Promise<Json> {
   const { data, error } = await client.rpc("admin_create_site", {
     p_client_action_id: id,
     p_name: name,
@@ -52,7 +52,7 @@ describe("withAction against local Supabase", () => {
 
   it("the access token hook stamps org_id and app_role", async () => {
     const { data } = await managerA.client.auth.getClaims();
-    expect(kovarioClaims(data?.claims)).toMatchObject({ orgId: orgA.id, appRole: "manager" });
+    expect(filletryClaims(data?.claims)).toMatchObject({ orgId: orgA.id, appRole: "manager" });
     expect(data?.claims.role).toBe("authenticated");
   });
 

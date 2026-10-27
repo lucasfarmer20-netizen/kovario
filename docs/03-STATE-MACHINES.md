@@ -1,4 +1,4 @@
-# Kovario — State Machines
+# Filletry — State Machines
 
 Implement each as a table of allowed transitions in `packages/rules/src/states.ts`
 (`canTransition(entity, from, to, ctx)`), enforced again by a DB `check` trigger that

@@ -1,4 +1,4 @@
-# Kovario
+# Filletry
 
 Multi-tenant SaaS for sport-caught-fish processors: intake → processing stations →
 freezers → allocation → boxing → payment → pickup/ship. Standalone Next.js + Supabase.
@@ -13,7 +13,7 @@ Prerequisites: Node 22+, pnpm 9+, Docker (running), and the Supabase CLI **2.122
 (the version CI pins; `npx supabase@2.122.0 …` works if you don't want a global install).
 
 ```bash
-git clone https://github.com/lucasfarmer20-netizen/kovario.git && cd kovario
+git clone https://github.com/lucasfarmer20-netizen/filletry.git && cd filletry
 pnpm install
 cp .env.example .env              # names only; fill local values from `supabase status`
 supabase start                    # local Postgres/Auth/Realtime in Docker (first run pulls images)

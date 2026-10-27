@@ -1,4 +1,4 @@
-# Kovario — Decisions (ADR log)
+# Filletry — Decisions (ADR log)
 
 Decided items are binding. Items tagged **DECISION NEEDED** are assumptions Lucas has
 not confirmed; agents build on the stated default and must not silently change it.
@@ -18,10 +18,10 @@ Lucas: edit the line, commit, and reference the ADR in the PR that applies it.
 | DECISION-10 | Framework versions: Next.js latest stable App Router (pinned 16.4.3 in WP-01; 15.x was current at kickoff), React 19, TypeScript 5.x strict, Tailwind 4, Node 22+ (raised from 20 in WP-02: supabase-js needs Node's built-in WebSocket), pnpm 9+. Agents pin exact versions in WP-01 and do not upgrade majors mid-build. | **Decided** 2026-10-25 |
 | DECISION-11 | Weight unit is lb in v1 (org setting reserved). Currency USD. | **Decided** 2026-10-25 |
 | DECISION-12 | Production-mode / split-intake (CSP deferred design) is **not** in v1. Schema reserves `intake.split_from_id`. | **Decided** 2026-10-25 |
-| DECISION-13 | Receipts rendered by Kovario from stored payment data; terminal receipts suppressed. | **Decided** (carried from CSP) |
+| DECISION-13 | Receipts rendered by Filletry from stored payment data; terminal receipts suppressed. | **Decided** (carried from CSP) |
 | DECISION-14 | No freezer capacity gating anywhere. Capacity is display-only. | **Decided** (carried from CSP) |
 | DECISION-15 | Location master is generated from the racking actually built; generator is idempotent; archived locations cannot be bound. | **Decided** (carried from CSP) |
-| DECISION-16 | Domain name / app host: `app.filletry.com` (Lucas owns `filletry.com` and `filletery.com`, which redirect to it). The product is being renamed from Kovario to Filletry because `kovario.com` was not available; marketing site out of scope for this repo. | **Decided** 2026-10-26 |
+| DECISION-16 | Domain name / app host: `app.filletry.com` (Lucas owns `filletry.com` and `filletery.com`, which redirect to it). The product is being renamed from Filletry to Filletry because `filletry.com` was not available; marketing site out of scope for this repo. | **Decided** 2026-10-26 |
 | DECISION-17 | Testing: no mandatory e2e per PR beyond smoke; rules engine and payments adapters require unit coverage; release + storage invariants have dedicated integration tests against local Supabase. | **Decided** 2026-10-25 |
 | DECISION-18 | Long-running payment calls run in Next.js Node route handlers with `maxDuration = 300` (Fluid Compute). Vercel **Hobby** for the proof of concept: its Fluid Compute maximum is 300 s, enough for the ~150 s terminal wait (Supabase Edge Functions cap at 150 s on the free plan, too tight). Move to Pro before commercial use: Hobby is non-commercial only, and Pro allows 800 s. | **Decided** 2026-10-26 (PoC) |
 | DECISION-19 | Fast Pass floors **processing** charges only. Ribbing is never floored or capped: it is always `ribbing_per_lb × lb`, on Fast Pass intakes too. | **Decided** 2026-10-26 |

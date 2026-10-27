@@ -1,4 +1,4 @@
-# Kovario — Architecture
+# Filletry — Architecture
 
 ## 1. Stack (fixed for v1)
 
@@ -20,7 +20,7 @@ Package manager: **pnpm**. Node 22+. Monorepo layout is a single Next app plus a
 `packages/` folder for pure libraries:
 
 ```
-kovario/
+filletry/
   apps/web/                 # Next.js app (stations, admin, register, public status)
   packages/rules/           # pure TS: processing rules, yield, pricing, state machines
   packages/payments/        # provider interface + adapters (no React)
@@ -85,7 +85,7 @@ writes a `scan_log` row for every scan (hit or miss), and never loses focus to a
 
 Shared tablets don't log in as a person. A **device** record (per org, per station) is
 registered once by a manager (QR pairing). Each device is backed by a real
-`auth.users` row (`device-<id>@devices.kovario.internal`) so RLS and `app.org_id()`
+`auth.users` row (`device-<id>@devices.filletry.internal`) so RLS and `app.org_id()`
 work uniformly; the pairing flow signs that user in and stores the session on the
 device. Postgres roles stay `anon`/`authenticated`; **`app_role`** is a JWT claim
 (`owner|manager|staff|cashier|station|agent`) checked by RLS policies and server

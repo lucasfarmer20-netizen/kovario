@@ -4,7 +4,7 @@ import { execSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import type { KovarioClient } from "../clients";
+import type { FilletryClient } from "../clients";
 import type { Database } from "../types";
 
 type Status = { API_URL: string; ANON_KEY: string; SERVICE_ROLE_KEY: string; DB_URL: string };
@@ -26,12 +26,12 @@ export function localSupabase(): Status {
 
 const noSession = { auth: { persistSession: false, autoRefreshToken: false } };
 
-export function serviceRoleClient(): KovarioClient {
+export function serviceRoleClient(): FilletryClient {
   const s = localSupabase();
   return createClient<Database>(s.API_URL, s.SERVICE_ROLE_KEY, noSession);
 }
 
-export function anonClient(): KovarioClient {
+export function anonClient(): FilletryClient {
   const s = localSupabase();
   return createClient<Database>(s.API_URL, s.ANON_KEY, noSession);
 }
@@ -49,7 +49,7 @@ export async function createOrg(): Promise<TestOrg> {
   return data;
 }
 
-export type TestUser = { id: string; email: string; client: KovarioClient };
+export type TestUser = { id: string; email: string; client: FilletryClient };
 
 /** Creates an auth user, optionally a member of `org`, and returns a signed-in client. */
 export async function createUser(
@@ -57,7 +57,7 @@ export async function createUser(
   role: Database["public"]["Enums"]["org_member_role"] = "staff",
 ): Promise<TestUser> {
   const admin = serviceRoleClient();
-  const email = `${randomUUID()}@test.kovario`;
+  const email = `${randomUUID()}@test.filletry`;
   const password = randomBytes(24).toString("hex");
   const { data, error } = await admin.auth.admin.createUser({
     email,

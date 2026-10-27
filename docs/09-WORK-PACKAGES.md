@@ -1,4 +1,4 @@
-# Kovario — Work Packages & Orchestration Plan
+# Filletry — Work Packages & Orchestration Plan
 
 Each work package (WP) is one GitHub Issue → one Agent Orchestrator session → one PR.
 Issue bodies live in `issues/WP-NN-*.md` and are the agent's prompt; they point at the
@@ -27,7 +27,7 @@ whose blockers are closed (PR merged), so you can re-run it as waves drain.
 | `codex` | `area:ui` / `area:labels` packages that carry no `area:db`, `area:rules`, `area:payments` or `area:critical` label (05, 10, 11, 12, 20, 21, 08) — `scripts/run-wave.sh` applies this rule |
 | Antigravity | **Not an AO agent.** Use it interactively for design review of station screens and for the two `area:critical` PRs' second review before merge. |
 
-Per-issue override: `ao spawn --project kovario --kind worker --name WP-NN --issue <n> --harness codex --mode tui`.
+Per-issue override: `ao spawn --project filletry --kind worker --name WP-NN --issue <n> --harness codex --mode tui`.
 
 ## Merge gates (hands-off mode)
 

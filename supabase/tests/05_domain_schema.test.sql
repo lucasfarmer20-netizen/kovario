@@ -145,8 +145,8 @@ select is(
 
 -- Fixtures -----------------------------------------------------------------------------
 insert into auth.users (id, email) values
-  ('c0000000-0000-4000-8000-0000000000c1', 'manager-c@test.kovario'),
-  ('c0000000-0000-4000-8000-0000000000c2', 'staff-c@test.kovario');
+  ('c0000000-0000-4000-8000-0000000000c1', 'manager-c@test.filletry'),
+  ('c0000000-0000-4000-8000-0000000000c2', 'staff-c@test.filletry');
 
 insert into public.org (id, slug, name, timezone) values
   ('c0000000-0000-4000-8000-00000000000c', 'org-c', 'Org C', 'America/Anchorage'),

@@ -41,5 +41,5 @@ const dbPackages = ["apps", "packages", "agent"]
 if (sqlTests) run("supabase test db");
 // Run vitest directly (not each package's `test` script): DB mode selects only
 // *.db.test.ts, so unit-run flags such as rules' `--coverage` thresholds don't apply.
-for (const pkg of dbPackages) run(`pnpm --dir ${pkg} exec vitest run`, { KOVARIO_TEST_DB: "1" });
+for (const pkg of dbPackages) run(`pnpm --dir ${pkg} exec vitest run`, { FILLETRY_TEST_DB: "1" });
 if (!sqlTests && dbPackages.length === 0) console.log("test:db: no SQL or *.db.test.ts suites yet");

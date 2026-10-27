@@ -1,4 +1,4 @@
-// Shared helpers for Kovario Edge Functions. Secrets come from the function runtime env
+// Shared helpers for Filletry Edge Functions. Secrets come from the function runtime env
 // (SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY are injected by Supabase).
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
 
@@ -52,7 +52,7 @@ export type Caller = {
   deviceId: string | null;
 };
 
-/** Verifies the bearer token and returns its Kovario claims, or null. */
+/** Verifies the bearer token and returns its Filletry claims, or null. */
 export async function verifyCaller(req: Request): Promise<Caller | null> {
   const header = req.headers.get("Authorization") ?? "";
   const accessToken = header.startsWith("Bearer ") ? header.slice(7) : "";

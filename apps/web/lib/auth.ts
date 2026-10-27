@@ -1,10 +1,10 @@
-import { isManager, kovarioClaims, type KovarioClaims, type KovarioClient } from "db";
+import { isManager, filletryClaims, type FilletryClaims, type FilletryClient } from "db";
 import { redirect } from "next/navigation";
 import { createSupabaseServer } from "./supabase/server";
 
 export type StaffSession = {
-  supabase: KovarioClient;
-  claims: KovarioClaims | null;
+  supabase: FilletryClient;
+  claims: FilletryClaims | null;
   email: string | null;
 };
 
@@ -14,10 +14,10 @@ export async function requireStaff(): Promise<StaffSession> {
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data) redirect("/login");
   const email = typeof data.claims.email === "string" ? data.claims.email : null;
-  return { supabase, claims: kovarioClaims(data.claims), email };
+  return { supabase, claims: filletryClaims(data.claims), email };
 }
 
-export type ManagerSession = StaffSession & { claims: KovarioClaims };
+export type ManagerSession = StaffSession & { claims: FilletryClaims };
 
 export class ForbiddenError extends Error {
   constructor() {

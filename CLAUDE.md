@@ -1,4 +1,4 @@
-# Kovario — Claude Code instructions
+# Filletry — Claude Code instructions
 
 @AGENTS.md
 
@@ -10,7 +10,7 @@
 
 ## Claude-specific notes
 - Read the issue's **Read first** docs with the Read tool before writing code; do not
-  rely on memory of the CSP Odoo project — Kovario has its own model.
+  rely on memory of the CSP Odoo project — Filletry has its own model.
 - Prefer `Edit` over rewriting files; keep diffs reviewable.
 - For SQL functions, write the test (`supabase/tests/*.sql` or vitest against local
   Supabase) before the function; name tests after invariants.

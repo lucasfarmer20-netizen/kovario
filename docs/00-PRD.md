@@ -1,11 +1,11 @@
-# Kovario — Product Requirements (v1)
+# Filletry — Product Requirements (v1)
 
 Status: **BUILD TARGET for v1.** Kickoff 2026-10-25. Owner: Lucas Farmer.
 Change this only by editing `docs/08-DECISIONS.md` first; never by drifting mid-build.
 
 ---
 
-## 1. What Kovario is
+## 1. What Filletry is
 
 A standalone, multi-tenant SaaS for **small sport-caught-fish processors**: the plant
 takes in a customer's *own* catch, processes it (fillets / portions / smoking / freeze),
@@ -13,13 +13,13 @@ tracks every vessel through freezers, splits a party's catch across anglers, box
 collects payment, and hands it back or ships it. The guarantee the whole system exists
 to protect: **the customer gets their own fish back.**
 
-Kovario replaces Odoo for this job. It is a greenfield Next.js + Supabase application.
+Filletry replaces Odoo for this job. It is a greenfield Next.js + Supabase application.
 It contains no Odoo code and does not integrate with Odoo. The Custom Seafoods (CSP)
 Odoo suite is the **reference implementation** — it has run a full season on the floor
 and its invariants, state machines and hard-won lessons are the spec source
 (`docs/10-LESSONS-FROM-CSP.md`).
 
-Tenant zero is Custom Seafoods, Soldotna AK. Kovario must be able to run CSP's
+Tenant zero is Custom Seafoods, Soldotna AK. Filletry must be able to run CSP's
 2027 season end-to-end.
 
 ## 2. Who uses it
@@ -35,7 +35,7 @@ Tenant zero is Custom Seafoods, Soldotna AK. Kovario must be able to run CSP's
 | Cashier | Register, card terminal | Load a customer's charges, take card, auto-release |
 | Manager | Anywhere | Pricing, overrides, refunds/voids, audits, reports |
 | Customer | Phone | Public order-status page by phone number |
-| Kovario admin (Lucas/Brooke) | Admin | Tenants, plans, billing |
+| Filletry admin (Lucas/Brooke) | Admin | Tenants, plans, billing |
 
 ## 3. Design principles (non-negotiable)
 
@@ -110,7 +110,7 @@ Pre-packaged boxes → storage intake → stored → pickup batches (days-stored
 
 ## 6. Non-goals / things not to build
 
-- Don't port Odoo's data model (SO/MO/stock.move). Kovario has its own `charge`,
+- Don't port Odoo's data model (SO/MO/stock.move). Filletry has its own `charge`,
   `vessel`, `location` concepts. See `02-DOMAIN-MODEL.md`.
 - Don't build an Odoo-style generic ORM/admin. Build the stations.
 - Don't re-litigate the payment processor question for CSP: it is Dejavoo. Other

@@ -1,4 +1,4 @@
-# Kovario — Domain Model
+# Filletry — Domain Model
 
 All tables: `id uuid pk default gen_random_uuid()`, `org_id uuid not null`, `created_at`,
 `updated_at` (trigger), RLS by `org_id`. Column types are Postgres. Enums are Postgres

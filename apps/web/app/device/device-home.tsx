@@ -1,6 +1,6 @@
 "use client";
 
-import { kovarioClaims, type KovarioClaims } from "db";
+import { filletryClaims, type FilletryClaims } from "db";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { getDeviceClient } from "@/lib/supabase/device";
@@ -28,7 +28,7 @@ const pinInput =
 const bigButton = "h-16 min-w-40 rounded-md px-6 text-xl font-semibold disabled:opacity-50";
 
 export function DeviceHome() {
-  const [claims, setClaims] = useState<KovarioClaims | null | undefined>(undefined);
+  const [claims, setClaims] = useState<FilletryClaims | null | undefined>(undefined);
   const [device, setDevice] = useState<DeviceInfo | null>(null);
   const [operator, setOperator] = useState<string | null>(null);
   const [elevation, setElevation] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export function DeviceHome() {
     const client = getDeviceClient();
     let timer: ReturnType<typeof setInterval> | undefined;
     void client.auth.getClaims().then(async ({ data }) => {
-      const parsed = kovarioClaims(data?.claims);
+      const parsed = filletryClaims(data?.claims);
       const station = parsed?.appRole === "station" && parsed.deviceId ? parsed : null;
       setClaims(station);
       if (!station?.deviceId) return;

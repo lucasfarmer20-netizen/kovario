@@ -1,11 +1,11 @@
 // POST /functions/v1/device-pair  { code }  →  { session, device }
 // Called by an unpaired tablet with only the anon key (docs/01-ARCHITECTURE.md §5).
 // Redeems the one-time pairing code, creates (or rotates) the per-device auth user
-// `device-<id>@devices.kovario.internal`, signs it in and returns the session. The
+// `device-<id>@devices.filletry.internal`, signs it in and returns the session. The
 // password is random, used once here and never stored or returned.
 import { anonClient, json, preflight, randomSecret, serviceClient } from "../_shared/supabase.ts";
 
-const DEVICE_EMAIL_DOMAIN = "devices.kovario.internal";
+const DEVICE_EMAIL_DOMAIN = "devices.filletry.internal";
 
 type Redeemed = {
   device_id: string;

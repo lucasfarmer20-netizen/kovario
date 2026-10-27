@@ -1,4 +1,4 @@
-# Install the Kovario PR review loop as a per-user scheduled task that runs one hidden pass
+# Install the Filletry PR review loop as a per-user scheduled task that runs one hidden pass
 # every 5 minutes. Creates a dedicated worktree (default ~/src/kovario-reviewer) on origin/main
 # that scripts/review-loop-service.sh keeps current. Re-run to reinstall; -Uninstall removes.
 #   pwsh scripts/install-review-service.ps1 [-Uninstall] [-StartNow]

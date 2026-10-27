@@ -1,4 +1,4 @@
-# Kovario — Payments
+# Filletry — Payments
 
 Card-present payment is a **provider interface** chosen per terminal. The register,
 settlement, storage batch and release code never know which provider is behind it.
@@ -66,7 +66,7 @@ runtime. **Providers run only in server code**
      the payment `indeterminate` and block retry until a manager resolves (status check
      or manual mark). Never charge twice.
    - `error` → "could not reach terminal" + retry.
-5. Receipt is Kovario's (PDF/HTML) with card meta from `payment`; the terminal's own
+5. Receipt is Filletry's (PDF/HTML) with card meta from `payment`; the terminal's own
    receipt is suppressed.
 
 Paid hooks are one Postgres function `apply_paid_register_order(order_id, payment_id)`

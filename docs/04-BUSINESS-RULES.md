@@ -1,4 +1,4 @@
-# Kovario — Business Rules
+# Filletry — Business Rules
 
 All of these live in `packages/rules` as pure, unit-tested TypeScript. The database
 enforces the structural ones (constraints/triggers); the app never re-implements a

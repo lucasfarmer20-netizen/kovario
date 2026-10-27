@@ -1,7 +1,7 @@
 // `pnpm db:demo-owner`: creates (or resets) the local demo owner of org `demo-plant`
 // through the Auth admin API of the running local Supabase. Local development only.
-//   KOVARIO_DEMO_EMAIL     default owner@demo-plant.test
-//   KOVARIO_DEMO_PASSWORD  default: a random password, printed once
+//   FILLETRY_DEMO_EMAIL     default owner@demo-plant.test
+//   FILLETRY_DEMO_PASSWORD  default: a random password, printed once
 import { execSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
@@ -22,8 +22,8 @@ if (
   throw new Error("demo-owner only runs against a local Supabase");
 }
 
-const email = process.env.KOVARIO_DEMO_EMAIL ?? "owner@demo-plant.test";
-const password = process.env.KOVARIO_DEMO_PASSWORD ?? randomBytes(9).toString("base64url");
+const email = process.env.FILLETRY_DEMO_EMAIL ?? "owner@demo-plant.test";
+const password = process.env.FILLETRY_DEMO_PASSWORD ?? randomBytes(9).toString("base64url");
 const headers = {
   apikey: status.SERVICE_ROLE_KEY,
   Authorization: `Bearer ${status.SERVICE_ROLE_KEY}`,
@@ -74,5 +74,5 @@ const member = await call("/rest/v1/org_member?on_conflict=org_id,user_id", {
 if (!member.ok) throw new Error(`could not add ${email} to demo-plant (${member.status})`);
 
 console.log(`Demo owner ready: ${email}`);
-if (!process.env.KOVARIO_DEMO_PASSWORD)
+if (!process.env.FILLETRY_DEMO_PASSWORD)
   console.log(`Password (local only, not stored): ${password}`);
