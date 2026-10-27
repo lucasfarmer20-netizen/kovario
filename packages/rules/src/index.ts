@@ -8,5 +8,6 @@ export * from "./yield.ts";
 export * from "./charges.ts";
 export * from "./pricing.ts";
 export * from "./qr.ts";
+export * from "./phone.ts";
 export * from "./hold.ts";
 export * from "./states.ts";
