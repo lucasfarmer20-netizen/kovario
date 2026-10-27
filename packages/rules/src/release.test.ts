@@ -49,11 +49,15 @@ describe("I4/I5 vessel line", () => {
 
   it("I4 the tick alone selects: no remainder ever makes an unticked line act", () => {
     fc.assert(
-      fc.property(fc.double({ noNaN: true }), fc.double({ min: 0, max: 500, noNaN: true }), (l, m) => {
-        const issue = releaseLineIssue(false, l, m);
-        if (issue === null) expect(vesselReleaseAction(false, l, m)).toBe("none");
-        else expect(l).not.toBe(0);
-      }),
+      fc.property(
+        fc.double({ noNaN: true }),
+        fc.double({ min: 0, max: 500, noNaN: true }),
+        (l, m) => {
+          const issue = releaseLineIssue(false, l, m);
+          if (issue === null) expect(vesselReleaseAction(false, l, m)).toBe("none");
+          else expect(l).not.toBe(0);
+        },
+      ),
     );
   });
 });
@@ -136,9 +140,7 @@ describe("I13 shipment buy gate", () => {
     const edge = { ...base, today: "2026-07-31", shipDate: "2026-08-01" };
     expect(shipmentBuyGate(edge).held).toBe(false);
     expect(shipmentBuyGate({ ...edge, shipDate: "2026-08-02" }).held).toBe(true);
-    expect(shipmentBuyGate({ ...edge, shipDate: "2026-08-03", buyWindowDays: 3 }).held).toBe(
-      false,
-    );
+    expect(shipmentBuyGate({ ...edge, shipDate: "2026-08-03", buyWindowDays: 3 }).held).toBe(false);
   });
 
   it("rejects malformed dates and windows", () => {

@@ -9,7 +9,8 @@ export type VesselReleaseAction = "none" | "full_pull" | "split";
 
 export const LBS_LEFT_NOT_A_NUMBER = "Lbs Left must be a number";
 export const LBS_LEFT_NEGATIVE = "Lbs Left cannot be negative";
-export const LBS_LEFT_ON_UNTICKED = "Lbs Left on an unticked line; tick the tote or clear the value";
+export const LBS_LEFT_ON_UNTICKED =
+  "Lbs Left on an unticked line; tick the tote or clear the value";
 export const LBS_LEFT_NOT_LESS_THAN_MEASURE =
   "Lbs Left must be less than the basket's current weight; leave it blank or 0 for a full pull";
 
