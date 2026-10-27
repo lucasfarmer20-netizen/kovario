@@ -7,21 +7,38 @@ describe("seedYieldFactor", () => {
     expect(seedYieldFactor("whitefish_lingcod", "filleted_ribs", "portions")).toBe(0.78);
   });
 
-  it("chum falls back to reds", () => {
-    // Chum has no smoked-exchange rows; reds does.
-    expect(seedYieldFactor("salmon_chum", "whole", "smoked_exchange_cajun")).toBe(0.39);
-    // An exact chum row wins over reds.
+  it("an exact chum row is used (chum → reds and exchange → smoking: yield.exchange.test.ts)", () => {
     expect(seedYieldFactor("salmon_chum", "gutted", "fillets")).toBe(0.57);
-  });
-
-  it("exchange methods fall back to smoking", () => {
-    expect(seedYieldFactor("salmon_kings", "hg", "smoked_exchange_traditional")).toBe(0.52);
-    expect(seedYieldFactor("salmon_pinks", "whole", "smoked_exchange_cajun")).toBe(0.39);
   });
 
   it("no row and no fallback → null", () => {
     expect(seedYieldFactor("whitefish_flounder", "vs", "as_is")).toBeNull();
-    expect(seedYieldFactor("salmon_kings", "whole", "head_off")).toBeNull();
+  });
+
+  it("fresh split sides are allowed wherever the matrix allows fresh", () => {
+    expect(seedYieldFactor("salmon_kings", "whole", "fillets")).toBe(0.56);
+    expect(seedYieldFactor("salmon_kings", "whole", "portions")).toBe(0.52);
+  });
+
+  it("combinations the processing matrix forbids throw RangeError naming the combination", () => {
+    // head_off is a manager add-on outside the matrix.
+    expect(() => seedYieldFactor("salmon_kings", "whole", "head_off")).toThrow(
+      new RangeError("salmon_kings/whole/head_off is not allowed by the processing matrix"),
+    );
+    // Concrete method the matrix does not list.
+    expect(() => seedYieldFactor("whitefish_lingcod", "whole", "smoking")).toThrow(RangeError);
+    // Split sides where fresh itself is forbidden (non-salmon; salmon vsr is Freeze only).
+    expect(() => seedYieldFactor("other_octopus", "filleted", "fillets")).toThrow(RangeError);
+    expect(() => seedYieldFactor("salmon_kings", "vsr", "portions")).toThrow(RangeError);
+    // The matrix has no smoked-exchange rows, even where smoking is allowed.
+    expect(() => seedYieldFactor("salmon_chum", "whole", "smoked_exchange_cajun")).toThrow(
+      new RangeError(
+        "salmon_chum/whole/smoked_exchange_cajun is not allowed by the processing matrix",
+      ),
+    );
+    expect(() => seedYieldFactor("whitefish_lingcod", "whole", "smoked_exchange_cajun")).toThrow(
+      RangeError,
+    );
   });
 });
 
@@ -38,20 +55,63 @@ describe("yieldFactor", () => {
     expect(yieldFactor({ ...base, filletsPct: 25 })).toBe(0.53);
   });
 
-  it("fresh with a missing side → null; the unused side is not consulted", () => {
-    // Octopus has no fillets row; at 0% fillets only portions is needed.
-    const base = { species: "other_octopus", condition: "filleted", method: "fresh" } as const;
-    expect(yieldFactor({ ...base, filletsPct: 0 })).toBe(1);
-    expect(yieldFactor({ ...base, filletsPct: 10 })).toBeNull();
-    // At 100% only the (missing) fillets side is consulted.
-    expect(
+  it("fresh is checked against the matrix as fresh: forbidden outside salmon (#41)", () => {
+    const octopus = { species: "other_octopus", condition: "filleted", method: "fresh" } as const;
+    for (const filletsPct of [0, 10, 100]) {
+      expect(() => yieldFactor({ ...octopus, filletsPct })).toThrow(
+        new RangeError("other_octopus/filleted/fresh is not allowed by the processing matrix"),
+      );
+    }
+    expect(() =>
       yieldFactor({
         species: "other_shrimp",
         condition: "whole",
         method: "fresh",
         filletsPct: 100,
       }),
-    ).toBeNull();
+    ).toThrow(RangeError);
+    // Salmon vsr is Freeze only.
+    expect(() =>
+      yieldFactor({ species: "salmon_reds", condition: "vsr", method: "fresh", filletsPct: 50 }),
+    ).toThrow(RangeError);
+  });
+
+  it("forbidden concrete methods throw RangeError naming the combination", () => {
+    expect(() =>
+      yieldFactor({ species: "whitefish_cod", condition: "whole", method: "smoking" }),
+    ).toThrow(
+      new RangeError("whitefish_cod/whole/smoking is not allowed by the processing matrix"),
+    );
+    // A salmon line carries fresh; the split sides are not line methods.
+    expect(() =>
+      yieldFactor({ species: "salmon_kings", condition: "whole", method: "portions" }),
+    ).toThrow(RangeError);
+    expect(() =>
+      yieldFactor({ species: "salmon_kings", condition: "whole", method: "head_off" }),
+    ).toThrow(RangeError);
+  });
+
+  it("smoked-exchange lines follow the matrix, which has no exchange rows", () => {
+    expect(() =>
+      yieldFactor({ species: "salmon_chum", condition: "whole", method: "smoked_exchange_cajun" }),
+    ).toThrow(RangeError);
+    expect(() =>
+      yieldFactor({ species: "salmon_reds", condition: "vsf", method: "smoked_exchange_cajun" }),
+    ).toThrow(RangeError);
+  });
+
+  it("the matrix is checked before skin-off and filletsPct", () => {
+    expect(() =>
+      yieldFactor({ species: "other_octopus", condition: "filleted", method: "fresh" }),
+    ).toThrow(/processing matrix/);
+    expect(() =>
+      yieldFactor({
+        species: "whitefish_cod",
+        condition: "whole",
+        method: "smoking",
+        skinOff: true,
+      }),
+    ).toThrow(/processing matrix/);
   });
 
   it("fresh requires a valid filletsPct", () => {
