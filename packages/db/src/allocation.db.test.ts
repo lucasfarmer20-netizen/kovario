@@ -38,9 +38,9 @@ describe("price_session prices what priceSettlements computes", { timeout: 60_00
   beforeAll(async () => {
     org = await createOrg();
     const admin = serviceRoleClient();
-    const ok = <T>(r: { data: T; error: { message: string } | null }) => {
+    const ok = <T>(r: { data: T; error: { message: string } | null }): NonNullable<T> => {
       if (r.error) throw new Error(r.error.message);
-      return r.data;
+      return r.data as NonNullable<T>;
     };
     ok(
       await admin.from("species").insert([

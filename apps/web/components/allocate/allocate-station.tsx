@@ -83,7 +83,9 @@ function NewSession({ session }: { session: StationSession }) {
         initial={draft}
         summary={null}
         onSaved={(s) =>
-          router.push(`/allocate/${s.session_id}?saved=${encodeURIComponent(`${s.number} saved.`)}`)
+          router.push(
+            `/allocate/${s.session_id}?saved=${encodeURIComponent(`${s.number} ${s.state === "priced" ? "priced" : "saved"}.`)}`,
+          )
         }
       />
     );
