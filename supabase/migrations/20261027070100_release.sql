@@ -258,8 +258,9 @@ $$;
 -- p_i8_override_reason: manager remedy for an I8 block (decided on PR #67): when another
 --   party sharing the intake, or an unattributed Release-by-Tag, already emptied the last
 --   basket, this party has no tote left to tick. A manager (signed in, or p_elevation_token
---   from a station) may finalise its boxes anyway; the reason and approver ride the
---   `finalized` audit rows. Without it I8 stays a hard block.
+--   from a station) may finalise its boxes anyway (DECISION-23, decided by Lucas). The
+--   `finalized` audit rows record who approved, who asked, the reason and how (manager
+--   session, or the elevation grant — never the token). Without it I8 stays a hard block.
 create or replace function public.release_party(
   p_client_action_id text,
   p_session_id uuid,
@@ -279,6 +280,7 @@ declare
   v_org uuid := app.org_id();
   v_override_reason text := nullif(btrim(p_i8_override_reason), '');
   v_override_by uuid;
+  v_override_grant uuid;
   v_override jsonb;
   v_boxes_in uuid[] := coalesce(p_box_ticks, '{}');
   v_lines jsonb := coalesce(p_vessel_ticks, '[]'::jsonb);
@@ -319,6 +321,9 @@ begin
       raise exception 'an I8 override needs a reason' using errcode = '22023';
     end if;
     v_override_by := app.release_manager(p_elevation_token);
+    -- Record WHICH elevation approved it (the grant row), never the token itself.
+    select id into v_override_grant from public.elevation_grant
+    where p_elevation_token is not null and token_hash = app.sha256_hex(p_elevation_token) and org_id = v_org;
   end if;
 
   -- Shape ----------------------------------------------------------------------------------
@@ -460,7 +465,10 @@ begin
       raise exception 'no fish has moved for % yet: tick the totes being handed over before finalising boxes, or ask a manager to override (I8)',
         v_session.number using errcode = '55000';
     end if;
-    v_override := jsonb_build_object('reason', v_override_reason, 'approved_by', v_override_by);
+    v_override := jsonb_build_object(
+      'reason', v_override_reason, 'approved_by', v_override_by, 'requested_by', v_op,
+      'via', case when v_override_grant is not null then 'elevation' else 'manager_session' end,
+      'elevation_grant_id', v_override_grant);
   end if;
 
   -- Vessels (I5/I6): full pull or split, sorted ids.

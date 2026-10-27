@@ -569,10 +569,11 @@ select is(pg_temp.override('s1o', '{b1o}', 'fish left with the other party') ->>
   'I8 OVERRIDE — a manager completes the remaining co-pooling party');
 select is(pg_temp.bstate('b1o') || '/' || pg_temp.istate('i1s'), 'picked_up/done',
   'I8 OVERRIDE — the box finalises and the shared intake closes (I10)');
-select is((select detail -> 'i8_override' ->> 'reason' || '/' || (detail -> 'i8_override' ->> 'approved_by')
+select is((select concat_ws('/', detail -> 'i8_override' ->> 'reason', detail -> 'i8_override' ->> 'approved_by',
+                            detail -> 'i8_override' ->> 'via')
            from public.release_audit where session_id = pg_temp.id('s1o') and event_kind = 'finalized'),
-  'fish left with the other party/a1500000-0000-4000-8000-0000000000e1',
-  'I8 OVERRIDE — the reason and approving manager are on the finalized audit row');
+  'fish left with the other party/a1500000-0000-4000-8000-0000000000e1/manager_session',
+  'I8 OVERRIDE — who approved, the reason and how are on the finalized audit row');
 
 reset role;
 select pg_temp.intake('i_two'); select pg_temp.vessel('v_two', 'i_two', 9, '7201');
@@ -594,6 +595,41 @@ select lives_ok($$select pg_temp.override('s_two_b', '{b_two_b}', 'released by t
   'I8 OVERRIDE — and the second');
 select is(pg_temp.istate('i_two'), 'done', 'I8 OVERRIDE — the shared intake closes once both parties are clear');
 select pg_temp.as_user('staff');
+
+-- I8 override from a station: staff + a manager's PIN elevation (the grant is recorded).
+reset role;
+select pg_temp.intake('i_el'); select pg_temp.vessel('v_el', 'i_el', 8, '7301');
+select pg_temp.session('s_el_a', '{i_el}'); select pg_temp.box('b_el_a', 's_el_a', 'Ann');
+select pg_temp.session('s_el_b', '{i_el}'); select pg_temp.box('b_el_b', 's_el_b', 'Bea');
+insert into public.elevation_grant (id, org_id, requested_by, manager_member_id, token_hash, expires_at)
+values ('a1500000-0000-4000-8000-0000000000d1', 'a1500000-0000-4000-8000-00000000000a',
+        'a1500000-0000-4000-8000-0000000000f2', 'a1500000-0000-4000-8000-0000000000e1',
+        app.sha256_hex('wp15-i8-elevation'), now() + interval '10 minutes');
+create function pg_temp.override_tok(p_session text, p_boxes text[], p_reason text, p_token text) returns jsonb
+language sql as $$
+  select public.release_party(gen_random_uuid()::text, pg_temp.id(p_session),
+    (select array_agg(pg_temp.id(b)) from unnest(p_boxes) b), '[]', null, null, p_reason, p_token)
+$$;
+grant execute on function pg_temp.override_tok(text, text[], text, text) to authenticated;
+set local role authenticated;
+select pg_temp.as_user('staff');
+select is(pg_temp.release('s_el_a', '{b_el_a}', '[["v_el", 0]]') ->> 'noop', 'false',
+  'I8 OVERRIDE — the other party empties the shared intake''s last basket');
+select matches(pg_temp.err($$select pg_temp.release('s_el_b', '{b_el_b}')$$), '^55000 .*I8',
+  'I8 OVERRIDE — the remaining party is blocked');
+select matches(pg_temp.err($$select pg_temp.override_tok('s_el_b', '{b_el_b}', 'other party took it', 'not-a-token')$$),
+  '^42501', 'I8 OVERRIDE — a bad elevation token is refused');
+select is(pg_temp.override_tok('s_el_b', '{b_el_b}', 'other party took it', 'wp15-i8-elevation') ->> 'i8_override', 'true',
+  'I8 OVERRIDE — staff at a station finalise with a manager''s PIN elevation');
+select is((select concat_ws('/', detail -> 'i8_override' ->> 'via', detail -> 'i8_override' ->> 'elevation_grant_id',
+                            detail -> 'i8_override' ->> 'approved_by', detail -> 'i8_override' ->> 'requested_by')
+           from public.release_audit where session_id = pg_temp.id('s_el_b') and event_kind = 'finalized'),
+  'elevation/a1500000-0000-4000-8000-0000000000d1/a1500000-0000-4000-8000-0000000000e1/a1500000-0000-4000-8000-0000000000e2',
+  'I8 OVERRIDE — the audit row names the elevation grant, the approving manager and the requesting operator');
+select ok((select position('wp15-i8-elevation' in detail::text) = 0 from public.release_audit
+           where session_id = pg_temp.id('s_el_b') and event_kind = 'finalized'),
+  'I8 OVERRIDE — the token itself is never stored');
+select is(pg_temp.istate('i_el'), 'done', 'I8 OVERRIDE — the shared intake closes (I10)');
 
 -- Restore -----------------------------------------------------------------------------------------
 select is(pg_temp.audit('{i8b}'), '{finalized:i8b:-:s8b,finalized:i8b:-:s8b,moved:i8b:v8b:s8b,moved:i8b:v8b:s8b,restored:i8b:v8b:s8b}',
