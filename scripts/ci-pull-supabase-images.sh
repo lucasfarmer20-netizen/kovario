@@ -28,7 +28,13 @@ supabase services -o json | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 for s in (d["services"] if isinstance(d, dict) else d):
-    print(s["name"].split("/")[-1], s["local"], s["name"])' | while read -r base tag orig; do
+    print(s["name"].split("/")[-1], s["local"], s["name"])
+# Images the CLI pulls that supabase services does not list: kong + mailpit (supabase start)
+# and pg_prove (supabase test db). Tags are pinned in the CLI binary; keep in step with the
+# CLI version in ci.yml (and the image cache key).
+print("kong 2.8.1 library/kong")
+print("mailpit v1.31.3 axllent/mailpit")
+print("pg_prove 3.36 supabase/pg_prove")' | while read -r base tag orig; do
   case "$skip" in *" ${base} "*) continue ;; esac
   pull_one "$base" "$tag" "$orig"
 done

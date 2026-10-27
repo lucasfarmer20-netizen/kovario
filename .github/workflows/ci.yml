@@ -36,7 +36,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: /tmp/supabase-images.tar.zst
-          key: supabase-images-cli2.122.0-v1
+          key: supabase-images-cli2.122.0-v2
       - name: Load cached Supabase images
         if: steps.imgcache.outputs.cache-hit == 'true'
         run: zstd -dc /tmp/supabase-images.tar.zst | docker load
@@ -48,8 +48,8 @@ jobs:
           scripts/ci-pull-supabase-images.sh studio logflare
       - name: Apply migrations on a fresh local database
         run: |
-          # the few images `supabase services` doesn't list (kong, mailpit) still pull here;
-          # retry a start that a throttled pull failed, cleaning up the half-started stack
+          # retry a start that a throttled pull failed (a cold cache can still miss an image),
+          # cleaning up the half-started stack in between
           for i in 1 2 3; do
             supabase start -x studio,imgproxy,logflare,vector && break
             [ "$i" = 3 ] && exit 1
