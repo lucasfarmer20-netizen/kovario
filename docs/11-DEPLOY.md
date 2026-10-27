@@ -34,8 +34,11 @@ Rules:
 2. Access tokens (Account → Access Tokens). Use a scoped token per environment:
    - **staging** token, scoped to the staging project. The deploy script never runs
      `supabase link` (every command takes `--project-ref`), so no API-key scopes are needed.
-     `db push`: database pooling config read + database (migrations) write; `functions deploy`:
-     Edge Functions read-write. **`config push` also needs** auth / database / data-API /
+     `db push` connects to Postgres directly and needs **no token scope** when the
+     session-pooler host is given (`SUPABASE_*_POOLER_HOST`, below); without it the CLI looks
+     the pooler up and needs `database_pooling_config_read` (otherwise it fails with
+     *IPv6 is not supported*: runners are IPv4-only, free-plan direct hosts IPv6-only).
+     `functions deploy`: Edge Functions read-write. **`config push` also needs** auth / database / data-API /
      storage / realtime config **read**, plus `auth_config_write` and `project_admin_write`
      (`supabase <command> --help` lists each command's scopes).
    - **prod** token, the same scopes on the prod project only.
@@ -53,6 +56,11 @@ Rules:
 | `SUPABASE_PROD_PROJECT_REF` | secret | environment `production` | prod project ref |
 | `SUPABASE_PROD_DB_PASSWORD` | secret | environment `production` | prod database password |
 | `PROD_REDIRECT_URLS` | variable | repository | optional extra prod redirect URLs (`https://app.filletry.com/**` is always added) |
+| `SUPABASE_STAGING_POOLER_HOST` | variable | repository | optional; defaults to `aws-0-us-west-1.pooler.supabase.com` (staging's Supavisor session pooler, Dashboard → Connect → Session pooler) |
+| `SUPABASE_PROD_POOLER_HOST` | variable | repository | prod's session-pooler host; unset ⇒ the token needs `database_pooling_config_read` |
+
+`db push` uses `postgresql://postgres.<ref>@<pooler host>:5432/postgres` with the password in
+`PGPASSWORD`, so the password never appears in a URL, argument or log.
 
 Create the **`production` environment** with: *Required reviewers* (at least one human),
 *Prevent self-review* on, and *Deployment branches* limited to `main`. The deploy workflow

@@ -52,6 +52,8 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
+      # session pooler (runners are IPv4-only); not a secret, overridable by a repo variable
+      SUPABASE_POOLER_HOST: ${{ vars.SUPABASE_STAGING_POOLER_HOST || 'aws-0-us-west-1.pooler.supabase.com' }}
     steps:
       - id: secrets
         run: |

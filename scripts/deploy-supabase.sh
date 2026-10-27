@@ -10,6 +10,7 @@
 #   SITE_URL       hosted auth site_url. Without it `config push` is skipped (with a warning):
 #                  config.toml's site_url is the local one and must never reach a hosted project.
 #   REDIRECT_URLS  optional, comma-separated extra auth redirect URLs (globs allowed)
+#   SUPABASE_POOLER_HOST  optional session-pooler host for db push (see db_push below)
 # --dry-run runs `supabase db push --dry-run` only; nothing is written.
 # No `supabase link`: every command takes --project-ref, so the token needs no API-key scopes.
 # Token scopes (`supabase <cmd> --help`): db push — database pooling config read, database
@@ -38,13 +39,20 @@ cp -R "$root/supabase" "$work/supabase"
 rm -rf "$work/supabase/.temp" "$work/supabase/.env"
 sb() { supabase --workdir "$work" "$@"; }
 ref=(--project-ref "$SUPABASE_PROJECT_REF")
-# GitHub runners have no IPv6, so db push needs the IPv4 pooler address, which the CLI reads
-# from GET /v1/projects/<ref>/config/database/pooler. When that call fails the CLI falls back
-# to the IPv6 host and suggests `link`. db_push re-asks the API and reports only the HTTP
-# status and missing permissions (never the body: it holds connection details).
+# GitHub runners have no IPv6 and free-plan projects have no IPv4 direct host, so db push must
+# go through the Supavisor session pooler (port 5432, user postgres.<ref>).
+# - SUPABASE_POOLER_HOST set (e.g. aws-0-us-west-1.pooler.supabase.com): explicit --db-url;
+#   the password goes in PGPASSWORD, never in the URL or argv. No token scope needed.
+# - unset: the CLI asks GET /v1/projects/<ref>/config/database/pooler, which needs the token
+#   scope database_pooling_config_read; without it the CLI falls back to the IPv6 host and
+#   suggests `link`. db_push then re-asks the API and reports only the HTTP status and
+#   missing permissions (never the body: it holds connection details).
 db_push() {
-  local log="$work/db-push.log" status missing
-  if sb db push "${ref[@]}" "$@" 2>&1 | tee "$log"; then return 0; fi
+  local log="$work/db-push.log" status missing conn=("${ref[@]}")
+  if [ -n "${SUPABASE_POOLER_HOST:-}" ]; then
+    conn=(--db-url "postgresql://postgres.$SUPABASE_PROJECT_REF@$SUPABASE_POOLER_HOST:5432/postgres?sslmode=require")
+  fi
+  if PGPASSWORD=$SUPABASE_DB_PASSWORD sb db push "${conn[@]}" "$@" 2>&1 | tee "$log"; then return 0; fi
   if grep -q "IPv6 is not supported" "$log"; then
     printf 'Authorization: Bearer %s\n' "$SUPABASE_ACCESS_TOKEN" >"$work/auth.h"
     status=$(curl -sS -o "$work/pooler.json" -w '%{http_code}' -H @"$work/auth.h" \
