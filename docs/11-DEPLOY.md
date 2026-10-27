@@ -51,7 +51,7 @@ Rules:
 | `SUPABASE_ACCESS_TOKEN` | secret | repository | staging-scoped token |
 | `SUPABASE_STAGING_PROJECT_REF` | secret | repository | staging project ref |
 | `SUPABASE_STAGING_DB_PASSWORD` | secret | repository | staging database password |
-| `STAGING_SITE_URL` | variable | repository | staging auth site URL, e.g. the staging web URL. **Unset ⇒ auth config is not pushed** |
+| `STAGING_SITE_URL` | variable | repository | staging auth site URL, e.g. the staging web URL. **Unset ⇒ auth config is not pushed.** Set it only once the token has the `config push` scopes (below): otherwise every staging deploy applies migrations and functions, then fails at `config push`, and the commit can't be promoted. During the PoC it is `https://app.filletry.com`, because Vercel Production points at staging too |
 | `STAGING_REDIRECT_URLS` | variable | repository | optional, comma-separated, e.g. `https://filletry-*-<team-slug>.vercel.app/**` for previews |
 | `SUPABASE_ACCESS_TOKEN` | secret | environment `production` | prod-scoped token (overrides the repository one in the prod job) |
 | `SUPABASE_PROD_PROJECT_REF` | secret | environment `production` | prod project ref |
@@ -108,7 +108,9 @@ rely on the deploy itself.
 | `NEXT_PUBLIC_APP_URL` | leave unset (request origin is used) | `https://app.filletry.com` |
 
   Until the prod project exists both targets point at staging (proof of concept). When prod
-  exists, change only the **Production** values.
+  exists, change only the **Production** values, and **in the same step** set the GitHub
+  variable `STAGING_SITE_URL` to the staging web URL (not `app.filletry.com`). Otherwise staging's
+  confirmation and reset links keep landing on the prod app.
 
 ## 2. How a deploy flows
 
