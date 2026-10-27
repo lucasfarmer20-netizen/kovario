@@ -69,7 +69,9 @@ function subEvent(over: {
         customer: "cus_1",
         status: over.status ?? "active",
         metadata: over.metadata ?? { org_id: "00000000-0000-4000-8000-000000000009" },
-        items: { data: [{ price: { id: "price_1", lookup_key: over.lookupKey ?? "filletry-plant" } }] },
+        items: {
+          data: [{ price: { id: "price_1", lookup_key: over.lookupKey ?? "filletry-plant" } }],
+        },
       },
     },
   };
@@ -116,7 +118,9 @@ describe("subscriptionChange (webhook → org.plan)", () => {
   });
 
   it("drops a metadata org_id that is not a uuid (it would fail the RPC forever)", () => {
-    expect(subscriptionChange(subEvent({ metadata: { org_id: "demo-plant" } }))?.orgIdHint).toBeNull();
+    expect(
+      subscriptionChange(subEvent({ metadata: { org_id: "demo-plant" } }))?.orgIdHint,
+    ).toBeNull();
     expect(subscriptionChange(subEvent({ metadata: {} }))?.orgIdHint).toBeNull();
   });
 
@@ -197,7 +201,10 @@ describe("Stripe REST requests", () => {
   });
 
   it("surfaces Stripe errors with status and code, never the key", async () => {
-    const f = fakeFetch([{ error: { code: "resource_missing", message: "No such customer" } }], 404);
+    const f = fakeFetch(
+      [{ error: { code: "resource_missing", message: "No such customer" } }],
+      404,
+    );
     const err = await stripeApi(key, f.fetch)
       .createPortalSession({ customerId: "cus_x", returnUrl: "https://app.test" })
       .catch((e: unknown) => e);

@@ -60,7 +60,10 @@ describe("checkPlan (requirePlan's rule)", () => {
   });
 
   it("SMS is a feature flag, not a count", () => {
-    expect(checkPlan("plant", "sms", usage())).toMatchObject({ ok: false, upgradeTo: "plant-plus" });
+    expect(checkPlan("plant", "sms", usage())).toMatchObject({
+      ok: false,
+      upgradeTo: "plant-plus",
+    });
     expect(checkPlan("plant-plus", "sms", usage())).toEqual({ ok: true });
     expect(checkPlan(null, "sms", usage())).toMatchObject({ ok: false });
   });

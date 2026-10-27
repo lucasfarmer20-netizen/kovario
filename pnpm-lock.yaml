@@ -71,6 +71,9 @@ importers:
       next:
         specifier: 16.4.3
         version: 16.4.3(@babel/core@7.29.7)(@types/node@20.19.43)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      payments:
+        specifier: workspace:*
+        version: link:../../packages/payments
       qrcode:
         specifier: 1.5.4
         version: 1.5.4

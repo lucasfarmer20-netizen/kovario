@@ -14,7 +14,12 @@ import {
   type TestUser,
 } from "./testing/local-supabase";
 
-async function call(fn: string, body: unknown, token?: string, headers: Record<string, string> = {}) {
+async function call(
+  fn: string,
+  body: unknown,
+  token?: string,
+  headers: Record<string, string> = {},
+) {
   const s = localSupabase();
   const res = await fetch(`${s.API_URL}/functions/v1/${fn}`, {
     method: "POST",
@@ -63,11 +68,14 @@ describe("billing Edge Functions", { timeout: 60_000 }, () => {
 
   it("checkout rejects an unknown plan or a non-http return url before touching Stripe", async () => {
     const t = await token(owner);
-    expect((await call("billing-checkout", { plan: "gold", return_url: returnUrl }, t)).body).toEqual({
+    expect(
+      (await call("billing-checkout", { plan: "gold", return_url: returnUrl }, t)).body,
+    ).toEqual({
       error: "invalid_input",
     });
     expect(
-      (await call("billing-checkout", { plan: "plant", return_url: "javascript:alert(1)" }, t)).status,
+      (await call("billing-checkout", { plan: "plant", return_url: "javascript:alert(1)" }, t))
+        .status,
     ).toBe(400);
     expect((await call("billing-portal", { return_url: "ftp://x" }, t)).status).toBe(400);
   });
