@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { z } from "zod";
+import { startScales } from "./scale-runtime";
 import { deliver, fileLog, jobSchema, retry, sessionStorage } from "./index";
 
 const env = z
@@ -42,6 +43,9 @@ const { data: auth, error } = await client.auth.getClaims();
 if (error || auth?.claims.app_role !== "agent" || typeof auth.claims.org_id !== "string")
   throw new Error("Pair this agent first");
 const orgId = auth.claims.org_id;
+const stopScales = await startScales(client, () => {
+  void log("queue_failed");
+});
 async function rpc(
   name: "claim_print_job" | "print_agent_heartbeat" | "finish_print_job",
   args: { p_client_action_id: string; p_job_id?: string; p_error?: string },
@@ -114,6 +118,7 @@ const pulse = setInterval(() => {
 async function stop() {
   if (stopped) return;
   stopped = true;
+  stopScales();
   clearInterval(poll);
   clearInterval(pulse);
   await client.removeChannel(channel);
