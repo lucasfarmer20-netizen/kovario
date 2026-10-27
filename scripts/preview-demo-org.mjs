@@ -6,10 +6,12 @@
 // one) and the owner membership. Never run it against prod; hosted deploys never seed.
 // Runs on Node with type stripping: `pnpm db:preview-demo`.
 //   STAGING_SUPABASE_URL               https://<staging-ref>.supabase.co
+//   SUPABASE_STAGING_PROJECT_REF       the staging ref; any other host is refused (positive
+//                                      match, so prod can never be hit by a wrong URL)
 //   STAGING_SUPABASE_SERVICE_ROLE_KEY  staging service-role key (never commit it)
 //   FILLETRY_PREVIEW_DEMO_PASSWORD     password for the demo owner
 //   FILLETRY_PREVIEW_DEMO_EMAIL        default owner@preview-demo.test
-//   SUPABASE_PROD_PROJECT_REF          optional; when set, a URL on that project is refused
+// A loopback URL (local stack rehearsal) needs no ref.
 import { referenceSeed } from "../packages/rules/src/reference-seed.ts";
 
 const DEMO_ORG_ID = "00000000-0000-4000-8000-0000000000de";
@@ -24,13 +26,12 @@ const url = new URL(required("STAGING_SUPABASE_URL"));
 const key = required("STAGING_SUPABASE_SERVICE_ROLE_KEY");
 const password = required("FILLETRY_PREVIEW_DEMO_PASSWORD");
 const email = process.env.FILLETRY_PREVIEW_DEMO_EMAIL ?? "owner@preview-demo.test";
-const prodRef = process.env.SUPABASE_PROD_PROJECT_REF;
 const loopback = ["127.0.0.1", "localhost"].includes(url.hostname); // rehearsal on a local stack
-if (url.protocol !== "https:" && !loopback) {
-  throw new Error("preview-demo-org: staging URL must be https");
-}
-if (prodRef && url.hostname.startsWith(`${prodRef}.`)) {
-  throw new Error("preview-demo-org: refusing to write the demo org to the prod project");
+if (!loopback) {
+  const stagingHost = `${required("SUPABASE_STAGING_PROJECT_REF").trim()}.supabase.co`;
+  if (url.protocol !== "https:" || url.hostname !== stagingHost) {
+    throw new Error("preview-demo-org: STAGING_SUPABASE_URL is not the staging project; refusing");
+  }
 }
 
 const headers = {
@@ -45,7 +46,13 @@ async function call(path, init) {
     headers: { ...headers, ...init?.headers },
   });
   const body = await res.text();
-  return { ok: res.ok, status: res.status, json: body ? JSON.parse(body) : null };
+  let json = null;
+  try {
+    json = body ? JSON.parse(body) : null;
+  } catch {
+    // non-JSON error page (gateway, HTML); callers report the status
+  }
+  return { ok: res.ok, status: res.status, json };
 }
 
 async function upsert(table, conflict, rows) {

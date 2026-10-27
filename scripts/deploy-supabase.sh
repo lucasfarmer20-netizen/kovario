@@ -87,6 +87,10 @@ if [ -n "${SITE_URL:-}" ]; then
     url=$(echo "$url" | xargs)
     if [ -n "$url" ]; then urls+=", \"$url\""; fi
   done
+  # Hosted auth policy (docs/11-DEPLOY.md §2). config.toml's [auth] is tuned for local dev
+  # (no confirmations, 6-char passwords); these override it on hosted projects only.
+  # Signup stays open: tenants self-serve through /signup (WP-22), and its confirmation link
+  # lands on /onboarding. Devices (email_confirm) and invited members are unaffected.
   cat >>"$work/supabase/config.toml" <<EOF
 
 # Appended by scripts/deploy-supabase.sh for $target; applies only to this project ref.
@@ -96,6 +100,16 @@ project_id = "$SUPABASE_PROJECT_REF"
 [remotes.$target.auth]
 site_url = "$SITE_URL"
 additional_redirect_urls = [$urls]
+enable_signup = true
+minimum_password_length = 8
+password_requirements = "letters_digits"
+
+[remotes.$target.auth.email]
+enable_signup = true
+enable_confirmations = true
+secure_password_change = true
+double_confirm_changes = true
+max_frequency = "60s"
 EOF
 fi
 

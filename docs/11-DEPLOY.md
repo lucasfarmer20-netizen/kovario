@@ -71,7 +71,9 @@ prod. `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` are inj
 Supabase.
 
 Create the **`production` environment** with: *Required reviewers* (at least one human),
-*Prevent self-review* on, and *Deployment branches* limited to `main`. The deploy workflow
+*Prevent self-review* on, *Allow administrators to bypass configured protection rules*
+**unticked** (otherwise a repository admin can deploy prod without an approval), and
+*Deployment branches* limited to `main`. The deploy workflow
 refuses to promote while the environment exists without required reviewers, and skips prod
 while the environment does not exist. Do not create protection rules on `staging`; the staging
 job must run unattended.
@@ -79,6 +81,15 @@ job must run unattended.
 The staging secrets are repository secrets because the PR migration dry-run (below) must read
 them without creating a deployment. The prod ones are environment secrets so only the approved
 prod job can read them.
+
+**Trust assumption — accept it knowingly.** `migrations-dry-run` runs on `pull_request`, i.e.
+the PR's *own* workflow and script, with `SUPABASE_STAGING_DB_PASSWORD` and the token. Anyone
+who can push a branch to this repository — including the autonomous agent branches — can
+therefore run arbitrary SQL against **staging** (which holds the CSP trial tenant) before
+review. Forks get no secrets. Prod is unaffected: its secrets exist only in the `production`
+environment. If that is not acceptable, give the dry-run a read-only database role (it only
+reads `supabase_migrations.schema_migrations`) in a separate secret, or drop the PR dry-run and
+rely on the deploy itself.
 
 ### Vercel (project `filletry`)
 
@@ -93,7 +104,7 @@ prod job can read them.
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | staging URL | prod URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | staging anon key | prod anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | staging (only when a route handler in `docs/05-PAYMENTS.md` needs it) | prod, same rule |
+| `SUPABASE_SERVICE_ROLE_KEY` | **leave unset**: previews run unreviewed PR code against staging (CSP trial tenant); add it only when a `docs/05-PAYMENTS.md` handler must run in preview, and say so in that PR | prod, only for the handlers listed in `docs/05-PAYMENTS.md` |
 | `NEXT_PUBLIC_APP_URL` | leave unset (request origin is used) | `https://app.filletry.com` |
 
   Until the prod project exists both targets point at staging (proof of concept). When prod
@@ -118,6 +129,24 @@ prod job can read them.
    hosted `site_url` / redirect URLs added as a `[remotes.<env>]` block in a temp copy so the
    committed local values never reach a hosted project). A missing `STAGING_SITE_URL` skips
    this last step with a warning.
+
+   **Hosted auth policy** (the same `[remotes.<env>]` block; `config.toml` stays tuned for local
+   dev). Set in `scripts/deploy-supabase.sh`; change it there, in a PR:
+
+   | Setting | Local (`config.toml`) | Hosted (staging, prod) | Why |
+   |---|---|---|---|
+   | `auth.enable_signup`, `auth.email.enable_signup` | true | true | tenants self-serve through `/signup` (WP-22) |
+   | `auth.email.enable_confirmations` | false | **true** | an address must be proven before it owns an org; the link lands on `/onboarding` |
+   | `auth.minimum_password_length` | 6 | **8** | matches the `/signup` form |
+   | `auth.password_requirements` | none | **`letters_digits`** | `/signup` maps `weak_password`; device passwords are 64 hex chars |
+   | `auth.email.secure_password_change` | false | **true** | password change needs a recent login |
+   | `auth.email.double_confirm_changes` | true | true | |
+   | `auth.email.max_frequency` | 1s | **60s** | resend throttle |
+
+   Devices (`email_confirm: true`) and invited members are unaffected by confirmations.
+   Confirmation mail goes through Supabase's built-in SMTP, which only delivers to the
+   project's team members and is rate-limited: fine for staging; **prod needs custom SMTP**
+   (Resend, `docs/07-INTEGRATIONS.md`) configured in the dashboard before real tenants sign up.
 3. Runs on `main` are not cancelled by newer pushes; deploys are serialised per environment.
 
 ## 3. Rolling back a bad migration (forward-fix)
@@ -160,10 +189,11 @@ card through `seed_org_reference`, exactly as onboarding does, keeping existing 
 owner and membership, resetting the owner's password):
 
 ```bash
-STAGING_SUPABASE_URL=… STAGING_SUPABASE_SERVICE_ROLE_KEY=… \
+STAGING_SUPABASE_URL=… SUPABASE_STAGING_PROJECT_REF=… STAGING_SUPABASE_SERVICE_ROLE_KEY=… \
 FILLETRY_PREVIEW_DEMO_PASSWORD=… pnpm db:preview-demo
 ```
 
-Set `SUPABASE_PROD_PROJECT_REF` in the same shell to make the script refuse the prod URL. Run it
+The script refuses any URL that is not `https://<SUPABASE_STAGING_PROJECT_REF>.supabase.co`
+(or a loopback URL for a local rehearsal), so it cannot write to prod by mistake. Run it
 from a trusted machine only; the service-role key never goes into CI or the repo. For the local
 `demo-plant` org (intakes in every state for the e2e smoke) use `pnpm db:seed-demo` instead.
