@@ -1399,14 +1399,14 @@ isOneToOne: false
                   ]
                 },"shipment": {
                   Row: {
-                    "address_check": Json | null,"blockers": NonNullable<Json>,"box_plan_ids": (string)[],"buy_claimed_at": string | null,"buy_error": string | null,"carrier": string | null,"created_at": string,"customer_id": string | null,"id": string,"is_walkin": boolean,"label_url": string | null,"notes": string,"number": string,"org_id": string,"rate_amount": number | null,"rate_shop": Json | null,"service": string | null,"ship_date": string | null,"ship_to": NonNullable<Json>,"shipped_at": string | null,"shippo_rate_id": string | null,"shippo_shipment_id": string | null,"shippo_transaction_id": string | null,"site_id": string | null,"state": Database["public"]['Enums']["shipment_state"],"tracking_number": string | null,"tracking_status": string | null,"updated_at": string
+                    "address_check": Json | null,"blockers": NonNullable<Json>,"box_plan_ids": (string)[],"buy_claim_forced": boolean,"buy_claim_id": string | null,"buy_claimed_at": string | null,"buy_error": string | null,"buy_purchase_started_at": string | null,"carrier": string | null,"created_at": string,"customer_id": string | null,"id": string,"is_walkin": boolean,"label_url": string | null,"notes": string,"number": string,"org_id": string,"rate_amount": number | null,"rate_shop": Json | null,"service": string | null,"ship_date": string | null,"ship_to": NonNullable<Json>,"shipped_at": string | null,"shippo_rate_id": string | null,"shippo_shipment_id": string | null,"shippo_transaction_id": string | null,"site_id": string | null,"state": Database["public"]['Enums']["shipment_state"],"tracking_number": string | null,"tracking_status": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "address_check"?: Json | null,"blockers"?: NonNullable<Json>,"box_plan_ids"?: (string)[],"buy_claimed_at"?: string | null,"buy_error"?: string | null,"carrier"?: string | null,"created_at"?: string,"customer_id"?: string | null,"id"?: string,"is_walkin"?: boolean,"label_url"?: string | null,"notes"?: string,"number": string,"org_id": string,"rate_amount"?: number | null,"rate_shop"?: Json | null,"service"?: string | null,"ship_date"?: string | null,"ship_to"?: NonNullable<Json>,"shipped_at"?: string | null,"shippo_rate_id"?: string | null,"shippo_shipment_id"?: string | null,"shippo_transaction_id"?: string | null,"site_id"?: string | null,"state"?: Database["public"]['Enums']["shipment_state"],"tracking_number"?: string | null,"tracking_status"?: string | null,"updated_at"?: string
+                    "address_check"?: Json | null,"blockers"?: NonNullable<Json>,"box_plan_ids"?: (string)[],"buy_claim_forced"?: boolean,"buy_claim_id"?: string | null,"buy_claimed_at"?: string | null,"buy_error"?: string | null,"buy_purchase_started_at"?: string | null,"carrier"?: string | null,"created_at"?: string,"customer_id"?: string | null,"id"?: string,"is_walkin"?: boolean,"label_url"?: string | null,"notes"?: string,"number": string,"org_id": string,"rate_amount"?: number | null,"rate_shop"?: Json | null,"service"?: string | null,"ship_date"?: string | null,"ship_to"?: NonNullable<Json>,"shipped_at"?: string | null,"shippo_rate_id"?: string | null,"shippo_shipment_id"?: string | null,"shippo_transaction_id"?: string | null,"site_id"?: string | null,"state"?: Database["public"]['Enums']["shipment_state"],"tracking_number"?: string | null,"tracking_status"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "address_check"?: Json | null,"blockers"?: NonNullable<Json>,"box_plan_ids"?: (string)[],"buy_claimed_at"?: string | null,"buy_error"?: string | null,"carrier"?: string | null,"created_at"?: string,"customer_id"?: string | null,"id"?: string,"is_walkin"?: boolean,"label_url"?: string | null,"notes"?: string,"number"?: string,"org_id"?: string,"rate_amount"?: number | null,"rate_shop"?: Json | null,"service"?: string | null,"ship_date"?: string | null,"ship_to"?: NonNullable<Json>,"shipped_at"?: string | null,"shippo_rate_id"?: string | null,"shippo_shipment_id"?: string | null,"shippo_transaction_id"?: string | null,"site_id"?: string | null,"state"?: Database["public"]['Enums']["shipment_state"],"tracking_number"?: string | null,"tracking_status"?: string | null,"updated_at"?: string
+                    "address_check"?: Json | null,"blockers"?: NonNullable<Json>,"box_plan_ids"?: (string)[],"buy_claim_forced"?: boolean,"buy_claim_id"?: string | null,"buy_claimed_at"?: string | null,"buy_error"?: string | null,"buy_purchase_started_at"?: string | null,"carrier"?: string | null,"created_at"?: string,"customer_id"?: string | null,"id"?: string,"is_walkin"?: boolean,"label_url"?: string | null,"notes"?: string,"number"?: string,"org_id"?: string,"rate_amount"?: number | null,"rate_shop"?: Json | null,"service"?: string | null,"ship_date"?: string | null,"ship_to"?: NonNullable<Json>,"shipped_at"?: string | null,"shippo_rate_id"?: string | null,"shippo_shipment_id"?: string | null,"shippo_transaction_id"?: string | null,"site_id"?: string | null,"state"?: Database["public"]['Enums']["shipment_state"],"tracking_number"?: string | null,"tracking_status"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -2345,7 +2345,7 @@ isOneToOne: false
 { Args: { "p_details": string,"p_in_carrier_hands": boolean,"p_status": string,"p_tracking_number": string,"p_transaction_id": string }; Returns: Json
                            },
 "shipping_buy_failed":
-{ Args: { "p_error": string,"p_org_id": string,"p_shipment_id": string }; Returns: Json
+{ Args: { "p_claim_id": string,"p_error": string,"p_org_id": string,"p_shipment_id": string }; Returns: Json
                            },
 "shipping_queue":
 { Args: { "p_days"?: number }; Returns: Json
@@ -2354,10 +2354,13 @@ isOneToOne: false
 { Args: { "p_checked": Json,"p_messages": Json,"p_normalized": Json,"p_org_id": string,"p_shipment_id": string,"p_valid": boolean }; Returns: Json
                            },
 "shipping_record_labels":
-{ Args: { "p_labels": Json,"p_org_id": string,"p_rate_id": string,"p_shipment_id": string }; Returns: Json
+{ Args: { "p_claim_id": string,"p_labels": Json,"p_org_id": string,"p_rate_id": string,"p_shipment_id": string }; Returns: Json
                            },
 "shipping_record_rates":
 { Args: { "p_checked": Json,"p_org_id": string,"p_shipment_id": string,"p_shop": Json }; Returns: Json
+                           },
+"shipping_start_purchase":
+{ Args: { "p_claim_id": string,"p_org_id": string,"p_shipment_id": string }; Returns: Json
                            },
 "station_identify":
 { Args: { "p_pin": string }; Returns: Json

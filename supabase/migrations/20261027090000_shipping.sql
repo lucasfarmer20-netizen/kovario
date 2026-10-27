@@ -26,8 +26,14 @@ alter table public.shipment
   add column if not exists rate_shop jsonb,
   -- last address check: {valid, messages:[…], at}
   add column if not exists address_check jsonb,
-  -- a buy in flight (claimed under the row lock; cleared when labels or a failure are recorded)
+  -- A buy in flight. begin_label_buy issues a single-use claim (id + time + Buy Now flag)
+  -- under the row lock; shipping_start_purchase consumes it once (purchase_started_at) before
+  -- the route may call Shippo; recording labels or a failure must present the same claim id
+  -- and clears it. A claim lives 5 minutes (the route's maxDuration is 60 s).
+  add column if not exists buy_claim_id uuid,
   add column if not exists buy_claimed_at timestamptz,
+  add column if not exists buy_claim_forced boolean not null default false,
+  add column if not exists buy_purchase_started_at timestamptz,
   add column if not exists buy_error text,
   add column if not exists tracking_status text,
   add column if not exists shipped_at timestamptz,
@@ -488,6 +494,9 @@ begin
   if v_sh.state not in ('draft', 'held') then
     raise exception '% already has a label' , v_sh.number using errcode = '55000';
   end if;
+  if v_sh.buy_claimed_at > now() - interval '5 minutes' then
+    raise exception 'a label purchase for % is in progress', v_sh.number using errcode = '55006';
+  end if;
   select r into v_rate
   from jsonb_array_elements(coalesce(v_sh.rate_shop -> 'rates', '[]'::jsonb)) r
   where r ->> 'rateId' = p_rate_id;
@@ -513,8 +522,12 @@ $$;
 -- claim. Held (ship date past today + window) is reported as info with every real blocker
 -- alongside it (I13b) and buys nothing; manager Buy Now (p_force_buy_held + a live elevation)
 -- lifts the date hold only — blockers survive it (I14). A claim younger than 5 minutes refuses
--- a second concurrent buy. The /api/shipping/buy route then buys at Shippo (adopting any
--- transaction already bought for the rate) and records the labels (shipping_record_labels).
+-- a second concurrent buy.
+-- The result is a CLAIM, not permission to pay: the /api/shipping/buy route must first consume
+-- it with shipping_start_purchase (single use, re-checks the shipment and the gate now), and
+-- only then buys at Shippo and records the labels (shipping_record_labels). A replayed
+-- client_action_id returns the stored claim marked `replayed`; its claim id is spent or stale,
+-- so the replay can never start a second purchase.
 create or replace function public.begin_label_buy(
   p_client_action_id text, p_shipment_id uuid, p_force_buy_held boolean default false,
   p_elevation_token text default null
@@ -532,6 +545,7 @@ declare
   v_manager uuid;
   v_gate jsonb;
   v_parcels int;
+  v_claim uuid;
   v_result jsonb;
 begin
   perform app.require_role('{owner,manager,staff,cashier,station}');
@@ -540,7 +554,9 @@ begin
   end if;
   v_action := app.action_begin(p_client_action_id, 'shipping.begin_buy', jsonb_build_object(
     'shipment_id', p_shipment_id, 'force_buy_held', v_force, 'manager_member_id', v_manager));
-  if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+  if v_action ->> 'status' = 'done' then
+    return (v_action -> 'result') || '{"replayed": true}'::jsonb;
+  end if;
 
   v_sh := app.lock_shipment(v_org, p_shipment_id);
   if v_sh.state in ('label_bought', 'shipped') then
@@ -561,13 +577,17 @@ begin
     v_result := jsonb_build_object('ok', false, 'shipment_id', v_sh.id, 'number', v_sh.number,
       'held', (v_gate ->> 'held')::boolean, 'blockers', v_gate -> 'blockers', 'gate', v_gate);
   else
-    update public.shipment set buy_claimed_at = now(), buy_error = null where id = v_sh.id;
+    v_claim := gen_random_uuid();
+    update public.shipment
+    set buy_claim_id = v_claim, buy_claimed_at = now(), buy_claim_forced = v_force,
+        buy_purchase_started_at = null, buy_error = null
+    where id = v_sh.id;
     if v_force and (app.shipment_gate(v_sh, false) ->> 'held')::boolean then
       perform app.shipment_note(v_sh.id, 'Buy Now: held label bought early by manager '
         || coalesce((select display_name from public.org_member where id = v_manager), v_manager::text));
     end if;
     v_result := jsonb_build_object('ok', true, 'shipment_id', v_sh.id, 'number', v_sh.number,
-      'held', false, 'blockers', '[]'::jsonb, 'gate', v_gate,
+      'held', false, 'blockers', '[]'::jsonb, 'gate', v_gate, 'claim_id', v_claim,
       'rate_id', v_sh.shippo_rate_id, 'shippo_shipment_id', v_sh.shippo_shipment_id,
       'parcel_count', v_parcels, 'forced', v_force);
   end if;
@@ -1009,7 +1029,7 @@ $$;
 -- The labels Shippo sold for the claimed rate: one per parcel, in parcel order. The money is
 -- spent, so this records them whatever the gate says now. Idempotent for the same labels.
 create or replace function public.shipping_record_labels(
-  p_org_id uuid, p_shipment_id uuid, p_rate_id text, p_labels jsonb
+  p_org_id uuid, p_shipment_id uuid, p_claim_id uuid, p_rate_id text, p_labels jsonb
 )
 returns jsonb
 language plpgsql
@@ -1022,19 +1042,8 @@ declare
   v_first jsonb;
 begin
   v_sh := app.lock_shipment(p_org_id, p_shipment_id);
-  if v_sh.shippo_rate_id is distinct from p_rate_id then
-    raise exception 'labels are for rate %, but % is set to rate %', p_rate_id, v_sh.number,
-      v_sh.shippo_rate_id using errcode = '55000';
-  end if;
-  select count(*) into v_parcels from public.shipment_parcel where shipment_id = v_sh.id;
-  if jsonb_typeof(p_labels) <> 'array' or jsonb_array_length(p_labels) <> v_parcels then
-    raise exception '% has % parcels; every parcel needs its label', v_sh.number, v_parcels
-      using errcode = '22023';
-  end if;
-  if exists (select 1 from jsonb_array_elements(p_labels) l
-             where coalesce(l ->> 'transactionId', '') = '' or coalesce(l ->> 'trackingNumber', '') = ''
-                or coalesce(l ->> 'zpl', '') = '') then
-    raise exception 'every label needs a transaction, a tracking number and its ZPL' using errcode = '22023';
+  if jsonb_typeof(p_labels) <> 'array' or jsonb_array_length(p_labels) = 0 then
+    raise exception 'labels must be a non-empty array' using errcode = '22023';
   end if;
 
   if v_sh.state in ('label_bought', 'shipped') then
@@ -1048,6 +1057,25 @@ begin
       || '): refund them in Shippo');
     return app.shipment_json(v_sh.id);
   end if;
+  -- Only the purchase this claim started may record; a stale or replayed handler may not.
+  if v_sh.buy_claim_id is distinct from p_claim_id or v_sh.buy_purchase_started_at is null then
+    raise exception 'the purchase claim for % is no longer current; press Buy again to fetch the labels',
+      v_sh.number using errcode = '55000';
+  end if;
+  if v_sh.shippo_rate_id is distinct from p_rate_id then
+    raise exception 'labels are for rate %, but % is set to rate %', p_rate_id, v_sh.number,
+      v_sh.shippo_rate_id using errcode = '55000';
+  end if;
+  select count(*) into v_parcels from public.shipment_parcel where shipment_id = v_sh.id;
+  if jsonb_array_length(p_labels) <> v_parcels then
+    raise exception '% has % parcels; every parcel needs its label', v_sh.number, v_parcels
+      using errcode = '22023';
+  end if;
+  if exists (select 1 from jsonb_array_elements(p_labels) l
+             where coalesce(l ->> 'transactionId', '') = '' or coalesce(l ->> 'trackingNumber', '') = ''
+                or coalesce(l ->> 'zpl', '') = '') then
+    raise exception 'every label needs a transaction, a tracking number and its ZPL' using errcode = '22023';
+  end if;
 
   update public.shipment_parcel p
   set shippo_transaction_id = l ->> 'transactionId', tracking_number = l ->> 'trackingNumber',
@@ -1059,15 +1087,20 @@ begin
   update public.shipment
   set state = 'label_bought', shippo_transaction_id = v_first ->> 'transactionId',
       tracking_number = v_first ->> 'trackingNumber', label_url = v_first ->> 'labelUrl',
-      buy_claimed_at = null, buy_error = null
+      buy_claim_id = null, buy_claimed_at = null, buy_claim_forced = false,
+      buy_purchase_started_at = null, buy_error = null
   where id = v_sh.id;
   return app.shipment_json(v_sh.id);
 end;
 $$;
 
--- A buy that did not finish: clears the claim and keeps the reason for the screen. Any labels
--- Shippo did sell are adopted by the next attempt (by rate), never bought twice.
-create or replace function public.shipping_buy_failed(p_org_id uuid, p_shipment_id uuid, p_error text)
+-- A buy that did not finish, reported by the handler that holds the claim (a stale or replayed
+-- handler's report is ignored, so it cannot clear a live claim). Clears the claim and keeps the
+-- reason. If the purchase had been sent to Shippo the money may be spent: that is noted, and
+-- the next Buy adopts whatever Shippo sold for the rate — never buys it twice.
+create or replace function public.shipping_buy_failed(
+  p_org_id uuid, p_shipment_id uuid, p_claim_id uuid, p_error text
+)
 returns jsonb
 language plpgsql
 security definer
@@ -1077,9 +1110,59 @@ declare
   v_sh public.shipment;
 begin
   v_sh := app.lock_shipment(p_org_id, p_shipment_id);
-  update public.shipment set buy_claimed_at = null, buy_error = left(coalesce(p_error, 'failed'), 500)
+  if v_sh.buy_claim_id is distinct from p_claim_id then
+    return app.shipment_json(v_sh.id);
+  end if;
+  update public.shipment
+  set buy_claim_id = null, buy_claimed_at = null, buy_claim_forced = false,
+      buy_purchase_started_at = null, buy_error = left(coalesce(p_error, 'failed'), 500)
   where id = v_sh.id;
+  if v_sh.buy_purchase_started_at is not null then
+    perform app.shipment_note(v_sh.id, 'Label purchase for rate ' || coalesce(v_sh.shippo_rate_id, '?')
+      || ' was sent to Shippo but not recorded (' || left(coalesce(p_error, 'failed'), 200)
+      || '): press Buy again to fetch the labels, or refund them in Shippo if cancelling');
+  end if;
   return app.shipment_json(v_sh.id);
+end;
+$$;
+
+-- Step 2 of a buy: permission to call Shippo. Consumes the claim exactly once under the row
+-- lock and re-validates against the shipment as it is NOW — same claim, not expired, not yet
+-- started, still draft / held, a rate chosen, and the gate (with the claim's Buy Now flag)
+-- still says buy. A replayed or concurrent duplicate request, or a claim overtaken by a
+-- failure, cancel or edit, is refused here before any money moves.
+create or replace function public.shipping_start_purchase(
+  p_org_id uuid, p_shipment_id uuid, p_claim_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_sh public.shipment;
+  v_parcels int;
+begin
+  v_sh := app.lock_shipment(p_org_id, p_shipment_id);
+  if p_claim_id is null or v_sh.buy_claim_id is distinct from p_claim_id then
+    raise exception 'the purchase claim for % is no longer current; press Buy again', v_sh.number
+      using errcode = '55000';
+  end if;
+  if v_sh.buy_purchase_started_at is not null then
+    raise exception 'the label purchase for % has already started', v_sh.number using errcode = '55006';
+  end if;
+  if v_sh.buy_claimed_at <= now() - interval '5 minutes' then
+    raise exception 'the purchase claim for % expired; press Buy again', v_sh.number using errcode = '55000';
+  end if;
+  if v_sh.state not in ('draft', 'held') or v_sh.shippo_rate_id is null
+     or not (app.shipment_gate(v_sh, v_sh.buy_claim_forced) ->> 'can_buy')::boolean then
+    raise exception '% can no longer be bought (%)', v_sh.number, v_sh.state using errcode = '55000';
+  end if;
+  select count(*) into v_parcels from public.shipment_parcel where shipment_id = v_sh.id;
+  update public.shipment set buy_purchase_started_at = now() where id = v_sh.id;
+  return jsonb_build_object('shipment_id', v_sh.id, 'number', v_sh.number, 'claim_id', p_claim_id,
+    'rate_id', v_sh.shippo_rate_id, 'shippo_shipment_id', v_sh.shippo_shipment_id,
+    'parcel_count', v_parcels);
 end;
 $$;
 
@@ -1181,8 +1264,9 @@ revoke all on function
   public.shipping_api_key(uuid),
   public.shipping_record_address(uuid, uuid, jsonb, boolean, jsonb, jsonb),
   public.shipping_record_rates(uuid, uuid, jsonb, jsonb),
-  public.shipping_record_labels(uuid, uuid, text, jsonb),
-  public.shipping_buy_failed(uuid, uuid, text),
+  public.shipping_record_labels(uuid, uuid, uuid, text, jsonb),
+  public.shipping_buy_failed(uuid, uuid, uuid, text),
+  public.shipping_start_purchase(uuid, uuid, uuid),
   public.shipping_apply_tracking(text, text, text, boolean, text)
 from public, anon, authenticated;
 
@@ -1190,7 +1274,8 @@ grant execute on function
   public.shipping_api_key(uuid),
   public.shipping_record_address(uuid, uuid, jsonb, boolean, jsonb, jsonb),
   public.shipping_record_rates(uuid, uuid, jsonb, jsonb),
-  public.shipping_record_labels(uuid, uuid, text, jsonb),
-  public.shipping_buy_failed(uuid, uuid, text),
+  public.shipping_record_labels(uuid, uuid, uuid, text, jsonb),
+  public.shipping_buy_failed(uuid, uuid, uuid, text),
+  public.shipping_start_purchase(uuid, uuid, uuid),
   public.shipping_apply_tracking(text, text, text, boolean, text)
 to service_role;

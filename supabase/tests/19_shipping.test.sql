@@ -93,6 +93,10 @@ create function pg_temp.shop(p_rate text) returns jsonb language sql as $$
       jsonb_build_object('rateId', p_rate || '_b', 'carrier', 'usps', 'provider', 'USPS', 'service', 'Priority Mail',
         'serviceToken', 'usps_priority', 'amount', 64.10, 'currency', 'USD', 'estimatedDays', 2)));
 $$;
+create function pg_temp.claim(p_k text) returns uuid language sql as $$
+  select buy_claim_id from public.shipment where id = pg_temp.id(p_k);
+$$;
+grant execute on function pg_temp.claim(text) to authenticated, service_role;
 grant execute on function pg_temp.as_role(text, text), pg_temp.id(text), pg_temp.addr(), pg_temp.sh(text),
   pg_temp.labels(text, int), pg_temp.shop(text) to authenticated, service_role;
 
@@ -169,8 +173,11 @@ select throws_like($$select public.create_walkin_shipment('wp19-walkin-3', null,
 -- Provider results are service-role only --------------------------------------------------------
 
 select throws_ok($$select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'),
-  'rate_x', pg_temp.labels('fake', 2))$$, '42501', null,
+  gen_random_uuid(), 'rate_x', pg_temp.labels('fake', 2))$$, '42501', null,
   'SERVICEONLY — a browser session cannot record a bought label');
+select throws_ok($$select public.shipping_start_purchase('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'),
+  gen_random_uuid())$$, '42501', null,
+  'SERVICEONLY — nor grant itself permission to buy (start a purchase)');
 select throws_ok($$select public.shipping_record_address('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'),
   pg_temp.addr(), true, pg_temp.addr(), '[]')$$, '42501', null,
   'SERVICEONLY — nor an address check');
@@ -250,7 +257,7 @@ set local role authenticated;
 select pg_temp.as_role('a1900000-0000-4000-8000-00000000000a', 'staff');
 select is(public.begin_label_buy('wp19-buy-bo-4', pg_temp.id('bo')) ->> 'held', 'true',
   'P10 — with no blockers left a held shipment is still held without Buy Now');
-select is(public.begin_label_buy('wp19-buy-bo-5', pg_temp.id('bo'), true, 'wp19-elevation') - 'gate' - 'shipment_id',
+select is(public.begin_label_buy('wp19-buy-bo-5', pg_temp.id('bo'), true, 'wp19-elevation') - 'gate' - 'shipment_id' - 'claim_id',
   '{"ok": true, "held": false, "forced": true, "number": "SHP-0003", "rate_id": "rate_b1", "blockers": [], "parcel_count": 2, "shippo_shipment_id": "shp_rate_b1"}'::jsonb,
   'P12 / I14 — manager Buy Now buys a held label early once nothing else blocks it');
 select ok((pg_temp.sh('bo')).notes like '%Buy Now: held label bought early by manager Mia Manager%',
@@ -259,6 +266,8 @@ select throws_like($$select public.begin_label_buy('wp19-buy-bo-6', pg_temp.id('
   '%already in progress%', 'CLAIM — a second concurrent buy is refused while the first is in flight');
 select throws_like($$select public.update_shipment('wp19-upd-bo', pg_temp.id('bo'), pg_temp.addr(), current_date)$$,
   '%in progress%', 'CLAIM — nor can the address change under an in-flight buy');
+select throws_like($$select public.select_shipment_rate('wp19-rate-bo-2', pg_temp.id('bo'), 'rate_b1_b')$$,
+  '%in progress%', 'CLAIM — nor the chosen rate');
 
 -- P23: no ship date blocks the buy, even under Buy Now.
 insert into t_ids select 'nodate', public.create_walkin_shipment('wp19-walkin-nodate', null, pg_temp.addr(), null,
@@ -271,27 +280,62 @@ select is(public.begin_label_buy('wp19-buy-nodate', pg_temp.id('nodate'), true, 
 
 select is(public.begin_label_buy('wp19-buy-ann-1', pg_temp.id('ann')) ->> 'ok', 'true',
   'I13 — ship date today: the buy is claimed');
+select is(public.begin_label_buy('wp19-buy-ann-1', pg_temp.id('ann')) ->> 'replayed', 'true',
+  'REPLAY — a replayed buy returns its stored claim, marked replayed (a claim, not permission to pay)');
 reset role;
 set local role service_role;
-select throws_like($$select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'),
+select is(public.shipping_start_purchase('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), pg_temp.claim('ann')) ->> 'rate_id', 'rate_a1',
+  'PURCHASE — the route consumes the claim once before calling Shippo');
+select throws_like($$select public.shipping_start_purchase('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), pg_temp.claim('ann'))$$,
+  '%has already started%',
+  'PURCHASE — a second request with the same claim (replayed or concurrent identical action id) cannot start another purchase');
+select throws_like($$select public.shipping_start_purchase('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), gen_random_uuid())$$,
+  '%no longer current%', 'PURCHASE — nor can a claim the shipment did not issue');
+select throws_like($$select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), gen_random_uuid(),
+  'rate_a1', pg_temp.labels('ann', 2))$$, '%no longer current%',
+  'PURCHASE — labels are recorded only against the claim that started the purchase');
+select is((public.shipping_buy_failed('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), gen_random_uuid(), 'stale handler') ->> 'buying')::boolean,
+  true, 'PURCHASE — a stale handler''s failure report cannot clear the live claim');
+select throws_like($$select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), pg_temp.claim('ann'),
   'rate_a1', pg_temp.labels('ann', 1))$$, '%every parcel needs its label%',
   'LABELS — a two-parcel shipment is never recorded with one label (fetch every label)');
-select throws_like($$select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'),
+select throws_like($$select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), pg_temp.claim('ann'),
   'rate_other', pg_temp.labels('ann', 2))$$, '%labels are for rate%',
   'LABELS — labels must be for the chosen rate');
-select is(public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'),
+select is(public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), pg_temp.claim('ann'),
   'rate_a1', pg_temp.labels('ann', 2)) ->> 'state', 'label_bought', 'LABELS — every parcel labelled → label_bought');
 select is((select array_agg(format('%s:%s:%s', seq, tracking_number, label_zpl is not null) order by seq)
            from public.shipment_parcel where shipment_id = pg_temp.id('ann')),
   array['0:1Zann0:t', '1:1Zann1:t'], 'LABELS — each parcel has its own tracking number and stored ZPL');
-select is((select format('%s:%s', tracking_number, buy_claimed_at is null) from public.shipment where id = pg_temp.id('ann')),
+select is((select format('%s:%s', tracking_number, buy_claim_id is null) from public.shipment where id = pg_temp.id('ann')),
   '1Zann0:t', 'LABELS — the master tracking number is the first parcel''s; the claim is released');
-select is(public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'),
+select is(public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('ann'), null,
   'rate_a1', pg_temp.labels('ann', 2)) ->> 'state', 'label_bought', 'LABELS — recording the same purchase twice is a no-op');
--- Bo's forced buy fails at Shippo: the claim clears and the reason is kept.
-select is(public.shipping_buy_failed('a1900000-0000-4000-8000-00000000000a', pg_temp.id('bo'),
+
+-- Bo's forced buy starts, then fails at Shippo: the claim clears, the reason is kept, and the
+-- possibly-spent purchase is noted (S6).
+select is(public.shipping_start_purchase('a1900000-0000-4000-8000-00000000000a', pg_temp.id('bo'), pg_temp.claim('bo')) ->> 'rate_id', 'rate_b1',
+  'PURCHASE — a Buy Now claim re-checks the gate with its forced flag');
+select is(public.shipping_buy_failed('a1900000-0000-4000-8000-00000000000a', pg_temp.id('bo'), pg_temp.claim('bo'),
   'only 1 of 2 labels are ready at Shippo') ->> 'buy_error', 'only 1 of 2 labels are ready at Shippo',
   'CLAIM — a failed buy releases the claim and keeps the reason');
+select ok((pg_temp.sh('bo')).notes like '%was sent to Shippo but not recorded%press Buy again%',
+  'CLAIM — a purchase that reached Shippo but was not recorded is noted for the desk');
+-- …the desk then cancels it, and the original request is replayed: refused before any money moves.
+reset role;
+set local role authenticated;
+select pg_temp.as_role('a1900000-0000-4000-8000-00000000000a', 'staff');
+select is(public.cancel_shipment('wp19-cancel-bo', pg_temp.id('bo'), 'customer changed mind') ->> 'state', 'cancelled',
+  'CANCEL — a shipment whose buy failed cancels (no live claim)');
+select is(public.begin_label_buy('wp19-buy-bo-5', pg_temp.id('bo'), true, 'wp19-elevation') ->> 'replayed', 'true',
+  'REPLAY — the failed buy''s action id replays its old claim');
+insert into t_ids select 'bo_old_claim', public.begin_label_buy('wp19-buy-bo-5', pg_temp.id('bo'), true,
+  'wp19-elevation') ->> 'claim_id';
+reset role;
+set local role service_role;
+select throws_like($$select public.shipping_start_purchase('a1900000-0000-4000-8000-00000000000a', pg_temp.id('bo'), pg_temp.id('bo_old_claim'))$$,
+  '%no longer current%',
+  'REPLAY — replaying a buy after it failed and the shipment was cancelled can never start a purchase');
 
 -- Print / reprint (P24) ------------------------------------------------------------------------
 
@@ -342,11 +386,12 @@ select is(public.print_shipment_labels('wp19-print-3', pg_temp.id('ann')) ->> 'j
 
 -- The walk-in gets a label, then the carrier scans it.
 reset role;
-update public.shipment set ship_to = ship_to, blockers = '[]', shippo_rate_id = 'rate_w', service = 'Priority Mail',
-  carrier = 'usps' where id = pg_temp.id('walkin');
+update public.shipment set blockers = '[]', shippo_rate_id = 'rate_w', service = 'Priority Mail',
+  carrier = 'usps', buy_claim_id = 'a1900000-0000-4000-8000-00000000c1a1', buy_claimed_at = now(),
+  buy_purchase_started_at = now() where id = pg_temp.id('walkin');
 set local role service_role;
-select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('walkin'), 'rate_w',
-  pg_temp.labels('walk', 1));
+select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('walkin'),
+  'a1900000-0000-4000-8000-00000000c1a1', 'rate_w', pg_temp.labels('walk', 1));
 select is(public.shipping_apply_tracking(null, 'no-such-number', 'TRANSIT', true, null) ->> 'matched', 'false',
   'TRACKING — an unknown tracking number is acknowledged, not an error');
 select is(public.shipping_apply_tracking('walk_txn_0', '1Zwalk0', 'PRE_TRANSIT', false, null) ->> 'state', 'label_bought',
@@ -369,20 +414,20 @@ set local role authenticated;
 select pg_temp.as_role('a1900000-0000-4000-8000-00000000000a', 'staff');
 select throws_like($$select public.cancel_shipment('wp19-cancel-0', pg_temp.id('ann'), 'oops')$$,
   '%already shipped%', 'CANCEL — a shipped shipment is not cancelled here');
--- Bo: give it labels, then cancelling needs a manager.
+-- Bo's boxes ship again in a new shipment with a bought label: cancelling it needs a manager.
+insert into t_ids select 'bo2', public.create_shipment('wp19-create-bo2',
+  array['a1900000-0000-4000-8000-000000000074', 'a1900000-0000-4000-8000-000000000075']::uuid[],
+  pg_temp.addr(), current_date) ->> 'shipment_id';
 reset role;
-set local role service_role;
-select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('bo'), 'rate_b1',
-  pg_temp.labels('bo', 2));
-reset role;
+update public.shipment set state = 'label_bought', tracking_number = '1Zbo2' where id = pg_temp.id('bo2');
 set local role authenticated;
 select pg_temp.as_role('a1900000-0000-4000-8000-00000000000a', 'staff');
-select throws_ok($$select public.cancel_shipment('wp19-cancel-1', pg_temp.id('bo'), 'customer moved')$$,
+select throws_ok($$select public.cancel_shipment('wp19-cancel-1', pg_temp.id('bo2'), 'customer moved')$$,
   '42501', null, 'CANCEL — a bought label needs a manager to cancel');
-select is(public.cancel_shipment('wp19-cancel-2', pg_temp.id('bo'), 'customer moved', 'wp19-elevation') ->> 'state',
+select is(public.cancel_shipment('wp19-cancel-2', pg_temp.id('bo2'), 'customer moved', 'wp19-elevation') ->> 'state',
   'cancelled', 'CANCEL — manager cancels a bought label');
-select ok((pg_temp.sh('bo')).notes like '%must be refunded in Shippo%', 'CANCEL — the Shippo refund is noted');
-select is((select count(*)::int from public.box_plan where shipment_id = pg_temp.id('bo')), 0,
+select ok((pg_temp.sh('bo2')).notes like '%must be refunded in Shippo%', 'CANCEL — the Shippo refund is noted');
+select is((select count(*)::int from public.box_plan where shipment_id = pg_temp.id('bo2')), 0,
   'CANCEL — the boxes return to the unassigned ship-box queue');
 select is(public.cancel_shipment('wp19-cancel-3', pg_temp.id('nodate'), 'duplicate') ->> 'state', 'cancelled',
   'CANCEL — a draft cancels without a manager');
@@ -391,7 +436,7 @@ select is(public.cancel_shipment('wp19-cancel-3', pg_temp.id('nodate'), 'duplica
 
 select is((select array_agg(s ->> 'number' order by s ->> 'number')
            from jsonb_array_elements(public.shipping_queue() -> 'shipments') s),
-  array['SHP-0001', 'SHP-0002', 'SHP-0003', 'SHP-0004'], 'QUEUE — open and recent shipments');
+  array['SHP-0001', 'SHP-0002', 'SHP-0003', 'SHP-0004', 'SHP-0005'], 'QUEUE — open and recent shipments');
 select is((select array_agg(b ->> 'number' order by b ->> 'number')
            from jsonb_array_elements(public.shipping_queue() -> 'unassigned') g, jsonb_array_elements(g -> 'boxes') b),
   array['BOX-0004', 'BOX-0005', 'BOX-0006'], 'QUEUE — ship boxes not in a live shipment, grouped by angler');

@@ -200,16 +200,32 @@ type BeginBuy = {
   number: string;
   held: boolean;
   blockers: string[];
-  rate_id?: string;
-  shippo_shipment_id?: string;
-  parcel_count?: number;
+  /** The purchase claim begin_label_buy issued — NOT permission to pay (see below). */
+  claim_id?: string;
+  /** True when the client_action_id was already used: the stored claim, likely spent. */
+  replayed?: boolean;
+};
+
+type StartedPurchase = {
+  shipment_id: string;
+  number: string;
+  claim_id: string;
+  rate_id: string;
+  shippo_shipment_id: string | null;
+  parcel_count: number;
 };
 
 /**
- * Buy the label(s). The gate and the purchase claim are taken in SQL as the caller (I13 /
- * I13b / I14, begin_label_buy); a held or blocked shipment comes back as `{ok:false, held,
- * blockers}` — reported, never thrown. Shippo adopts any transaction already bought for the
- * rate, so a retry (same or new action id) never pays twice.
+ * Buy the label(s), in three steps:
+ *  1. begin_label_buy (as the caller): the I13 / I13b / I14 gate and a purchase CLAIM. A held or
+ *     blocked shipment comes back as `{ok:false, held, blockers}` — reported, never thrown.
+ *  2. shipping_start_purchase (service role): consumes the claim exactly once and re-checks the
+ *     shipment as it is now. This — not the claim — is the permission to call Shippo, so a
+ *     replayed or concurrent duplicate request, or a claim overtaken by a failure / cancel /
+ *     edit, is refused before any money moves.
+ *  3. Shippo (adopting any transaction already bought for the rate), then record the labels
+ *     against the same claim. If this handler started the purchase and anything fails, it
+ *     reports the failure (clearing its claim); the next Buy adopts what Shippo sold.
  */
 export async function buyLabel(
   deps: ShippingDeps,
@@ -230,24 +246,35 @@ export async function buyLabel(
   );
   if (!begin.ok) return { status: "not_bought", ...begin } as unknown as Json;
 
+  // Throws (409) unless this request holds the live, unstarted claim. Nothing to report then:
+  // the claim, if any, belongs to whoever started it.
+  const started = await rpc<StartedPurchase>(
+    deps.service.rpc("shipping_start_purchase", {
+      p_org_id: deps.orgId,
+      p_shipment_id: begin.shipment_id,
+      p_claim_id: begin.claim_id as string,
+    }),
+  );
+
   try {
-    if (!begin.rate_id || !begin.shippo_shipment_id || !begin.parcel_count) {
+    if (!started.shippo_shipment_id || started.parcel_count < 1) {
       throw new ShippingRequestError("Shop rates again before buying", 409, "no_rate");
     }
     const client = await shippo(deps);
     const { labels, adopted } = await client
       .buyLabels({
-        shippoShipmentId: begin.shippo_shipment_id,
-        rateId: begin.rate_id,
-        parcelCount: begin.parcel_count,
-        metadata: begin.number,
+        shippoShipmentId: started.shippo_shipment_id,
+        rateId: started.rate_id,
+        parcelCount: started.parcel_count,
+        metadata: started.number,
       })
       .catch(providerError);
     const shipment = await rpc<Json>(
       deps.service.rpc("shipping_record_labels", {
         p_org_id: deps.orgId,
-        p_shipment_id: begin.shipment_id,
-        p_rate_id: begin.rate_id,
+        p_shipment_id: started.shipment_id,
+        p_claim_id: started.claim_id,
+        p_rate_id: started.rate_id,
         p_labels: labels as unknown as Json,
       }),
     );
@@ -256,7 +283,8 @@ export async function buyLabel(
     const reason = e instanceof Error ? e.message : "label purchase failed";
     await deps.service.rpc("shipping_buy_failed", {
       p_org_id: deps.orgId,
-      p_shipment_id: begin.shipment_id,
+      p_shipment_id: started.shipment_id,
+      p_claim_id: started.claim_id,
       p_error: reason,
     });
     throw e;

@@ -427,6 +427,55 @@ describe("shipping route flow (recorded Shippo fixtures)", { timeout: 60_000 }, 
     expect(d.fetch.count("/transactions", "POST")).toBe(1);
   });
 
+  it("two concurrent requests with the same client action id buy once", async () => {
+    const sh = await shipment(2, today());
+    await readyToBuy(sh);
+    const d = deps(tagged(happyPathRoutes(), "dup"));
+    const clientActionId = cid("buy");
+    const results = await Promise.allSettled([
+      buyLabel(d, { clientActionId, shipmentId: sh.shipment_id }),
+      buyLabel(d, { clientActionId, shipmentId: sh.shipment_id }),
+    ]);
+    const bought = results.filter((r) => r.status === "fulfilled");
+    const refused = results.filter((r) => r.status === "rejected");
+    expect(bought).toHaveLength(1);
+    expect((bought[0] as PromiseFulfilledResult<{ status: string }>).value.status).toBe("bought");
+    expect(refused).toHaveLength(1);
+    expect((refused[0] as PromiseRejectedResult).reason).toMatchObject({ status: 409 });
+    expect(d.fetch.count("/transactions", "POST")).toBe(1);
+    expect((await detail(sh.shipment_id)).state).toBe("label_bought");
+  });
+
+  it("replaying a buy after it failed and the shipment was cancelled never reaches Shippo", async () => {
+    const sh = await shipment(1, today());
+    await readyToBuy(sh);
+    const d = deps([
+      { method: "POST", url: "/transactions", reply: { json: f.transactionError } },
+      ...tagged(happyPathRoutes(), "replay"),
+    ]);
+    const clientActionId = cid("buy");
+    await expect(buyLabel(d, { clientActionId, shipmentId: sh.shipment_id })).rejects.toMatchObject(
+      {
+        status: 502,
+      },
+    );
+    const failed = await detail(sh.shipment_id);
+    expect(failed).toMatchObject({ state: "draft", buying: false });
+    await rpc("cancel_shipment", {
+      p_client_action_id: cid("cancel"),
+      p_shipment_id: sh.shipment_id,
+      p_reason: "customer changed mind",
+    });
+
+    await expect(buyLabel(d, { clientActionId, shipmentId: sh.shipment_id })).rejects.toMatchObject(
+      {
+        status: 409,
+      },
+    );
+    expect(d.fetch.count("/transactions", "POST")).toBe(1); // only the original, failed attempt
+    expect((await detail(sh.shipment_id)).state).toBe("cancelled");
+  });
+
   it("Rate Check bypasses the allowlist; the freight quote is the cheapest rate", async () => {
     const quote = await rateCheck(deps(happyPathRoutes()), {
       to: { ...shipTo, country: "US" },
