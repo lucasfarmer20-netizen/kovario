@@ -54,6 +54,7 @@ export class FakeProvider implements PaymentProvider {
   private readonly seenRefs = new Set<string>();
   private readonly held = new Map<string, () => void>();
   private txn = 0;
+  private abortError: string | null = null;
   /** reversals / refunds the fake actually performed (a throwsAfter step still counts) */
   performed = 0;
 
@@ -76,6 +77,12 @@ export class FakeProvider implements PaymentProvider {
 
   queueRefund(...steps: FakeReverseStep<RefundOutcome>[]): this {
     this.refunds.push(...steps);
+    return this;
+  }
+
+  /** The next abort throws `message` (an adapter whose exception echoes its request). */
+  failNextAbort(message: string): this {
+    this.abortError = message;
     return this;
   }
 
@@ -124,6 +131,11 @@ export class FakeProvider implements PaymentProvider {
 
   abort(req: Parameters<PaymentProvider["abort"]>[0]): Promise<{ ok: boolean; raw: unknown }> {
     this.calls.push({ op: "abort", req: this.scrub(req) });
+    if (this.abortError) {
+      const message = this.abortError;
+      this.abortError = null;
+      return Promise.reject(new Error(message));
+    }
     const release = this.held.get(req.ref);
     this.held.delete(req.ref);
     release?.();

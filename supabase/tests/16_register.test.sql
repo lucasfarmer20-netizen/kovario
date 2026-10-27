@@ -587,6 +587,10 @@ insert into t_ids select 'P12', public.payment_begin('wp16-pay-12', pg_temp.id('
 select pg_temp.as_role('manager');
 select pg_temp.chk('REVERSAL-BLOCK', 'no void / refund on a cart while one of its sales is still in flight (same cart lock)',
   pg_temp.err($$select public.payment_reverse_begin('wp16-rvb-0', pg_temp.id('P11'), 'refund', 'x', 10)$$), '55000');
+select pg_temp.chk('INDETERMINATE', 'a FRESH pending sale may still be running on the terminal: a manager cannot mark it',
+  (select format('%s|%s', pg_temp.err($$select public.payment_resolve('wp16-res-fresh', pg_temp.id('P12'), 'declined', 'cashier pressed Cancel')$$),
+                 (pg_temp.pay('P12')).state)),
+  '55000|pending');
 select pg_temp.as_role('cashier');
 select pg_temp.record('P12', 'sale_result', '{"outcome":"cancelled"}');
 -- The 10 refund reaches the provider, which returns the money, then the call throws.
@@ -636,7 +640,17 @@ insert into t_ids select 'o4', public.register_load_outstanding('wp16-load-7', '
 insert into t_ids select 'P15', public.payment_begin('wp16-pay-15', pg_temp.id('o4'), 5, 'a1600000-0000-4000-8000-000000000702') ->> 'id';
 select pg_temp.record('P15', 'sale_result', '{"outcome":"approved"}');
 insert into t_ids select 'P16', public.payment_begin('wp16-pay-16', pg_temp.id('o4'), 5.60, 'a1600000-0000-4000-8000-000000000702') ->> 'id';
-select pg_temp.record('P16', 'sale_result', '{"outcome":"cancelled"}');
+-- Its request is certainly over once it is older than the route's lifetime: a manager may mark it.
+reset role;
+update public.payment set created_at = now() - interval '7 minutes' where id = pg_temp.id('P16');
+set local role authenticated;
+select pg_temp.as_role('manager');
+select pg_temp.chk('INDETERMINATE', 'a pending sale older than the in-flight window can be marked by a manager',
+  public.payment_resolve('wp16-res-old', pg_temp.id('P16'), 'cancelled', 'request timed out long ago') -> 'payment' ->> 'state',
+  'cancelled');
+select pg_temp.as_role('cashier');
+select pg_temp.chk('INDETERMINATE', 'the sale result arriving later for the marked payment is a no-op',
+  pg_temp.record('P16', 'sale_result', '{"outcome":"cancelled"}') ->> 'status', 'noop');
 select pg_temp.as_role('manager');
 select public.payment_reverse_begin('wp16-rvb-3', pg_temp.id('P15'), 'refund', 'mistake', 5);
 reset role;

@@ -914,6 +914,11 @@ $$;
 
 -- docs/05 §2.4: a manager resolves a payment the terminal cannot answer for (status still
 -- unknown) — approved, declined or cancelled, with a reason. Manager role or elevation.
+-- An `indeterminate` payment can be marked at once (a status check already failed to answer).
+-- A `pending` one may still be running on the terminal (e.g. a Cancel that never reached it):
+-- it can be marked only once its sale request is certainly over — older than the route's
+-- lifetime (maxDuration 300 s + margin), like payment_reverse_resolve — or a manager could
+-- "decline" a sale the customer is finishing and the next Charge would charge twice.
 create or replace function public.payment_resolve(
   p_client_action_id text, p_payment_id uuid, p_outcome text, p_reason text, p_elevation_token text default null
 )
@@ -949,6 +954,11 @@ begin
   end if;
   if v_pay.state not in ('pending', 'indeterminate') then
     raise exception '% is already %', v_pay.number, v_pay.state using errcode = '55000';
+  end if;
+  if v_pay.state = 'pending' and v_pay.created_at > now() - interval '6 minutes' then
+    raise exception '% may still be running on the terminal; use Check status, or mark it after %',
+      v_pay.number, to_char((v_pay.created_at + interval '6 minutes') at time zone 'UTC', 'HH24:MI"Z"')
+      using errcode = '55000', hint = 'payment_in_flight';
   end if;
   v_result := app.payment_apply_result(p_payment_id, 'manual_resolve', jsonb_build_object(
     'outcome', p_outcome,

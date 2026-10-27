@@ -565,3 +565,91 @@ describe("payments route flow (fake provider)", { timeout: 60_000 }, () => {
     expect((await order(orderId)).state).toBe("open");
   });
 });
+
+describe(
+  "abort: a thrown adapter error is scrubbed before it is stored (rule 5)",
+  { timeout: 60_000 },
+  () => {
+    it("the abort event payload never carries the secret from the exception text", async () => {
+      const org = await createOrg();
+      try {
+        await admin
+          .from("org")
+          .update({ settings: { tax: { mode: "none" } } })
+          .eq("id", org.id);
+        const cashier = await createUser(org, "cashier");
+        const { data: c } = await admin
+          .from("customer")
+          .insert({ org_id: org.id, name: "Abort Abe", phone: "+19075551697" })
+          .select("id")
+          .single();
+        await admin.from("charge").insert({
+          org_id: org.id,
+          number: "CHG-9201",
+          customer_id: c!.id,
+          kind: "adjustment",
+          source_type: "manual",
+          qty: 1,
+          unit: "each",
+          unit_price: 5,
+        });
+        const { data: t } = await admin
+          .from("payment_terminal")
+          .insert({ org_id: org.id, name: "Dejavoo 1", provider: "dejavoo_spin" })
+          .select("id")
+          .single();
+        const { data: cartData } = await cashier.client.rpc("register_load_outstanding", {
+          p_client_action_id: cid("load"),
+          p_customer_id: c!.id,
+        });
+        const orderId = (cartData as unknown as Order).id;
+        const fake = new FakeProvider()
+          .queueSale({ outcome: "approved", hold: true })
+          .failNextAbort('abort failed: {"Authkey":"SECRET-AUTHKEY-1","Tpn":"T1"}');
+        const deps: PaymentsDeps = {
+          caller: cashier.client,
+          service: admin,
+          providerFor: () => fake,
+        };
+        const sale = chargePayment(deps, {
+          clientActionId: cid("sale"),
+          orderId,
+          amount: 5,
+          terminalId: t!.id,
+          tender: "card",
+        });
+        let paymentId = "";
+        let ref = "";
+        for (let i = 0; i < 50 && !paymentId; i++) {
+          const { data } = await admin
+            .from("payment")
+            .select("id, provider_ref")
+            .eq("register_order_id", orderId)
+            .eq("state", "pending")
+            .maybeSingle();
+          if (data && fake.callsOf("sale").length > 0) {
+            paymentId = data.id;
+            ref = data.provider_ref ?? "";
+          } else await new Promise((r) => setTimeout(r, 50));
+        }
+        expect(paymentId).not.toBe("");
+        const aborted = res(await abortPayment(deps, { paymentId }));
+        expect(aborted.status).toBe("abort_failed");
+        const { data: events } = await admin
+          .from("payment_event")
+          .select("payload")
+          .eq("payment_id", paymentId)
+          .eq("kind", "abort");
+        expect(events).toHaveLength(1);
+        const stored = JSON.stringify(events![0]!.payload);
+        expect(stored).not.toContain("SECRET-AUTHKEY-1");
+        expect(stored).toContain("[redacted]");
+        // release the held sale (the next abort succeeds) so its request settles
+        await fake.abort({ terminal: { secret: "" }, ref });
+        expect(res(await sale).payment.state).toBe("cancelled");
+      } finally {
+        await dropOrg(org);
+      }
+    });
+  },
+);

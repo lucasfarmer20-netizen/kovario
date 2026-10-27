@@ -279,7 +279,9 @@ export async function abortPayment(
     ok = r.ok;
     raw = provider.scrub(r.raw);
   } catch (e) {
-    raw = { error: message(e) };
+    // An adapter's exception text may echo its request (Authkey, card data): scrub it like
+    // every other stored provider payload (AGENTS.md rule 5).
+    raw = provider ? provider.scrub({ error: message(e) }) : { error: message(e) };
   }
   await unwrap(
     deps.service.rpc("payment_log_event", {

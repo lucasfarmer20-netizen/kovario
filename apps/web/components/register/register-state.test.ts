@@ -4,6 +4,7 @@ import {
   chargeBlocker,
   chargeInputError,
   chargeView,
+  markable,
   paymentLabel,
   reversalUnresolved,
   reversalView,
@@ -229,5 +230,24 @@ describe("void / refund result (success from the provider's answer, not the paym
       tone: "info",
       message: expect.stringMatching(/already recorded .* Do not repeat it/),
     });
+  });
+});
+
+describe("manager mark (docs/05 §2.4) never races a sale still on the terminal", () => {
+  const now = Date.parse("2026-10-27T12:00:00Z");
+  it("indeterminate can be marked at once", () => {
+    expect(markable(payment({ state: "indeterminate" }), now)).toBe(true);
+  });
+  it("pending only once older than the in-flight window (6 min)", () => {
+    expect(markable(payment({ state: "pending", created_at: "2026-10-27T11:58:00Z" }), now)).toBe(
+      false,
+    );
+    expect(markable(payment({ state: "pending", created_at: "2026-10-27T11:53:00Z" }), now)).toBe(
+      true,
+    );
+    expect(markable(payment({ state: "pending" }), now)).toBe(false);
+  });
+  it("settled payments are never marked", () => {
+    expect(markable(payment({ state: "approved" }), now)).toBe(false);
   });
 });

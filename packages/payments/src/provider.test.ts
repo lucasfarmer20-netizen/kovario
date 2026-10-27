@@ -97,6 +97,12 @@ describe("fake provider (test harness)", () => {
     expect((await pending).outcome).toBe("cancelled");
   });
 
+  it("an abort can be made to throw once", async () => {
+    const p = new FakeProvider().failNextAbort("Authkey=SECRET boom");
+    await expect(p.abort({ terminal, ref: "a" })).rejects.toThrow("boom");
+    expect((await p.abort({ terminal, ref: "a" })).ok).toBe(true);
+  });
+
   it("can delay or throw", async () => {
     const p = new FakeProvider().queueSale(
       { outcome: "approved", delayMs: 1 },
@@ -149,6 +155,19 @@ describe("scrub", () => {
       Tpn: "T1",
       gone: null,
     });
+  });
+
+  it("redacts secrets echoed inside strings (exception messages), keeping the rest", () => {
+    const out = scrubSecrets({
+      error:
+        'POST /v2/Payment/AbortTransaction failed: {"Authkey":"SECRET-123","Tpn":"T1"} auth_key=SECRET-456; Authorization: Bearer eyJhbGciOi.x.y ref=abc-1',
+    }) as { error: string };
+    expect(out.error).not.toMatch(/SECRET-123|SECRET-456|eyJhbGciOi/);
+    expect(out.error).toContain('"Authkey":"[redacted]"');
+    expect(out.error).toContain("auth_key=[redacted]");
+    expect(out.error).toContain("Authorization: [redacted]");
+    expect(out.error).toContain('"Tpn":"T1"');
+    expect(out.error).toContain("ref=abc-1");
   });
 
   it("takes adapter-specific keys and survives cycles", () => {

@@ -33,6 +33,7 @@ import {
   chargeInputError,
   chargeView,
   money,
+  markable,
   paymentLabel,
   reversalUnresolved,
   reversalView,
@@ -622,15 +623,21 @@ export function Register({ session }: { session: StationSession }) {
                 >
                   Check status
                 </button>
-                <button
-                  type="button"
-                  disabled={busy || charging}
-                  onClick={() =>
-                    setGateDraft({ kind: "resolve", payment: p, outcome: "declined", reason: "" })
-                  }
-                >
-                  Manager: mark…
-                </button>
+                {markable(p) ? (
+                  <button
+                    type="button"
+                    disabled={busy || charging}
+                    onClick={() =>
+                      setGateDraft({ kind: "resolve", payment: p, outcome: "declined", reason: "" })
+                    }
+                  >
+                    Manager: mark…
+                  </button>
+                ) : (
+                  <span className="station-hint">
+                    May still be running on the terminal — use Check status.
+                  </span>
+                )}
               </div>
             ))}
 

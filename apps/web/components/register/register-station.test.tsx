@@ -239,6 +239,10 @@ it("present card → Cancel: the UI unblocks at once and the terminal is told to
   await screen.findByText(/Cancel sent/);
   expect(fetchMock.mock.calls[1]![0]).toBe("/api/payments/abort");
   expect(sentBody(1)).toEqual({ paymentId: "p-1" });
+  // the sale may still be running on the terminal: no manager mark yet, only Check status
+  expect(screen.queryByText("Manager: mark…")).toBeNull();
+  expect(screen.getByText(/May still be running on the terminal/)).toBeTruthy();
+  expect(screen.getByText("Check status")).toBeTruthy();
 });
 
 it("indeterminate blocks Charge until Check status resolves it", async () => {

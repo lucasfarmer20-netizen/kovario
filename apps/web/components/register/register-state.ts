@@ -45,6 +45,7 @@ export type CartPayment = {
   message: string | null;
   /** cumulative amount returned; a partial refund keeps the payment approved */
   reversed_amount: number | null;
+  created_at?: string;
   /** still captured, so still refundable (amount − reversed_amount) */
   refundable?: number;
   /** a void / refund is in flight (one at a time; the server refuses another) */
@@ -299,6 +300,20 @@ export function reversalUnresolved(p: CartPayment): boolean {
 
 export function reversible(p: CartPayment): boolean {
   return p.state === "approved" && !p.reverse_pending_kind;
+}
+
+/** A pending sale may still be running on the terminal until its request is certainly over. */
+export const PENDING_IN_FLIGHT_MS = 6 * 60_000;
+
+/**
+ * Whether a manager may mark this payment by hand (payment_resolve enforces the same rule):
+ * indeterminate at once; pending only once it is older than the in-flight window.
+ */
+export function markable(p: CartPayment, now: number = Date.now()): boolean {
+  if (p.state === "indeterminate") return true;
+  if (p.state !== "pending") return false;
+  const created = p.created_at ? Date.parse(p.created_at) : Number.NaN;
+  return Number.isFinite(created) && now - created > PENDING_IN_FLIGHT_MS;
 }
 
 /** A payment the cashier must resolve before charging again. */
