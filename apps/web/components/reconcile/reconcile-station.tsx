@@ -142,9 +142,27 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
         : null;
       const tagAllowed = tag && (!tag.orgSlug || tag.orgSlug === org?.data?.slug);
       const current = localStorage.getItem(scope) || null;
+      if (tag && !current) {
+        const { data, error } = await client.rpc("station_scan", {
+          p_client_action_id: request.client_action_id,
+          p_station: "reconcile",
+          p_raw: request.raw,
+          p_parsed: tag,
+          p_reason: "Scan a tote first",
+          p_operator_session: request.operator_session ?? undefined,
+        });
+        if (error) {
+          const permanent = permanentScanFailure(error);
+          if (permanent) return permanent;
+          throw new Error("Scan audit unavailable");
+        }
+        const reply = reconcileReply(data);
+        if (reply.reason === "operator_pin_required") expire();
+        return reply;
+      }
       const { data, error } = await client.rpc("reconcile_action", {
         p_client_action_id: request.client_action_id,
-        p_intake_id: current!,
+        p_intake_id: current ?? undefined,
         p_operation: tagAllowed
           ? "bind"
           : parsed.ok && parsed.value.kind === "TOTE"

@@ -44,7 +44,7 @@ if (error || auth?.claims.app_role !== "agent" || typeof auth.claims.org_id !== 
   throw new Error("Pair this agent first");
 const orgId = auth.claims.org_id;
 const stopScales = await startScales(client, () => {
-  void log("queue_failed");
+  void log("scale_failed").catch(() => undefined);
 });
 async function rpc(
   name: "claim_print_job" | "print_agent_heartbeat" | "finish_print_job",

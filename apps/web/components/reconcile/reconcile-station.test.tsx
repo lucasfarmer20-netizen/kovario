@@ -125,3 +125,25 @@ it("WP12 complete vessel enables Send to Blast; pending scans block edits", asyn
     (screen.getByRole("button", { name: "Send to Blast Freezer" }) as HTMLButtonElement).disabled,
   ).toBe(true);
 });
+it("WP12 tag without an open intake is audited with Scan a tote first", async () => {
+  const rpc = setup();
+  localStorage.clear();
+  render(<ReconcileStation />);
+  await screen.findByRole("button", { name: "INT-0001" });
+  rpc.mockResolvedValueOnce({
+    data: { ok: false, reason: "Scan a tote first", intake_id: "", vessel_id: "" },
+    error: null,
+  });
+  const reply = await mocks.send!({
+    raw: "42",
+    station: "reconcile",
+    client_action_id: "wp12-no-intake",
+    operator_session: null,
+  });
+  expect(reply.reason).toBe("Scan a tote first");
+  expect(rpc).toHaveBeenCalledWith(
+    "station_scan",
+    expect.objectContaining({ p_reason: "Scan a tote first", p_raw: "42", p_station: "reconcile" }),
+  );
+  expect(rpc).not.toHaveBeenCalledWith("reconcile_action", expect.anything());
+});

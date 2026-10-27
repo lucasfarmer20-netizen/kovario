@@ -36,7 +36,7 @@ begin
  perform app.action_complete(p_client_action_id,'{}'); return '{}'::jsonb;
 end $$;
 
-create function public.reconcile_action(p_client_action_id text,p_intake_id uuid,p_operation text,p_vessel_id uuid default null,p_code text default null,p_weight numeric default null,p_operator_session uuid default null,p_raw text default null,p_parsed jsonb default null)
+create function public.reconcile_action(p_client_action_id text,p_intake_id uuid default null,p_operation text default 'open',p_vessel_id uuid default null,p_code text default null,p_weight numeric default null,p_operator_session uuid default null,p_raw text default null,p_parsed jsonb default null)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare a jsonb; r jsonb; i public.intake; t public.asset_tag; v public.vessel; sr public.scale_reading; op uuid; holder text; reason text; selected uuid:=p_intake_id;
 begin
