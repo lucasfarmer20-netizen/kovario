@@ -3,7 +3,9 @@
 # against every open, non-draft PR whose latest commit CustomSeafoods hasn't reviewed yet,
 # using scripts/review-prompt.md. Approves / requests changes as the REVIEWER account via
 # GH_TOKEN so the author (your gh login) and the reviewer are different identities, and
-# arms GitHub auto-merge on approved non-critical PRs (merges once CI is green).
+# arms GitHub auto-merge on approved non-critical PRs (merges once CI is green). Auto-merge
+# needs the branch protection on main (required "check" + 1 approval); a PR approved
+# without auto-merge armed gets it armed on the next pass.
 # AO's own autoReview is complementary: its findings go back to the worker session; this
 # loop is what produces the GitHub approval and the merge, which AO does not do.
 # AO gate: for a PR whose branch belongs to an AO session, wait until AO's reviewer has a
@@ -62,7 +64,7 @@ PY
 }
 
 pass() {
-  gh pr list -R "$REPO" --state open --json number,isDraft,headRefOid,headRefName,labels,body \
+  gh pr list -R "$REPO" --state open --json number,isDraft,headRefOid,headRefName,labels,body,autoMergeRequest \
   | jq -c '.[] | select(.isDraft|not)' | while read -r pr; do
     num=$(jq -r .number <<<"$pr"); head=$(jq -r .headRefOid <<<"$pr")
     branch=$(jq -r .headRefName <<<"$pr")
@@ -72,8 +74,14 @@ pass() {
     [[ "$labels" == *area:critical* ]] && critical=true
     if [ -n "$issue" ] && gh issue view "$issue" -R "$REPO" --json labels -q '.labels[].name' | grep -q area:critical; then critical=true; fi
     # already reviewed this exact commit by the reviewer account?
-    if gh api "repos/$REPO/pulls/$num/reviews" --paginate \
-       | jq -e --arg u "$REVIEWER_LOGIN" --arg h "$head" '.[] | select(.user.login==$u and .commit_id==$h)' >/dev/null; then
+    mine=$(gh api "repos/$REPO/pulls/$num/reviews" --paginate \
+       | jq -r --arg u "$REVIEWER_LOGIN" --arg h "$head" '[.[] | select(.user.login==$u and .commit_id==$h) | .state] | last // empty')
+    if [ -n "$mine" ]; then
+      # approved but auto-merge never armed (e.g. the merge call failed): arm it now
+      if [ "$mine" = APPROVED ] && [ "$critical" = false ] && [ "$(jq -r '.autoMergeRequest == null' <<<"$pr")" = true ]; then
+        echo "-- #$num: approved without auto-merge, arming"
+        GH_TOKEN="$REVIEWER_PAT" gh pr merge "$num" -R "$REPO" --auto --squash || echo "!! arming auto-merge on #$num failed"
+      fi
       continue
     fi
     # CI must have finished (green or red) for this commit before we spend a review
