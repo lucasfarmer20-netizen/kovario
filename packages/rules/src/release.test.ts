@@ -10,6 +10,7 @@ import {
   LBS_LEFT_NOT_A_NUMBER,
   LBS_LEFT_NOT_LESS_THAN_MEASURE,
   LBS_LEFT_ON_UNTICKED,
+  LBS_LEFT_TOO_PRECISE,
   releaseLineIssue,
   shipmentBuyGate,
   vesselReleaseAction,
@@ -38,6 +39,14 @@ describe("I4/I5 vessel line", () => {
     expect(releaseLineIssue(false, -1, 30)).toBe(LBS_LEFT_NEGATIVE);
     expect(releaseLineIssue(true, Number.NaN, 30)).toBe(LBS_LEFT_NOT_A_NUMBER);
     expect(releaseLineIssue(true, Number.POSITIVE_INFINITY, 30)).toBe(LBS_LEFT_NOT_A_NUMBER);
+  });
+
+  it("I5 Lbs Left is in hundredths: a finer remainder is rejected, never rounded into a split", () => {
+    expect(releaseLineIssue(true, 0.004, 30)).toBe(LBS_LEFT_TOO_PRECISE);
+    expect(releaseLineIssue(true, 29.996, 30)).toBe(LBS_LEFT_TOO_PRECISE);
+    expect(releaseLineIssue(false, 0.001, 30)).toBe(LBS_LEFT_TOO_PRECISE);
+    expect(releaseLineIssue(true, 0.29, 30)).toBeNull();
+    expect(releaseLineIssue(true, 29.99, 30)).toBeNull();
   });
 
   it("P19 unticked line with a remainder is rejected, never an action (I4/I5)", () => {

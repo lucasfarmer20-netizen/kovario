@@ -30,7 +30,7 @@ afterAll(async () => {
 
 describe("generated release SQL ≡ release.ts", () => {
   it("I5 line rule over a grid", async () => {
-    const lbs = [null, 0, 0.01, 5, 9.99, 10, 10.01, -1];
+    const lbs = [null, 0, 0.01, 0.29, 5, 9.99, 10, 10.01, -1, 0.004, 9.996, 0.001];
     for (const ticked of [true, false]) {
       for (const left of lbs) {
         const { rows } = await pool.query<{ issue: string | null; action: string | null }>(

@@ -4,8 +4,9 @@
 --   app.vessel_release_action — I4 / I5 tick → none | full_pull | split (release.ts);
 --   app.shipment_buy_gate     — I13 / I13b / I14 buy and reprint gate (release.ts).
 
--- Null when the line is valid. Blank Lbs Left reads as 0; an unticked line's nonzero
--- remainder is rejected, never inferred; a split must be below the current measure.
+-- Null when the line is valid. Blank Lbs Left reads as 0; at most 2 decimals (weights are
+-- numeric(10,2)); an unticked line's nonzero remainder is rejected, never inferred; a
+-- split must be below the current measure.
 create or replace function app.release_line_issue(p_ticked boolean, p_lbs_left numeric, p_measure numeric)
 returns text
 language sql
@@ -15,6 +16,7 @@ as $$
   select case
     when p_lbs_left is not null and p_lbs_left::text in ('NaN', 'Infinity', '-Infinity') then 'Lbs Left must be a number'
     when coalesce(p_lbs_left, 0) < 0 then 'Lbs Left cannot be negative'
+    when p_lbs_left * 100 <> trunc(p_lbs_left * 100) then 'Lbs Left takes at most 2 decimal places'
     when not p_ticked then case when coalesce(p_lbs_left, 0) = 0 then null else 'Lbs Left on an unticked line; tick the tote or clear the value' end
     when coalesce(p_lbs_left, 0) = 0 or p_lbs_left < p_measure then null
     else 'Lbs Left must be less than the basket''s current weight; leave it blank or 0 for a full pull'

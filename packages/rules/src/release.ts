@@ -9,6 +9,8 @@ export type VesselReleaseAction = "none" | "full_pull" | "split";
 
 export const LBS_LEFT_NOT_A_NUMBER = "Lbs Left must be a number";
 export const LBS_LEFT_NEGATIVE = "Lbs Left cannot be negative";
+/** Weights are stored as numeric(10,2): a finer remainder would be split, then rounded. */
+export const LBS_LEFT_TOO_PRECISE = "Lbs Left takes at most 2 decimal places";
 export const LBS_LEFT_ON_UNTICKED =
   "Lbs Left on an unticked line; tick the tote or clear the value";
 export const LBS_LEFT_NOT_LESS_THAN_MEASURE =
@@ -28,6 +30,8 @@ export function releaseLineIssue(
   if (lbsLeft !== null && !Number.isFinite(lbsLeft)) return LBS_LEFT_NOT_A_NUMBER;
   const left = lbsLeft ?? 0;
   if (left < 0) return LBS_LEFT_NEGATIVE;
+  // Hundredths, tolerant of binary float noise (0.29 * 100 = 28.999999999999996).
+  if (Math.abs(left * 100 - Math.round(left * 100)) > 1e-6) return LBS_LEFT_TOO_PRECISE;
   if (!ticked) return left === 0 ? null : LBS_LEFT_ON_UNTICKED;
   if (left === 0 || left < measure) return null;
   return LBS_LEFT_NOT_LESS_THAN_MEASURE;

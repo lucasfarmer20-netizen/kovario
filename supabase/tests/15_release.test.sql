@@ -2,7 +2,7 @@
 -- release_audit, restore_vessel and Release-by-Tag, against the CSP release spec
 -- (docs/10-LESSONS-FROM-CSP.md §2). One test group per path P1–P24 (named `P<n> —`), plus
 -- the invariants they lean on (`I<n> —`). P18's true two-transaction race is in
--- packages/db/src/release-concurrency.db.test.ts; here P18 is the sequential loser.
+-- packages/db/src/release.db.test.ts; here P18 is the sequential loser.
 -- Fixtures are written as the table owner; every release call runs as `authenticated`.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -509,6 +509,11 @@ select is(public.shipment_buy_check(pg_temp.id('sh24')) -> 'gate',
 select is(pg_temp.release('s2', '{}') ->> 'noop', 'true', 'I7 — Complete with nothing ticked is a no-op');
 select matches(pg_temp.err($$select pg_temp.release('s19', '{}', '[["v19b", -1]]')$$), '^22023 .*negative',
   'I16 — negative Lbs Left aborts');
+select matches(pg_temp.err($$select pg_temp.release('s19', '{}', '[["v19b", 0.004]]')$$), '^22023 .*2 decimal',
+  'I5 — a remainder finer than hundredths aborts (never split and rounded to 0.00)');
+select matches(pg_temp.err($$select pg_temp.release('s19', '{}', '[["v19b", 9.996]]')$$), '^22023 .*2 decimal',
+  'I5 — 9.996 of 10 lb aborts rather than a no-change split that counts as movement');
+select is(pg_temp.vstate('v19b'), 'occupied:10.00:-', 'I5 — precision aborts write nothing');
 select matches(pg_temp.err($$select pg_temp.release('s19', '{}', '[["v19b", 10]]')$$), '^22023 .*less than',
   'I16 — split at the current measure aborts');
 select matches(pg_temp.err($$select public.release_party(gen_random_uuid()::text, pg_temp.id('s19'), '{}',
