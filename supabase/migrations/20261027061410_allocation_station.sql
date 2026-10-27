@@ -94,6 +94,24 @@ begin
 end;
 $$;
 
+-- Billing scope lock ---------------------------------------------------------------------------
+
+-- Serializes the org's allocation writes (save, price, cancel). A save or cancel locks its own
+-- session and then reprices the other sessions sharing an intake; two such writes on sessions
+-- that share an intake would otherwise lock in opposite orders and deadlock. Taken before any
+-- session row lock, so allocation writes never hold one session while waiting for another
+-- held by a second allocation write. Release / payment paths lock a single session (session
+-- → vessels → intakes) and never wait on a second session, so they cannot close a cycle.
+-- Counter traffic is a few tablets and these transactions are short.
+create or replace function app.lock_allocation_billing(p_org_id uuid)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  select pg_advisory_xact_lock(hashtextextended('allocation_billing:' || p_org_id::text, 0))
+$$;
+
 -- Pool and price ----------------------------------------------------------------------------
 
 -- The session that bills an intake's processing charges: the earliest non-cancelled session
@@ -211,6 +229,7 @@ $$;
 
 -- Reprices the other priced, unpaid sessions pooling any of `p_intake_ids` — the billing
 -- session of a shared intake can change when this session adds, drops or cancels it.
+-- Callers hold app.lock_allocation_billing, so no other allocation write holds these rows.
 create or replace function app.reprice_sessions_sharing(p_session_id uuid, p_intake_ids uuid[])
 returns void
 language plpgsql
@@ -328,6 +347,7 @@ begin
   end if;
   v_action := app.action_begin(p_client_action_id, 'allocation.save', p_payload);
   if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+  perform app.lock_allocation_billing(app.org_id());
 
   -- Header ---------------------------------------------------------------------------------
   if coalesce(p_payload ->> 'split_method', 'weight') not in ('weight', 'even') then
@@ -558,6 +578,7 @@ begin
   v_action := app.action_begin(p_client_action_id, 'allocation.price',
     jsonb_build_object('session_id', p_session_id));
   if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+  perform app.lock_allocation_billing(app.org_id());
 
   select * into v_session from public.allocation_session
   where id = p_session_id and org_id = app.org_id()
@@ -600,6 +621,7 @@ begin
   v_action := app.action_begin(p_client_action_id, 'allocation.cancel',
     jsonb_build_object('session_id', p_session_id, 'reason', nullif(btrim(p_reason), '')));
   if v_action ->> 'status' = 'done' then return v_action -> 'result'; end if;
+  perform app.lock_allocation_billing(app.org_id());
 
   select * into v_session from public.allocation_session
   where id = p_session_id and org_id = app.org_id()
@@ -818,6 +840,7 @@ grant select on public.allocation_session_list to authenticated, service_role;
 
 revoke all on function
   app.number_order(text),
+  app.lock_allocation_billing(uuid),
   app.intake_billing_session(uuid),
   app.session_billed_charges(uuid),
   app.session_pool(uuid),
