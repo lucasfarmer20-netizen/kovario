@@ -68,6 +68,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "allocation_intake_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "allocation_intake_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
@@ -484,6 +490,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "intake_split_from_id_fkey"
+      columns: ["split_from_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "intake_wave_id_fkey"
       columns: ["wave_id"]
 isOneToOne: false
@@ -509,6 +521,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "intake_line_org_id_condition_code_fkey"
       columns: ["org_id","condition_code"]
@@ -958,6 +976,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "reconcile_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "reconcile_line_intake_line_id_fkey"
       columns: ["intake_line_id"]
 isOneToOne: true
@@ -1059,6 +1083,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "release_audit_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "release_audit_org_id_fkey"
       columns: ["org_id"]
@@ -1173,6 +1203,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "scan_log_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "scan_log_location_id_fkey"
       columns: ["location_id"]
@@ -1526,6 +1562,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "tote_tag_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "tote_tag_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
@@ -1569,6 +1611,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "vessel_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "vessel_location_id_fkey"
       columns: ["location_id"]
@@ -1622,6 +1670,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "wave_intake_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "wave_intake_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
@@ -1653,6 +1707,12 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "wave_scan_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "wave_scan_operator_id_fkey"
       columns: ["operator_id"]
@@ -1747,6 +1807,12 @@ isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "reconcile_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
       foreignKeyName: "reconcile_line_intake_line_id_fkey"
       columns: ["intake_line_id"]
 isOneToOne: true
@@ -1754,6 +1820,26 @@ isOneToOne: true
       referencedColumns: ["id"]
     },{
       foreignKeyName: "reconcile_line_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"rollstock_tote_progress": {
+                  Row: {
+                    "intake_id": string,"org_id": string,"scanned": number | null,"tote_count": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                           "intake_id"?: string | null,"org_id"?: string | null,"scanned"?: never,"tote_count"?: number | null
+                         }
+                        Update: {
+                           "intake_id"?: string | null,"org_id"?: string | null,"scanned"?: never,"tote_count"?: number | null
+                         }
+                        Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
       columns: ["org_id"]
 isOneToOne: false
       referencedRelation: "org"
@@ -1946,6 +2032,9 @@ isOneToOne: false
                            },
 "reprint_intake_tote_tags":
 { Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
+                           },
+"rollstock_scan_advance":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_open_intake_id": string,"p_operator_session"?: string,"p_override_reason"?: string,"p_raw": string }; Returns: Json
                            },
 "save_intake":
 { Args: { "p_client_action_id": string,"p_payload": Json }; Returns: Json
