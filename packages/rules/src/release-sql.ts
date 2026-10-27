@@ -13,7 +13,7 @@ import {
   LBS_LEFT_ON_UNTICKED,
 } from "./release.ts";
 
-export const RELEASE_SQL_PATH = "supabase/migrations/20261027070000_release_rules_sql.sql";
+export const RELEASE_SQL_PATH = "supabase/migrations/20261027230000_release_rules_sql.sql";
 
 function literal(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
