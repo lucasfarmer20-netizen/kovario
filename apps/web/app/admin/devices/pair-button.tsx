@@ -43,7 +43,7 @@ export function PairButton({ deviceId, paired }: { deviceId: string; paired: boo
       ) : null}
       {state?.active && state.code && state.qrSvg ? (
         <div className="flex items-center gap-4 rounded-md border border-border p-3">
-          {/* SVG rendered server-side from the KV:PAIR text produced by packages/rules qr.ts. */}
+          {/* SVG rendered server-side from the FL:PAIR text produced by packages/rules qr.ts. */}
           <div className="size-40" dangerouslySetInnerHTML={{ __html: state.qrSvg }} />
           <div className="flex flex-col gap-1 text-sm">
             <span>On the tablet open /pair, then scan this QR or type:</span>

@@ -37,7 +37,7 @@ The shared floor-station chrome every scan station builds on
 - Unit tests for `ScanInput` parsing/debounce and the queue's retry/replay logic.
 
 ## Acceptance
-- A demo station page accepts a pasted `KV:TOTE:INT-0001:1`, flashes green, writes a
+- A demo station page accepts a pasted `FL:TOTE:INT-0001:1`, flashes green, writes a
   `scan_log` row; an unknown string flashes red and writes a rejected row; with the
   network throttled off, scans queue and replay on reconnect.
 

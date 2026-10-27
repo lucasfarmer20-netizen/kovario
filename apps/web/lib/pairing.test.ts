@@ -3,7 +3,7 @@ import { pairingQrText, readPairingInput } from "./pairing";
 
 describe("pairing QR", () => {
   it("is produced by the rules QR codec", () => {
-    expect(pairingQrText("ABCD2345")).toBe("KV:PAIR:ABCD2345");
+    expect(pairingQrText("ABCD2345")).toBe("FL:PAIR:ABCD2345");
     expect(() => pairingQrText("ABCD0OIL")).toThrow(RangeError);
   });
 
@@ -21,9 +21,9 @@ describe("pairing QR", () => {
   });
 
   it("rejects other QR kinds and invalid codes", () => {
-    expect(readPairingInput("KV:TOTE:INT-0001:1")).toBeNull();
-    expect(readPairingInput("KV:TAG:demo-plant:042")).toBeNull();
-    expect(readPairingInput("KV:PAIR:ABCDL345")).toBeNull();
+    expect(readPairingInput("FL:TOTE:INT-0001:1")).toBeNull();
+    expect(readPairingInput("FL:TAG:demo-plant:042")).toBeNull();
+    expect(readPairingInput("FL:PAIR:ABCDL345")).toBeNull();
     expect(readPairingInput("ABCD0OIL")).toBeNull();
     expect(readPairingInput("")).toBeNull();
   });

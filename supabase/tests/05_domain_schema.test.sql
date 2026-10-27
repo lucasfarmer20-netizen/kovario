@@ -335,12 +335,12 @@ select is(app.storage_days('2026-07-01 12:00-08', '2026-07-11 12:00-08', 'Americ
 -- Floor: vessel location mirror, archived locations -----------------------------------
 insert into public.location (id, org_id, zone, kind, "row", bay, level, depth, code, qr) values
   ('c0000000-0000-4000-8000-0000000050c1', 'c0000000-0000-4000-8000-00000000000c', 'IF', 'rack', 'A', 1, 1, 'F',
-   'IF-A-01-1-F', 'KV:LOC:org-c:IF-A-01-1-F'),
+   'IF-A-01-1-F', 'FL:LOC:org-c:IF-A-01-1-F'),
   ('c0000000-0000-4000-8000-0000000050c2', 'c0000000-0000-4000-8000-00000000000c', 'IF', 'rack', 'A', 1, 1, 'R',
-   'IF-A-01-1-R', 'KV:LOC:org-c:IF-A-01-1-R');
+   'IF-A-01-1-R', 'FL:LOC:org-c:IF-A-01-1-R');
 insert into public.location (id, org_id, zone, kind, code, qr, is_active) values
   ('c0000000-0000-4000-8000-0000000050c3', 'c0000000-0000-4000-8000-00000000000c', 'IF', 'pallet',
-   'IF-PALLET-01', 'KV:LOC:org-c:IF-PALLET-01', false);
+   'IF-PALLET-01', 'FL:LOC:org-c:IF-PALLET-01', false);
 
 select ok(
   (select sort_key from public.location where id = 'c0000000-0000-4000-8000-0000000050c1')
@@ -394,9 +394,9 @@ select throws_ok(
 -- Another org's locations: one live, one archived.
 insert into public.location (id, org_id, zone, kind, code, qr, is_active) values
   ('d0000000-0000-4000-8000-0000000050d1', 'd0000000-0000-4000-8000-00000000000d', 'IF', 'pallet',
-   'IF-PALLET-01', 'KV:LOC:org-d:IF-PALLET-01', true),
+   'IF-PALLET-01', 'FL:LOC:org-d:IF-PALLET-01', true),
   ('d0000000-0000-4000-8000-0000000050d2', 'd0000000-0000-4000-8000-00000000000d', 'IF', 'pallet',
-   'IF-PALLET-02', 'KV:LOC:org-d:IF-PALLET-02', false);
+   'IF-PALLET-02', 'FL:LOC:org-d:IF-PALLET-02', false);
 
 select throws_ok(
   $$ insert into public.location_placement (org_id, vessel_id, location_id) values
@@ -471,7 +471,7 @@ select lives_ok(
 );
 
 insert into public.asset_tag (id, org_id, code, qr) values
-  ('c0000000-0000-4000-8000-0000000070c1', 'c0000000-0000-4000-8000-00000000000c', '042', 'KV:TAG:org-c:042');
+  ('c0000000-0000-4000-8000-0000000070c1', 'c0000000-0000-4000-8000-00000000000c', '042', 'FL:TAG:org-c:042');
 
 select throws_ok(
   $$ update public.asset_tag set state = 'in_use' where id = 'c0000000-0000-4000-8000-0000000070c1' $$,

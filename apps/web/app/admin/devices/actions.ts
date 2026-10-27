@@ -70,7 +70,7 @@ export async function issuePairingCode(
     if (error || !row) return { error: error?.message ?? "Could not issue a code." };
     revalidatePath("/admin/devices");
     if (!row.active) return { active: false };
-    // QR text comes only from the rules codec (KV:PAIR:<code>, hard rule 4).
+    // QR text comes only from the rules codec (FL:PAIR:<code>, hard rule 4).
     const qrSvg = await QRCode.toString(pairingQrText(row.code), {
       type: "svg",
       margin: 1,
