@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { FilletryClient } from "db";
 import type { StationSession } from "@/components/intake/use-station-session";
 import { Register } from "./register-station";
@@ -100,7 +100,9 @@ function fakeClient(rpcs: Record<string, unknown>) {
     return q;
   };
   const auth = { getSession: async () => ({ data: { session: { access_token: "tok-123" } } }) };
-  return { client: { from, rpc, auth } as unknown as FilletryClient, rpc };
+  // the `elevate` Edge Function: a manager PIN mints an elevation token
+  const functions = { invoke: async () => ({ data: { ok: true, token: "elev-1" }, error: null }) };
+  return { client: { from, rpc, auth, functions } as unknown as FilletryClient, rpc };
 }
 
 const session = (client: FilletryClient): StationSession => ({
@@ -275,4 +277,43 @@ it("cash records through the manual tender without a terminal", async () => {
   fireEvent.click(screen.getByText("Record Cash"));
   await waitFor(() => expect(sentBody()).toMatchObject({ tender: "cash", terminalId: null }));
   await screen.findByText(/Paid in full/);
+});
+
+it("a successful PARTIAL refund reads as success — the payment stays approved for the rest", async () => {
+  const approved = pay({
+    state: "approved",
+    amount: 45.58,
+    refundable: 45.58,
+    reversed_amount: null,
+  });
+  await loadCart({
+    register_load_outstanding: { ...CART, payments: [approved] },
+    register_order: { ...CART, payments: [approved] },
+  });
+  fireEvent.click(screen.getByText("Refund"));
+  const panel = within(screen.getByLabelText("Manager action"));
+  expect(panel.getByDisplayValue("45.58")).toBeTruthy(); // defaults to what is still refundable
+  fireEvent.change(panel.getByDisplayValue("45.58"), { target: { value: "10" } });
+  fireEvent.change(panel.getByLabelText("Reason"), { target: { value: "one bag short" } });
+  fireEvent.click(screen.getByText("Manager PIN…"));
+  fireEvent.change(screen.getByLabelText("Manager PIN PIN"), { target: { value: "1234" } });
+  fetchMock.mockReturnValueOnce(
+    answer({
+      status: "refunded",
+      payment: pay({ state: "approved", reversed_amount: 10, refundable: 35.58 }),
+      order: null,
+      refund_order: { refund_amount: 10 },
+    } as unknown as PaymentResult),
+  );
+  fireEvent.click(screen.getByText("Continue"));
+  await screen.findByText(
+    "PAY-0001: $10.00 returned (refunded). $35.58 is still captured. Nothing is released by a refund.",
+  );
+  expect(screen.queryByText(/did not refund/)).toBeNull();
+  expect(fetchMock.mock.calls[0]![0]).toBe("/api/payments/refund");
+  expect(sentBody()).toMatchObject({
+    amount: 10,
+    reason: "one bag short",
+    elevationToken: "elev-1",
+  });
 });

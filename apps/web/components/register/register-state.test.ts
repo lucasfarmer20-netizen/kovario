@@ -6,6 +6,7 @@ import {
   chargeView,
   paymentLabel,
   reversalUnresolved,
+  reversalView,
   reversible,
   unresolved,
   type Cart,
@@ -180,5 +181,53 @@ describe("what the cashier may do", () => {
         payment({ tender: "cash", card_last4: null, state: "refunded", reversed_amount: 10 }),
       ),
     ).toBe("PAY-0001 · Cash · $10.00 · refunded ($10.00 back)");
+  });
+});
+
+describe("void / refund result (success from the provider's answer, not the payment state)", () => {
+  it("a partial refund is a success; the retained balance is shown", () => {
+    const v = reversalView(
+      "refund",
+      {
+        status: "refunded",
+        payment: payment({ state: "approved", reversed_amount: 2, refundable: 8 }),
+        refund_order: { refund_amount: 2 },
+      },
+      2,
+    );
+    expect(v.tone).toBe("ok");
+    expect(v.message).toBe(
+      "PAY-0001: $2.00 returned (refunded). $8.00 is still captured. Nothing is released by a refund.",
+    );
+  });
+
+  it("a full refund / void reports the total returned", () => {
+    expect(
+      reversalView("reverse", {
+        status: "voided",
+        payment: payment({ state: "voided", reversed_amount: 10, refundable: 0 }),
+        refund_order: { refund_amount: 10 },
+      }).message,
+    ).toBe(
+      "PAY-0001 voided: $10.00 returned, $10.00 back in total. Nothing is released by a refund.",
+    );
+  });
+
+  it("declined / error are failures with nothing returned", () => {
+    const v = reversalView("refund", { status: "declined", payment: payment({ refundable: 10 }) });
+    expect(v.tone).toBe("bad");
+    expect(v.message).toBe(
+      "PAY-0001: the provider did not refund it (declined). Nothing was returned; $10.00 is still captured.",
+    );
+  });
+
+  it("indeterminate warns the money may be back; a replay says not to repeat it", () => {
+    expect(reversalView("refund", { status: "indeterminate", payment: payment() }).message).toMatch(
+      /may already be back/,
+    );
+    expect(reversalView("refund", { status: "replayed", payment: payment() })).toMatchObject({
+      tone: "info",
+      message: expect.stringMatching(/already recorded .* Do not repeat it/),
+    });
   });
 });

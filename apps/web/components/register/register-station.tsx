@@ -35,12 +35,14 @@ import {
   money,
   paymentLabel,
   reversalUnresolved,
+  reversalView,
   reversible,
   unresolved,
   type Cart,
   type CartPayment,
   type ChargeView,
   type Notice,
+  type ReversalResult,
   type TenderType,
 } from "./register-state";
 
@@ -300,23 +302,13 @@ export function Register({ session }: { session: StationSession }) {
       ...(g.kind === "refund" ? { amount: Number(g.amount) } : {}),
     });
     done(key);
-    if (r.status === "indeterminate") {
-      setView({
-        phase: "idle",
-        tone: "bad",
-        message: `${r.payment.number}: the provider did not confirm the ${g.kind} — the money may already be back. Check the processor; a manager must resolve it before another void or refund.`,
-      });
-      await refresh();
-      return;
-    }
-    setView({
-      phase: "idle",
-      tone: r.payment.state === "approved" ? "bad" : "ok",
-      message:
-        r.payment.state === "approved"
-          ? `${r.payment.number}: the provider did not ${g.kind} it (${r.status}).`
-          : `${r.payment.number} ${r.payment.state}. Nothing is released by a refund.`,
-    });
+    setView(
+      reversalView(
+        g.kind,
+        r as unknown as ReversalResult,
+        g.kind === "refund" ? Number(g.amount) : undefined,
+      ),
+    );
     await refresh();
   }
 

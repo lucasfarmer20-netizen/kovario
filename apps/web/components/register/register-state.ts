@@ -231,6 +231,66 @@ export function chargeInputError(input: {
   return null;
 }
 
+/** What /api/payments/{reverse,refund} answers (payment_reverse_record). */
+export type ReversalResult = {
+  status: string;
+  payment: CartPayment;
+  refund_order?: { refund_amount: number | null } | null;
+};
+
+/**
+ * The panel after a void / refund. Success is the provider's answer (`status` refunded /
+ * voided), NOT the payment state: a partial refund leaves the payment approved for what is
+ * still captured, and must never read as a failure (a retry would return more money).
+ */
+export function reversalView(
+  kind: "reverse" | "refund",
+  r: ReversalResult,
+  requested?: number,
+): ChargeView {
+  const p = r.payment;
+  const what = kind === "reverse" ? "void" : "refund";
+  switch (r.status) {
+    case "refunded":
+    case "voided": {
+      const returned = r.refund_order?.refund_amount ?? requested ?? null;
+      const back = returned !== null ? `${money(returned)} returned` : "Money returned";
+      if (p.state === "approved") {
+        return {
+          phase: "idle",
+          tone: "ok",
+          message: `${p.number}: ${back} (${r.status}). ${money(p.refundable ?? p.amount - (p.reversed_amount ?? 0))} is still captured. Nothing is released by a refund.`,
+        };
+      }
+      return {
+        phase: "idle",
+        tone: "ok",
+        message: `${p.number} ${p.state}: ${back}, ${money(p.reversed_amount)} back in total. Nothing is released by a refund.`,
+      };
+    }
+    case "indeterminate":
+      return {
+        phase: "idle",
+        tone: "bad",
+        message: `${p.number}: the provider did not confirm the ${what} — the money may already be back. Check the processor; a manager must resolve it before another void or refund.`,
+      };
+    case "noop":
+    case "replayed":
+    case "current":
+      return {
+        phase: "idle",
+        tone: "info",
+        message: `${p.number}: this ${what} was already recorded (${p.state}). Do not repeat it.`,
+      };
+    default:
+      return {
+        phase: "idle",
+        tone: "bad",
+        message: `${p.number}: the provider did not ${what} it (${r.status}). Nothing was returned; ${money(p.refundable ?? p.amount)} is still captured.`,
+      };
+  }
+}
+
 /** A payment a manager may void / refund from the register. */
 /** A void / refund with no confirmed outcome (the provider call failed mid-way, or died). */
 export function reversalUnresolved(p: CartPayment): boolean {
