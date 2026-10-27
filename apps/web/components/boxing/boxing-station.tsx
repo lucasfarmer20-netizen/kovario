@@ -158,13 +158,18 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   const [tagForm, setTagForm] = useState({ tag: "", lbsLeft: "", reason: "" });
   const [restoreReason, setRestoreReason] = useState("");
   const [pending, setPending] = useState<ManagerAction | null>(null);
-  const [i8Blocked, setI8Blocked] = useState(false);
+  /**
+   * The last Complete's I8 refusal, as the SERVER judged it under lock: `override` when no
+   * tote is left (DECISION-23), `tote_left` otherwise. Never inferred from the local
+   * (possibly stale) pick list.
+   */
+  const [i8Blocked, setI8Blocked] = useState<"none" | "tote_left" | "override">("none");
   const [i8Reason, setI8Reason] = useState("");
 
   /** Any tick change or refresh makes an earlier I8 refusal stale: hide its override. */
   function updateTicks(next: Ticks) {
     setTicks(next);
-    setI8Blocked(false);
+    setI8Blocked("none");
   }
 
   const typing = {
@@ -259,7 +264,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
         override,
       );
       setReply(r);
-      setI8Blocked(false);
+      setI8Blocked("none");
       setI8Reason("");
       if (r.noop) {
         setFeedback({ tone: "warn", text: r.message ?? "Nothing to release." });
@@ -275,7 +280,13 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     } catch (err) {
       const text = err instanceof Error ? err.message : "Complete failed";
       if (text.includes("operator_pin_required")) op.expire();
-      setI8Blocked(text.includes("(I8)"));
+      setI8Blocked(
+        !text.includes("(I8)")
+          ? "none"
+          : text.includes("ask a manager to override")
+            ? "override"
+            : "tote_left",
+      );
       setFeedback({ tone: "error", text });
     } finally {
       setBusy(false);
@@ -486,14 +497,14 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
           </button>
           <Link href="/boxing">Queue</Link>
         </div>
-        {i8Blocked && wizard.vessels.length > 0 && (
+        {i8Blocked === "tote_left" && (
           <p className="station-hint" role="status">
-            Tick the totes you are handing over: {wizard.vessels.length} basket(s) of this party are
-            still in the freezer (see the pick list).
+            Tick the totes you are handing over: this party still has baskets in the freezer (see
+            the pick list).
           </p>
         )}
-        {/* DECISION-23: only when no tote is left (the server checks the same). */}
-        {i8Blocked && wizard.vessels.length === 0 && (
+        {/* DECISION-23: only when the server found no tote left (it re-checks on override). */}
+        {i8Blocked === "override" && (
           <div aria-label="I8 override">
             <p className="station-hint">
               No tote is left to tick for this party: another party or a tag release took the last

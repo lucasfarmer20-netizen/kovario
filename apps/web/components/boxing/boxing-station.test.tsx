@@ -257,7 +257,7 @@ it("WP15 I8 refusal with totes left points at the pick list, never the override"
   setup(undefined, "manager", [I8_TOTE_LEFT]);
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
   fireEvent.click(screen.getByText("Complete"));
-  expect(await screen.findByText(/2 basket\(s\) of this party/)).toBeTruthy();
+  expect(await screen.findByText(/still has baskets in the freezer/)).toBeTruthy();
   expect(screen.queryByText("Manager override")).toBeNull();
 });
 
@@ -268,5 +268,23 @@ it("WP15 changing a tick hides a stale I8 override", async () => {
   fireEvent.click(screen.getByText("Complete"));
   expect(await screen.findByText("Manager override")).toBeTruthy();
   fireEvent.click(box);
+  expect(screen.queryByText("Manager override")).toBeNull();
+});
+
+it("WP15 the I8 panel follows the server, not a stale pick list", async () => {
+  // The wizard still lists a basket, but the server (under lock) found none left.
+  const { rpc } = setup(undefined, "manager", [I8_NO_TOTE]);
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  fireEvent.click(screen.getByText("Complete"));
+  expect(await screen.findByText("Manager override")).toBeTruthy();
+  expect(screen.queryByText(/still has baskets in the freezer/)).toBeNull();
+  expect(rpc).toHaveBeenCalledTimes(2); // wizard + the refused Complete
+});
+
+it("WP15 an empty pick list never shows the override when the server found a tote", async () => {
+  setup(undefined, "manager", [I8_TOTE_LEFT], { ...WIZARD, vessels: [] });
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  fireEvent.click(screen.getByText("Complete"));
+  expect(await screen.findByText(/still has baskets in the freezer/)).toBeTruthy();
   expect(screen.queryByText("Manager override")).toBeNull();
 });
