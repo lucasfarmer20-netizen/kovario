@@ -43,7 +43,7 @@ export interface PaymentProvider {
 `TerminalConfig = payment_terminal.config + { secret: string }` where `secret` is
 resolved server-side from Vault by `secret_ref`. The sale call blocks up to ~150 s, so
 the `/api/payments/*` route handlers run on the **Node runtime with `export const
-maxDuration = 300`** (Vercel Pro / Fluid Compute — DECISION-18); never on the Edge
+maxDuration = 300`** (Fluid Compute; 300 s is the Hobby maximum — DECISION-18); never on the Edge
 runtime. **Providers run only in server code**
 (Edge Function `payments` or Next route handlers with service role); the browser calls
 `/api/payments/{sale,abort,status,reverse,refund}` with the register order id.

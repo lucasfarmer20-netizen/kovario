@@ -21,9 +21,9 @@ Lucas: edit the line, commit, and reference the ADR in the PR that applies it.
 | DECISION-13 | Receipts rendered by Kovario from stored payment data; terminal receipts suppressed. | **Decided** (carried from CSP) |
 | DECISION-14 | No freezer capacity gating anywhere. Capacity is display-only. | **Decided** (carried from CSP) |
 | DECISION-15 | Location master is generated from the racking actually built; generator is idempotent; archived locations cannot be bound. | **Decided** (carried from CSP) |
-| DECISION-16 | Domain name / app host: `app.kovario.com`; marketing site out of scope for this repo. | **DECISION NEEDED** — default as stated. |
+| DECISION-16 | Domain name / app host: `app.kovario.com` (Lucas owns `kovario.com`); marketing site out of scope for this repo. | **Decided** 2026-10-26 |
 | DECISION-17 | Testing: no mandatory e2e per PR beyond smoke; rules engine and payments adapters require unit coverage; release + storage invariants have dedicated integration tests against local Supabase. | **Decided** 2026-10-25 |
-| DECISION-18 | Long-running payment calls run in Next.js Node route handlers with `maxDuration = 300` on Vercel Pro. Alternative if the plan is Hobby: Supabase Edge Function. | **DECISION NEEDED** — default: Vercel Pro. |
+| DECISION-18 | Long-running payment calls run in Next.js Node route handlers with `maxDuration = 300` (Fluid Compute). Vercel **Hobby** for the proof of concept: its Fluid Compute maximum is 300 s, enough for the ~150 s terminal wait (Supabase Edge Functions cap at 150 s on the free plan, too tight). Move to Pro before commercial use: Hobby is non-commercial only, and Pro allows 800 s. | **Decided** 2026-10-26 (PoC) |
 | DECISION-19 | Fast Pass floors **processing** charges only. Ribbing is never floored or capped: it is always `ribbing_per_lb × lb`, on Fast Pass intakes too. | **Decided** 2026-10-26 |
 | DECISION-20 | Intake transitions follow `03-STATE-MACHINES.md`: scanning a `holding` tote at rollstock is a bypass `holding → processing` (audited), not a direct `holding → rollstock`. | **Decided** 2026-10-26 |
 | DECISION-21 | A manager may add an existing account to their org without that user's consent (`admin_add_member`). | **Decided** 2026-10-26 |
