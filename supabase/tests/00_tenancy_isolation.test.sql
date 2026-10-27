@@ -215,9 +215,11 @@ select throws_ok(
   'owner of org A cannot change org B''s default site'
 );
 
-select is_empty(
+-- WP-22: org rows are written only through admin_update_org / billing_* functions.
+select throws_ok(
   $$ update public.org set name = 'Hijacked' where id = 'b0000000-0000-4000-8000-00000000000b' returning id $$,
-  'owner of org A cannot update org B'
+  '42501', null,
+  'owner of org A cannot update org B (no direct org UPDATE at all)'
 );
 
 select throws_ok(
