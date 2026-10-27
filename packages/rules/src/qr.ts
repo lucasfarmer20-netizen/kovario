@@ -53,7 +53,8 @@ export type QrRejectReason = "empty" | "unknown_format" | "bad_field";
 
 export type ParseResult = { ok: true; value: ParsedQr } | { ok: false; reason: QrRejectReason };
 
-const INTAKE_NUMBER = /^INT-\d{4,}$/;
+/** Intake numbers as app.next_seq issues them (`INT-0001`). */
+export const INTAKE_NUMBER = /^INT-\d{4,}$/;
 const STORAGE_NUMBER = /^STG-\d{4,}$/;
 const ORG_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const LOCATION_CODE = /^[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
