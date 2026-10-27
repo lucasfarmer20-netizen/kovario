@@ -7,15 +7,27 @@ import type { CompletePayload, Wizard } from "./boxing-state";
 // sessions → vessels → intakes and re-reads under the lock, so a retry or a concurrent
 // Complete replays or no-ops instead of releasing twice (D0 / I16).
 
-function unwrap<T>({ data, error }: { data: T; error: { message: string } | null }): T {
-  if (error) throw new Error(error.message);
+type DbError = { message: string; hint?: string | null };
+
+/** A failed RPC; `hint` carries the SQL `HINT` (machine-readable codes such as I8's). */
+export class RpcError extends Error {
+  constructor(
+    message: string,
+    readonly hint: string | null,
+  ) {
+    super(message);
+  }
+}
+
+function unwrap<T>({ data, error }: { data: T; error: DbError | null }): T {
+  if (error) throw new RpcError(error.message, error.hint ?? null);
   return data;
 }
 
 async function act<T>(
   client: FilletryClient,
   clientActionId: string,
-  fn: (id: string) => PromiseLike<{ data: Json; error: { message: string } | null }>,
+  fn: (id: string) => PromiseLike<{ data: Json; error: DbError | null }>,
 ): Promise<T> {
   const result = await withAction(client, clientActionId, async (id) => unwrap(await fn(id)));
   return result as unknown as T;

@@ -19,6 +19,7 @@ import {
   loadWizard,
   releaseByTag,
   restoreVessel,
+  RpcError,
   type EmptiedVessel,
   type ReleaseReply,
 } from "./boxing-data";
@@ -280,12 +281,14 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     } catch (err) {
       const text = err instanceof Error ? err.message : "Complete failed";
       if (text.includes("operator_pin_required")) op.expire();
+      // The SQL HINT is the contract (never the English message).
+      const hint = err instanceof RpcError ? err.hint : null;
       setI8Blocked(
-        !text.includes("(I8)")
-          ? "none"
-          : text.includes("ask a manager to override")
-            ? "override"
-            : "tote_left",
+        hint === "i8_override_available"
+          ? "override"
+          : hint === "i8_tote_left"
+            ? "tote_left"
+            : "none",
       );
       setFeedback({ tone: "error", text });
     } finally {

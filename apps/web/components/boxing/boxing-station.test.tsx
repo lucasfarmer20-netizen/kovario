@@ -115,14 +115,14 @@ function setup(
     closed_intakes: [],
   },
   appRole = "staff",
-  releaseErrors: string[] = [],
+  releaseErrors: { message: string; hint?: string }[] = [],
   wizard: Wizard = WIZARD,
 ) {
   const rpc = vi.fn(async (name: string) => {
     if (name === "boxing_wizard") return { data: wizard, error: null };
     if (name === "release_party") {
-      const message = releaseErrors.shift();
-      return message ? { data: null, error: { message } } : { data: release, error: null };
+      const error = releaseErrors.shift();
+      return error ? { data: null, error } : { data: release, error: null };
     }
     return { data: null, error: null };
   });
@@ -227,10 +227,17 @@ it("WP15 scanning a tag ticks its tote; another party's boxing QR is refused (I1
   expect(await screen.findByText(/belongs to another party; one party per Complete/)).toBeTruthy();
 });
 
-const I8_NO_TOTE =
-  "no fish has moved for ALC-0001 yet: tick the totes being handed over before finalising boxes, or ask a manager to override (I8)";
-const I8_TOTE_LEFT =
-  "no fish has moved for ALC-0001 yet: tick the totes being handed over before finalising boxes (I8)";
+// The SQL HINT is the contract the screen branches on (15_release.test.sql pins both codes).
+const I8_NO_TOTE = {
+  message:
+    "no fish has moved for ALC-0001 yet: tick the totes being handed over before finalising boxes, or ask a manager to override (I8)",
+  hint: "i8_override_available",
+};
+const I8_TOTE_LEFT = {
+  message:
+    "no fish has moved for ALC-0001 yet: tick the totes being handed over before finalising boxes (I8)",
+  hint: "i8_tote_left",
+};
 
 it("WP15 I8 refusal with no tote left offers a manager override that resends with the reason (DECISION-23)", async () => {
   const { rpc } = setup(undefined, "manager", [I8_NO_TOTE], { ...WIZARD, vessels: [] });
@@ -287,4 +294,14 @@ it("WP15 an empty pick list never shows the override when the server found a tot
   fireEvent.click(screen.getByText("Complete"));
   expect(await screen.findByText(/still has baskets in the freezer/)).toBeTruthy();
   expect(screen.queryByText("Manager override")).toBeNull();
+});
+
+it("WP15 the I8 panel keys on the SQL hint, never on the English message", async () => {
+  // Same wording as the no-tote refusal, but no hint: no override is offered.
+  setup(undefined, "manager", [{ message: I8_NO_TOTE.message }], { ...WIZARD, vessels: [] });
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  fireEvent.click(screen.getByText("Complete"));
+  expect(await screen.findByText(/ask a manager to override/)).toBeTruthy(); // the error is shown
+  expect(screen.queryByText("Manager override")).toBeNull();
+  expect(screen.queryByText(/still has baskets in the freezer/)).toBeNull();
 });

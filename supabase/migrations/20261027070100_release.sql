@@ -473,7 +473,9 @@ begin
       raise exception 'no fish has moved for % yet: tick the totes being handed over before finalising boxes%(I8)',
         v_session.number,
         case when v_bad is null then ', or ask a manager to override ' else ' ' end
-        using errcode = '55000';
+        -- Machine-readable for the boxing screen (never match the English text).
+        using errcode = '55000',
+              hint = case when v_bad is null then 'i8_override_available' else 'i8_tote_left' end;
     end if;
     if v_bad is not null then
       raise exception '% still has a tote to tick (%); the I8 override applies only when none is left (DECISION-23)',

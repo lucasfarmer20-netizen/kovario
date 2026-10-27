@@ -554,12 +554,25 @@ create function pg_temp.override(p_session text, p_boxes text[], p_reason text) 
     (select array_agg(pg_temp.id(b)) from unnest(p_boxes) b), '[]', null, null, p_reason)
 $$;
 grant execute on function pg_temp.override(text, text[], text) to authenticated;
+-- The HINT the boxing screen branches on (never the English message).
+create function pg_temp.hint(p_sql text) returns text language plpgsql as $$
+declare h text;
+begin
+  execute p_sql;
+  return 'no error';
+exception when others then
+  get stacked diagnostics h = pg_exception_hint;
+  return h;
+end $$;
+grant execute on function pg_temp.hint(text) to authenticated;
 set local role authenticated;
 select pg_temp.as_user('staff');
 select is((select count(*)::int from public.vessel where intake_id = pg_temp.id('i1s') and lifecycle_state = 'occupied'),
   0, 'I8 OVERRIDE — s1s released i1s''s only basket: s1o has no tote left to tick');
 select matches(pg_temp.err($$select pg_temp.release('s1o', '{b1o}')$$), '^55000 .*ask a manager to override',
   'I8 OVERRIDE — without the override s1o''s box is blocked (I8 as written)');
+select is(pg_temp.hint($$select pg_temp.release('s1o', '{b1o}')$$), 'i8_override_available',
+  'I8 OVERRIDE — the no-tote refusal carries the machine-readable hint the screen keys on');
 select matches(pg_temp.err($$select pg_temp.override('s1o', '{b1o}', 'fish left with ALC s1s')$$), '^42501',
   'I8 OVERRIDE — staff cannot override');
 select pg_temp.as_user('manager');
@@ -604,6 +617,8 @@ set local role authenticated;
 select pg_temp.as_user('staff');
 select matches(pg_temp.err($$select pg_temp.release('s_left', '{b_left}')$$), '^55000 .*tick the totes being handed over before finalising boxes \(I8\)',
   'I8 OVERRIDE — with a tote left, the refusal does not offer an override');
+select is(pg_temp.hint($$select pg_temp.release('s_left', '{b_left}')$$), 'i8_tote_left',
+  'I8 OVERRIDE — the tote-left refusal carries its own hint (never i8_override_available)');
 select pg_temp.as_user('manager');
 select matches(pg_temp.err($$select pg_temp.override('s_left', '{b_left}', 'forgot to tick')$$),
   '^55000 .*still has a tote to tick \(Tag 7401 .*DECISION-23',
