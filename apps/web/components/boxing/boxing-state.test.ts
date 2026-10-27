@@ -157,12 +157,28 @@ describe("P15 additive re-scan keeps ticks only for still-eligible records (I15)
     ]);
   });
 
-  it("a basket whose weight changed keeps its tick but loses the stale remainder", () => {
+  it("a refresh can never turn a split into a full pull: a changed basket must be re-selected", () => {
     const before = wizard();
     const t = setLbsLeft(toggleVessel(emptyTicks(), before.vessels[0]!), before.vessels[0]!, "10");
     const after = wizard({ vessels: [{ ...before.vessels[0]!, weight_lb: 15 }] });
     const r = reproject(before, t, after);
-    expect(r.ticks.vessels.v1).toEqual({ ticked: true, lbsLeft: "", measure: 15 });
-    expect(r.notices[0]).toMatch(/now holds 15 lb/);
+    expect(r.ticks.vessels.v1).toBeUndefined(); // tick AND remainder dropped
+    expect(r.notices[0]).toMatch(/now holds 15 lb; its tick was dropped/);
+    const payload = completePayload(after, r.ticks);
+    expect(payload.vessel_ticks).toEqual([]); // nothing is sent, least of all lbs_left null
+    expect(nothingTicked(payload)).toBe(true);
+    // Re-ticking starts from the weight now shown.
+    expect(toggleVessel(r.ticks, after.vessels[0]!).vessels.v1).toEqual({
+      ticked: true,
+      lbsLeft: "",
+      measure: 15,
+    });
+  });
+
+  it("a ticked full-pull line on a changed basket is dropped too, not re-aimed at the new weight", () => {
+    const before = wizard();
+    const t = toggleVessel(emptyTicks(), before.vessels[0]!);
+    const after = wizard({ vessels: [{ ...before.vessels[0]!, weight_lb: 15 }] });
+    expect(completePayload(after, reproject(before, t, after).ticks).vessel_ticks).toEqual([]);
   });
 });

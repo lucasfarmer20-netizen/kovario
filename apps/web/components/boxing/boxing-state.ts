@@ -161,7 +161,9 @@ export const nothingTicked = (p: CompletePayload) =>
 /**
  * I15: a fresh projection keeps ticks only for still-eligible records (still-planned boxes,
  * still-occupied vessels) and drops the rest with a stale-state notice. A vessel whose weight
- * changed keeps its tick but loses its typed remainder (it was for the old weight).
+ * changed is no longer the basket the crew selected: its tick AND its remainder are dropped,
+ * so a refresh can never turn a split (or an untouched line) into a full pull of the new
+ * weight — the crew re-ticks it and re-enters Lbs Left against the weight now shown.
  */
 export function reproject(
   previous: Wizard | null,
@@ -190,10 +192,13 @@ export function reproject(
       continue;
     }
     if (v.weight_lb !== l.measure) {
-      if (l.ticked)
-        notices.push(`${vesselLabel(v)} now holds ${v.weight_lb} lb; re-check its Lbs Left.`);
-      vessels[id] = { ticked: l.ticked, lbsLeft: "", measure: v.weight_lb };
-    } else vessels[id] = l;
+      if (l.ticked || l.lbsLeft.trim() !== "")
+        notices.push(
+          `${vesselLabel(v)} now holds ${v.weight_lb} lb; its tick was dropped — tick it again and re-enter Lbs Left.`,
+        );
+      continue;
+    }
+    vessels[id] = l;
   }
   return { ticks: { boxes, vessels }, notices };
 }
