@@ -165,7 +165,7 @@ function LiveStation({ client, claims, station, site }: Context) {
           <h2>Scan a tote to begin</h2>
           <p>
             Paste or scan <code>{encode("TOTE", { intakeNumber: "INT-0001", toteNo: 1 })}</code>,
-            then press Enter (demo-plant intakes come from <code>pnpm db:seed-demo</code>).
+            then press Enter.
           </p>
           <p>
             Only totes in this plant’s intake master are accepted. Unknown labels are recorded as

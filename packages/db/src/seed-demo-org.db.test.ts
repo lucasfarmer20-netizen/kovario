@@ -106,6 +106,19 @@ describe("seed-demo-org (demo-plant for e2e)", { timeout: 120_000 }, () => {
     for (const i of data ?? []) expect(i.tote_tag).toHaveLength(i.tote_count);
   });
 
+  it("the intake counter continues after the highest seeded number", async () => {
+    const admin = serviceRoleClient();
+    const { data: intakes } = await admin.from("intake").select("number").eq("org_id", DEMO_ORG);
+    const highest = Math.max(...(intakes ?? []).map((i) => Number(i.number.slice(4))));
+    const { data: counter } = await admin
+      .from("sequence_counter")
+      .select("value")
+      .eq("org_id", DEMO_ORG)
+      .eq("kind", "intake")
+      .single();
+    expect(counter?.value).toBeGreaterThanOrEqual(highest);
+  });
+
   it("is idempotent: a second run adds nothing", async () => {
     seed();
     expect(await counts()).toEqual(first);
