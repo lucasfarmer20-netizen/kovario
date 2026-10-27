@@ -28,3 +28,4 @@ Lucas: edit the line, commit, and reference the ADR in the PR that applies it.
 | DECISION-20 | Intake transitions follow `03-STATE-MACHINES.md`: scanning a `holding` tote at rollstock is a bypass `holding → processing` (audited), not a direct `holding → rollstock`. | **Decided** 2026-10-26 |
 | DECISION-21 | A manager may add an existing account to their org without that user's consent (`admin_add_member`). | **Decided** 2026-10-26 |
 | DECISION-22 | Revoking a role or deactivating a device takes effect at the next token refresh (up to 1 hour); no forced session revocation in v1. | **Decided** 2026-10-26 |
+| DECISION-24 | Register paid hook records payment_event (paid_hook) + domain_event (register_order_paid); release_audit is reserved for fish movement. | **Decided** 2026-10-27 (Lucas) |

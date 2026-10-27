@@ -147,8 +147,11 @@ I1–I17 and paths P1–P24 from the CSP release spec are the acceptance tests
   settlements, pending storage batches, open charges. Cart lines carry the server ids;
   reloading replaces all lines.
 - On `approved`: settle charges, mark settlements paid, release batches, write
-  `payment_event` + `release_audit`, print receipt with card last4 / brand / entry
-  mode / auth code from `payment` (receipt rendered from stored data, not terminal).
+  `payment_event` (`paid_hook`) + `domain_event` (`register_order_paid`), print receipt with
+  card last4 / brand / entry mode / auth code from `payment` (receipt rendered from stored
+  data, not terminal). The paid hook does **not** write `release_audit`: that log is reserved
+  for fish movement (`moved | finalized | restored`, read by I8–I10); a released storage batch
+  keeps its own S7 release artifact (DECISION-24).
 - Partial approval counts as approved for the captured amount; cashier collects the
   remainder on a second payment line.
 - Refund orders never enter the release path.
