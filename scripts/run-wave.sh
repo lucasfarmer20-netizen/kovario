@@ -21,7 +21,9 @@ prs = json.loads(subprocess.check_output(['gh','pr','list','-R',repo,'--state','
 import re
 inflight = set()
 for p in prs:
-    inflight |= {int(x) for x in re.findall(r'#(\d+)', p.get('body') or '')}
+    # only closing keywords count: a PR that merely mentions "#21" (a cross-reference to
+    # another WP) must not mark issue 21 as in flight
+    inflight |= {int(x) for x in re.findall(r'(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)', p.get('body') or '')}
     hm = re.match(r'feat/(\d+)-', p.get('headRefName') or '')
     if hm: inflight.add(int(hm.group(1)))
 state = {i['number']: i['state'] for i in issues}
