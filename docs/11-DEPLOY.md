@@ -32,11 +32,12 @@ Rules:
    second project in the same organisation and region, Postgres 17 (`supabase/config.toml`
    `major_version`). Keep its database password in a password manager.
 2. Access tokens (Account → Access Tokens). Use a scoped token per environment:
-   - **staging** token, scoped to the staging project. Needed scopes: project settings read,
-     API keys + API key secrets read, database migrations read-write, Edge Functions
-     read-write — enough for `link`, `db push`, `functions deploy`. **`config push` also
-     needs** auth / database / data-API / storage / realtime config **read**, plus
-     `auth_config_write` and `project_admin_write` (`supabase config push --help` lists them).
+   - **staging** token, scoped to the staging project. The deploy script never runs
+     `supabase link` (every command takes `--project-ref`), so no API-key scopes are needed.
+     `db push`: database pooling config read + database (migrations) write; `functions deploy`:
+     Edge Functions read-write. **`config push` also needs** auth / database / data-API /
+     storage / realtime config **read**, plus `auth_config_write` and `project_admin_write`
+     (`supabase <command> --help` lists each command's scopes).
    - **prod** token, the same scopes on the prod project only.
 
 ### GitHub (`Settings → Secrets and variables → Actions`, `Settings → Environments`)
@@ -94,7 +95,7 @@ prod job can read them.
 2. **Merge to `main`**: CI runs again; when `check` is green, job `deploy` calls
    `deploy.yml`, which deploys to the GitHub `staging` environment via
    `scripts/deploy-supabase.sh staging`:
-   `supabase link` → `supabase db push` (migrations only, never seed) →
+   `supabase db push` (migrations only, never seed) →
    `supabase functions deploy --use-api --prune` (every function in `supabase/functions`,
    `verify_jwt` from `config.toml`; functions not in the repo are deleted) →
    `supabase config push` (auth hook, auth settings, API settings from `config.toml`, with the

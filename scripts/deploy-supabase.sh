@@ -11,10 +11,11 @@
 #                  config.toml's site_url is the local one and must never reach a hosted project.
 #   REDIRECT_URLS  optional, comma-separated extra auth redirect URLs (globs allowed)
 # --dry-run links and runs `supabase db push --dry-run` only; nothing is written.
-# Token scopes: link/db push/functions deploy need project_admin_read, api_gateway_keys_read
-# (+ secret read), database migrations and edge_functions read-write; config push additionally
-# needs the auth/database/data-api/storage/realtime config read scopes plus auth_config_write
-# and project_admin_write (`supabase config push --help`).
+# No `supabase link`: every command takes --project-ref, so the token needs no API-key scopes.
+# Token scopes (`supabase <cmd> --help`): db push — database pooling config read, database
+# write (migrations); functions deploy — edge functions read-write; config push — the auth /
+# database / data-api / storage / realtime config read scopes plus auth_config_write and
+# project_admin_write.
 # Seed files are never run against a hosted project.
 set -euo pipefail
 
@@ -36,10 +37,10 @@ trap 'rm -rf "$work"' EXIT
 cp -R "$root/supabase" "$work/supabase"
 rm -rf "$work/supabase/.temp" "$work/supabase/.env"
 sb() { supabase --workdir "$work" "$@"; }
+ref=(--project-ref "$SUPABASE_PROJECT_REF")
 
 if [ "$mode" = "--dry-run" ]; then
-  sb link --project-ref "$SUPABASE_PROJECT_REF"
-  sb db push --dry-run
+  sb db push "${ref[@]}" --dry-run
   exit 0
 elif [ -n "$mode" ]; then
   echo "unknown option $mode" >&2
@@ -65,12 +66,11 @@ additional_redirect_urls = [$urls]
 EOF
 fi
 
-sb link --project-ref "$SUPABASE_PROJECT_REF"
-sb db push --yes
+sb db push "${ref[@]}" --yes
 # --prune: a function that is not in supabase/functions on this commit does not stay deployed.
-sb functions deploy --use-api --prune --yes
+sb functions deploy "${ref[@]}" --use-api --prune --yes
 if [ -n "${SITE_URL:-}" ]; then
-  sb config push --yes
+  sb config push "${ref[@]}" --yes
 else
   echo "::warning::$target: SITE_URL not set, auth config (hook, URLs) not pushed; see docs/11-DEPLOY.md §1"
 fi
