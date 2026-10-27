@@ -84,19 +84,26 @@ $$;
 
 -- Days and money (S4) ---------------------------------------------------------------------
 
--- THE day count of a box: calendar days from its intake to its release (or `p_as_of` while
--- it is still stored) in the org's timezone; same day = 1. Invoker rights: callers see only
--- their own org's intakes.
+-- THE day count of a box. A stored box: calendar days from its intake to `p_as_of` in the
+-- org's timezone; same day = 1. A released box: frozen at the days its releasing batch billed
+-- (the batch snapshot, made by this same formula) — so the box view, the pickup receipt and
+-- the charged amount agree even when a batch is paid on a later day than it was quoted
+-- (that drift is noted on the batch at release). Invoker rights: callers see only their own
+-- org's rows.
 create or replace function app.storage_box_days(p_box public.storage_box, p_as_of timestamptz default now())
 returns int
 language sql
 stable
 set search_path = ''
 as $$
-  select app.storage_days(si.intake_at, coalesce(p_box.released_at, p_as_of), coalesce(o.timezone, 'UTC'))
-  from public.storage_intake si
-  join public.org o on o.id = si.org_id
-  where si.id = p_box.storage_intake_id
+  select coalesce(
+    (select (pb.box_days ->> p_box.id::text)::int
+     from public.storage_pickup_batch pb
+     where p_box.state = 'released' and pb.id = p_box.batch_id),
+    (select app.storage_days(si.intake_at, coalesce(p_box.released_at, p_as_of), coalesce(o.timezone, 'UTC'))
+     from public.storage_intake si
+     join public.org o on o.id = si.org_id
+     where si.id = p_box.storage_intake_id))
 $$;
 
 -- The box view reads its day count from the one function. Columns keep their order; new
@@ -620,6 +627,8 @@ declare
   v_other public.storage_pickup_batch;
   v_charge public.charge;
   v_left int;
+  v_days_now int;
+  v_days_billed int;
   v_state public.storage_intake_state;
   v_result jsonb;
 begin
@@ -732,6 +741,18 @@ begin
         from unnest(v_skipped) x
         left join public.storage_box b on b.id = x
         left join public.storage_pickup_batch ob on ob.id = b.batch_id)));
+  end if;
+
+  -- Billed days are the batch snapshot. A batch released on a later org-local day than it was
+  -- quoted keeps its quoted (charged) days; the drift is noted so a manager can see it.
+  select coalesce(sum(app.storage_box_days(b)), 0), coalesce(sum((v_batch.box_days ->> b.id::text)::int), 0)
+  into v_days_now, v_days_billed
+  from public.storage_box b where b.id = any (v_released);
+  if v_days_now <> v_days_billed then
+    perform app.storage_batch_note(v_batch.id, 'warning', 'stale_quote', format(
+      'released on a later day than quoted: billed %s box-days as quoted %s; %s box-days as of release',
+      v_days_billed, to_char(v_batch.snapshot_at at time zone coalesce(
+        (select o.timezone from public.org o where o.id = v_batch.org_id), 'UTC'), 'YYYY-MM-DD'), v_days_now));
   end if;
 
   update public.storage_box
@@ -932,9 +953,10 @@ $$;
 
 -- Receipt -------------------------------------------------------------------------------------
 
--- What a pickup receipt prints: one line per box with its day count from
--- app.storage_box_days (released boxes are frozen at their release; boxes of an unreleased
--- batch are counted as of the batch snapshot), the snapshotted rate, and the batch amount.
+-- What a pickup receipt prints: one line per box with the days the batch billed (its
+-- snapshot, made by app.storage_box_days — which also returns these days for the boxes once
+-- the batch releases them, so receipt = box view), the snapshotted rate, and the batch amount
+-- (= the lines' sum).
 create or replace function public.storage_pickup_receipt(p_batch_id uuid)
 returns jsonb
 language plpgsql
@@ -969,7 +991,7 @@ begin
              order by b.box_no), '[]'::jsonb)
       from public.storage_box b
       cross join lateral (
-        select app.storage_box_days(b, v_batch.snapshot_at) as days
+        select (v_batch.box_days ->> b.id::text)::int as days
       ) d
       where b.id = any (v_batch.box_ids)),
     'total', v_batch.amount,

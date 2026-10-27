@@ -405,6 +405,43 @@ select pg_temp.chk('S12', 'batch.amount is untaxed: exactly rate × snapshotted 
    where b.amount <> round(b.rate_per_box_day * (select sum(value::int) from jsonb_each_text(b.box_days)), 2)),
   0);
 
+-- S4 a batch quoted on one org-local day and paid on a later one ---------------------------------
+
+insert into t_ids select 'si6', pg_temp.confirm('wp09-confirm-0006', '[{}]') ->> 'storage_intake_id';
+insert into t_ids select 'g1', id::text from public.storage_box where storage_intake_id = pg_temp.id('si6');
+reset role;
+update public.storage_intake set intake_at = now() - interval '2 days' where id = pg_temp.id('si6');
+insert into public.payment (id, org_id, number, customer_id, provider, amount, state, provider_ref)
+values ('a9000000-0000-4000-8000-0000000005a6', 'a9000000-0000-4000-8000-00000000000a', 'PAY-0006',
+        'a9000000-0000-4000-8000-0000000002a1', 'manual', 10, 'approved', 'REF-666');
+set local role authenticated;
+insert into t_ids select 'B8', pg_temp.batch('wp09-batch-0008', 'si6', array['g1']) ->> 'batch_id';
+select pg_temp.chk('S4', 'quoted day: 2 days billed', (select format('%s:%s', box_days ->> pg_temp.id('g1')::text, amount)
+  from pg_temp.b('B8')), '2:1.50');
+-- A day passes before the register takes payment.
+reset role;
+update public.storage_intake set intake_at = intake_at - interval '1 day' where id = pg_temp.id('si6');
+set local role authenticated;
+select pg_temp.chk('S4', 'while stored, the box view counts to today (3 days)',
+  (select days_stored from public.storage_box_days where storage_box_id = pg_temp.id('g1')), 3);
+reset role;
+select pg_temp.chk('S4', 'paid on the later day: released', pg_temp.pay(array['B8'], 6) -> 0 ->> 'status', 'released');
+set local role authenticated;
+select pg_temp.chk('S4', 'receipt lines are the billed days and sum to the charged total',
+  (select format('%s|%s|%s', string_agg(format('%s:%s:%s', l ->> 'label', l ->> 'days', l ->> 'amount'), ','),
+                 sum((l ->> 'amount')::numeric), r ->> 'total')
+   from (select public.storage_pickup_receipt(pg_temp.id('B8')) as r) x
+   cross join lateral jsonb_array_elements(x.r -> 'lines') l
+   group by r ->> 'total'),
+  'Box 1:2:1.50|1.50|1.50');
+select pg_temp.chk('S4', '… the charge is that total', (select amount from public.charge where id = (pg_temp.b('B8')).charge_id), 1.50);
+select pg_temp.chk('S4', 'after release the box view shows the billed days, identical to the receipt',
+  (select days_stored from public.storage_box_days where storage_box_id = pg_temp.id('g1')), 2);
+select pg_temp.chk('S6', 'the stale quote is noted on the batch (billed 2, 3 as of release)',
+  (pg_temp.b('B8')).notes ~ '\[WARNING\] released on a later day than quoted: billed 2 box-days as quoted \d{4}-\d{2}-\d{2}; 3 box-days as of release',
+  true);
+select pg_temp.chk('S4', 'a same-day release notes nothing', (pg_temp.b('B2')).notes !~ 'stale|later day', true);
+
 -- Wizard cancel + tenancy -----------------------------------------------------------------------
 
 insert into t_ids select 'si5', pg_temp.confirm('wp09-confirm-0005', '[{}]') ->> 'storage_intake_id';
