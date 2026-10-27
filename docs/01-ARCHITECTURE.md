@@ -118,6 +118,8 @@ Nothing in `apps/web` imports a vendor SDK directly.
 - `staging` — long-lived; CSP trial tenant.
 - `prod` — `app.filletry.com` (DECISION-16).
 
+Hosted environments are deployed from `main` by automation only: `docs/11-DEPLOY.md`.
+
 ## 9. Observability
 
 - Structured logs (pino) with `org_id`, `station`, `action_id`.
