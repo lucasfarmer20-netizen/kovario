@@ -2,7 +2,7 @@
 // release_by_tag and shipment_buy_check apply inside their own transactions. Like
 // allocation-sql.ts this is the only place that SQL is written: `pnpm --filter rules gen:sql`
 // writes the migration, a rules test fails when the committed file is stale, and
-// packages/db release-rules.db.test.ts checks the SQL agrees with release.ts on a grid.
+// packages/db release.db.test.ts checks the SQL agrees with release.ts on a grid.
 import {
   BUY_BLOCKER_MISSING_SHIP_DATE,
   BUY_BLOCKER_NO_SERVICE,
