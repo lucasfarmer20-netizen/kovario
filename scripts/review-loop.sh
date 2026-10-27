@@ -35,8 +35,9 @@ When CRITICAL=false finish by running exactly one of:
   gh pr review $num --request-changes --body \"<numbered findings>\"
 When CRITICAL=true post findings with: gh pr comment $num --body \"...\" and do NOT approve."
   echo "== PR #$num ($head) critical=$critical"
+  # stdin from /dev/null: otherwise claude reads the rest of the PR list off the pass's pipe
   GH_TOKEN="$REVIEWER_PAT" claude -p "$prompt" \
-    --allowedTools "Bash(gh:*),Read,Grep,Glob" --max-turns 40 --output-format text \
+    --allowedTools "Bash(gh:*),Read,Grep,Glob" --max-turns 40 --output-format text < /dev/null \
     | tail -20 || echo "!! review of #$num failed"
 }
 
