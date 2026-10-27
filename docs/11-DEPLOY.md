@@ -16,7 +16,7 @@ Rules:
 - **Seed files are never run against a hosted project.** `supabase/seed.sql` is demo-only.
   Reference data the app needs (`app.sequence_prefix`, `app.state_transitions`,
   `app.state_entity`) ships in migrations as idempotent upserts. CI resets the local database
-  with `--no-seed` and runs `supabase/tests/07_reference_data.test.sql`; add a table there when
+  with `--no-seed` and runs `supabase/tests/08_reference_data.test.sql`; add a table there when
   a migration introduces new platform reference data. Per-org reference data (species, rate
   cards) is created by onboarding (`public.create_org` / `seed_org_reference` with
   `packages/rules` `referenceSeed()`), not by migrations or seed.
