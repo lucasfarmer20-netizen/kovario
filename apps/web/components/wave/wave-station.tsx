@@ -61,7 +61,7 @@ function LiveWave({ client, claims, siteName }: StationSession) {
   }, []);
   const idle = useOperatorIdle(claims.appRole === "station" && operator !== null, expire);
   const refresh = useCallback(async () => {
-    const [i, w, s, o] = await Promise.all([
+    const [i, w, o] = await Promise.all([
       client
         .from("intake")
         .select("*, intake_line(species_code)")
@@ -69,15 +69,22 @@ function LiveWave({ client, claims, siteName }: StationSession) {
         .order("intake_at")
         .order("id"),
       client.from("wave").select("*").in("state", ["draft", "verifying"]).order("created_at"),
-      client.from("wave_scan").select("wave_id"),
       client.from("org").select("settings").eq("id", claims.orgId).single(),
     ]);
-    if (i.error || w.error || s.error || o.error) throw new Error("Wave refresh unavailable");
+    if (i.error || w.error || o.error) throw new Error("Wave refresh unavailable");
+    const scanCounts = await Promise.all(
+      (w.data ?? []).map(async (wave) => {
+        const { count, error } = await client
+          .from("wave_scan")
+          .select("id", { count: "exact", head: true })
+          .eq("wave_id", wave.id);
+        if (error || count === null) throw new Error("Wave scan count unavailable");
+        return [wave.id, count] as const;
+      }),
+    );
     setIntakes(i.data ?? []);
     setWaves(w.data ?? []);
-    const next: Record<string, number> = {};
-    for (const scan of s.data ?? []) next[scan.wave_id] = (next[scan.wave_id] ?? 0) + 1;
-    setCounts(next);
+    setCounts(Object.fromEntries(scanCounts));
     const settings = o.data?.settings as {
       wave_target_lb?: number;
       wave_tolerance_lb?: number;

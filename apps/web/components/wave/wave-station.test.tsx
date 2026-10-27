@@ -16,7 +16,7 @@ afterEach(() => {
   vi.clearAllMocks();
   mocks.pending = 0;
 });
-function setup(scanned = 0, state = "verifying") {
+function setup(scanned = 0, state = "verifying", historicalScans = 0, activeTotes = 2) {
   const intakes = [
     {
       id: "i1",
@@ -44,7 +44,7 @@ function setup(scanned = 0, state = "verifying") {
       number: "INT-0003",
       intake_at: "2026-10-23T00:00:00Z",
       total_incoming_lb: 40,
-      tote_count: 2,
+      tote_count: activeTotes,
       wave_id: "w1",
       intake_line: [],
     },
@@ -52,18 +52,41 @@ function setup(scanned = 0, state = "verifying") {
   const tables: Record<string, unknown> = {
     intake: intakes,
     wave: [{ id: "w1", number: "WAVE-0001", state }],
-    wave_scan: Array.from({ length: scanned }, () => ({ wave_id: "w1" })),
+    wave_scan: [
+      ...Array.from({ length: historicalScans }, () => ({ wave_id: "completed-wave" })),
+      ...Array.from({ length: scanned }, () => ({ wave_id: "w1" })),
+    ],
     org: { settings: { wave_target_lb: 200, wave_tolerance_lb: 10 } },
   };
   const from = (name: string) => {
+    let countOnly = false;
+    let waveId: string | undefined;
     const q: Record<string, unknown> = {
-      select: () => q,
-      eq: () => q,
+      select: (_columns: string, options?: { count?: string; head?: boolean }) => {
+        countOnly = options?.count === "exact" && options.head === true;
+        return q;
+      },
+      eq: (column: string, value: string) => {
+        if (column === "wave_id") waveId = value;
+        return q;
+      },
       order: () => q,
       in: () => q,
       single: () => q,
-      then: (resolve: (r: unknown) => void) =>
-        Promise.resolve({ data: tables[name], error: null }).then(resolve),
+      then: (resolve: (r: unknown) => void) => {
+        if (name === "wave_scan") {
+          const rows = (tables[name] as { wave_id: string }[]).filter(
+            (row) => waveId === undefined || row.wave_id === waveId,
+          );
+          // PostgREST caps returned rows, but exact HEAD counts cover the full set.
+          return Promise.resolve({
+            data: countOnly ? null : rows.slice(0, 1000),
+            count: countOnly ? rows.length : null,
+            error: null,
+          }).then(resolve);
+        }
+        return Promise.resolve({ data: tables[name], error: null }).then(resolve);
+      },
     };
     return q;
   };
@@ -108,6 +131,26 @@ it("WP10 Complete stays disabled below parity", async () => {
     (screen.getByRole("button", { name: "Complete — Start Processing" }) as HTMLButtonElement)
       .disabled,
   ).toBe(true);
+});
+it("WP10 current wave reaches parity after more than 1000 historical scans", async () => {
+  setup(2, "verifying", 1500);
+  render(<WaveStation />);
+  fireEvent.click(await screen.findByRole("button", { name: /WAVE-0001/ }));
+  expect(screen.getByText("2 / 2 totes")).toBeTruthy();
+  expect(
+    (screen.getByRole("button", { name: "Complete — Start Processing" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false);
+});
+it("WP10 exact counts preserve parity for an active wave larger than the response row limit", async () => {
+  setup(1201, "verifying", 1500, 1201);
+  render(<WaveStation />);
+  fireEvent.click(await screen.findByRole("button", { name: /WAVE-0001/ }));
+  expect(screen.getByText("1201 / 1201 totes")).toBeTruthy();
+  expect(
+    (screen.getByRole("button", { name: "Complete — Start Processing" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false);
 });
 it("WP10 Complete enables at parity but blocks while scans are pending", async () => {
   const { rpc } = setup(2);
