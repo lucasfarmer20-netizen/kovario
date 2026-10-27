@@ -1,8 +1,10 @@
 // Yield (docs/04-BUSINESS-RULES.md §1): est_yield_lb = lb × yield_factor(species,
 // condition, method), with fallbacks chum → reds and smoked-exchange → smoking, and the
-// skin-off multiplier for whitefish + shark.
+// skin-off multiplier for whitefish + shark. Combinations the processing matrix forbids
+// throw (#41).
 import type { ConditionCode } from "./conditions.ts";
-import { FRESH, SMOKING, isExchangeMethod, type MethodCode } from "./methods.ts";
+import { isAllowed } from "./matrix.ts";
+import { FRESH, FRESH_SPLIT, SMOKING, isExchangeMethod, type MethodCode } from "./methods.ts";
 import { isNonNegativeFinite, round } from "./num.ts";
 import { SEED } from "./seed.ts";
 import { SPECIES, type SpeciesCode } from "./species.ts";
@@ -25,14 +27,23 @@ export interface YieldInput {
 }
 
 /**
- * The seeded factor for a concrete method, applying the fallbacks in order: exact row,
- * chum → reds, exchange → smoking, then both. `null` when the seed has no row at all.
+ * Whether the matrix allows a line with this method. The matrix has no smoked-exchange
+ * rows; an exchange line is allowed wherever smoking is, mirroring its yield fallback.
  */
-export function seedYieldFactor(
+function lineAllowed(species: SpeciesCode, condition: ConditionCode, method: MethodCode): boolean {
+  if (isAllowed(species, condition, method)) return true;
+  return isExchangeMethod(method) && isAllowed(species, condition, SMOKING);
+}
+
+function rejectCombination(
   species: SpeciesCode,
   condition: ConditionCode,
   method: MethodCode,
-): number | null {
+): never {
+  throw new RangeError(`${species}/${condition}/${method} is not allowed by the processing matrix`);
+}
+
+function lookup(species: SpeciesCode, condition: ConditionCode, method: MethodCode): number | null {
   const speciesTry: SpeciesCode[] =
     species === "salmon_chum" ? [species, "salmon_reds"] : [species];
   const methodTry: MethodCode[] = isExchangeMethod(method) ? [method, SMOKING] : [method];
@@ -43,6 +54,25 @@ export function seedYieldFactor(
     }
   }
   return null;
+}
+
+/**
+ * The seeded factor for a concrete method, applying the fallbacks in order: exact row,
+ * chum → reds, exchange → smoking, then both. `fillets` and `portions` are allowed
+ * wherever the matrix allows `fresh` (they are its split). Throws `RangeError` for a
+ * combination the matrix forbids; `null` when an allowed one has no seed row.
+ */
+export function seedYieldFactor(
+  species: SpeciesCode,
+  condition: ConditionCode,
+  method: MethodCode,
+): number | null {
+  const freshSide =
+    (FRESH_SPLIT as readonly MethodCode[]).includes(method) && isAllowed(species, condition, FRESH);
+  if (!freshSide && !lineAllowed(species, condition, method)) {
+    rejectCombination(species, condition, method);
+  }
+  return lookup(species, condition, method);
 }
 
 function freshFactor(input: YieldInput): number | null {
@@ -56,7 +86,7 @@ function freshFactor(input: YieldInput): number | null {
     ["portions", 100 - pct],
   ] as const) {
     if (share === 0) continue;
-    const factor = seedYieldFactor(input.species, input.condition, method);
+    const factor = lookup(input.species, input.condition, method);
     if (factor === null) return null;
     weighted += factor * share;
   }
@@ -66,9 +96,13 @@ function freshFactor(input: YieldInput): number | null {
 /**
  * The line's yield factor. For `fresh` it is the fillets/portions factors weighted by
  * `filletsPct`. Skin-off multiplies by the species' multiplier and is rejected for species
- * that do not allow it. `null` when the seed has no factor for the combination.
+ * that do not allow it. Throws `RangeError` for a combination the processing matrix
+ * forbids (`fresh` is checked as `fresh`); `null` when an allowed one has no seed factor.
  */
 export function yieldFactor(input: YieldInput): number | null {
+  if (!lineAllowed(input.species, input.condition, input.method)) {
+    rejectCombination(input.species, input.condition, input.method);
+  }
   const species = SPECIES[input.species];
   if (input.skinOff && !species.skinOffAllowed) {
     throw new RangeError(`skin-off is not allowed for ${input.species}`);
@@ -76,7 +110,7 @@ export function yieldFactor(input: YieldInput): number | null {
   const base =
     input.method === FRESH
       ? freshFactor(input)
-      : seedYieldFactor(input.species, input.condition, input.method);
+      : lookup(input.species, input.condition, input.method);
   if (base === null) return null;
   return round(input.skinOff ? base * species.skinOffMultiplier : base, FACTOR_DP);
 }
