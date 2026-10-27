@@ -239,7 +239,8 @@ as $$
                'retail_product_id', l.retail_product_id, 'description', l.description,
                'qty', l.qty, 'unit_price', l.unit_price, 'amount', l.amount)
              order by case when l.settlement_id is not null then 1 when l.batch_id is not null then 2
-                           when l.charge_id is not null then 3 else 4 end, l.created_at, l.id)
+                           when l.charge_id is not null then 3 else 4 end,
+                      l.created_at, l.description, l.id)
       from public.register_order_line l where l.register_order_id = o.id), '[]'::jsonb),
     'totals', app.register_totals(o.id),
     'payments', coalesce((
