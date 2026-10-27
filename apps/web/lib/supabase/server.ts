@@ -1,9 +1,9 @@
-import { serverClient, type KovarioClient } from "db";
+import { serverClient, type FilletryClient } from "db";
 import { cookies } from "next/headers";
 import { supabaseEnv } from "./env";
 
 /** Staff session client for Server Components and Server Actions (user JWT, RLS applies). */
-export async function createSupabaseServer(): Promise<KovarioClient> {
+export async function createSupabaseServer(): Promise<FilletryClient> {
   const store = await cookies();
   return serverClient(supabaseEnv(), {
     getAll: () => store.getAll(),

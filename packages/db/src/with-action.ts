@@ -1,4 +1,4 @@
-import type { KovarioClient } from "./clients";
+import type { FilletryClient } from "./clients";
 import type { Json } from "./types";
 
 /**
@@ -19,7 +19,7 @@ import type { Json } from "./types";
  * retry after a lost response that never reached the database runs `fn` again.
  */
 export async function withAction<T extends Json>(
-  client: KovarioClient,
+  client: FilletryClient,
   clientActionId: string,
   fn: (clientActionId: string) => Promise<T>,
 ): Promise<T> {

@@ -114,7 +114,7 @@ create table if not exists public.device (
   -- same code without storing it). Never granted to clients.
   pairing_key bytea not null default extensions.gen_random_bytes(32),
   pairing_expires_at timestamptz,
-  -- The per-device auth.users row (device-<id>@devices.kovario.internal).
+  -- The per-device auth.users row (device-<id>@devices.filletry.internal).
   auth_user_id uuid unique references auth.users (id) on delete set null,
   paired_at timestamptz,
   last_seen_at timestamptz,

@@ -1,4 +1,4 @@
-# Kovario — Work Packages & Orchestration Plan
+# Filletry — Work Packages & Orchestration Plan
 
 Each work package (WP) is one GitHub Issue → one Agent Orchestrator session → one PR.
 Issue bodies live in `issues/WP-NN-*.md` and are the agent's prompt; they point at the

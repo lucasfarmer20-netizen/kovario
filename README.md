@@ -1,4 +1,4 @@
-# Kovario
+# Filletry
 
 Multi-tenant SaaS for sport-caught-fish processors: intake → processing stations →
 freezers → allocation → boxing → payment → pickup/ship. Standalone Next.js + Supabase.

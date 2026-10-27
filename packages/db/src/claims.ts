@@ -4,8 +4,8 @@ export type AppRole = (typeof APP_ROLES)[number];
 
 export const MANAGER_ROLES: readonly AppRole[] = ["owner", "manager"];
 
-/** Kovario's custom claims, stamped by app.custom_access_token_hook. */
-export type KovarioClaims = {
+/** Filletry's custom claims, stamped by app.custom_access_token_hook. */
+export type FilletryClaims = {
   userId: string;
   orgId: string;
   appRole: AppRole;
@@ -17,12 +17,12 @@ function isAppRole(value: unknown): value is AppRole {
 }
 
 /**
- * Reads Kovario claims from already-verified JWT claims (e.g. `supabase.auth.getClaims()`).
+ * Reads Filletry claims from already-verified JWT claims (e.g. `supabase.auth.getClaims()`).
  * Returns null when the session has no org (user without membership, inactive device).
  */
-export function kovarioClaims(
+export function filletryClaims(
   claims: Record<string, unknown> | null | undefined,
-): KovarioClaims | null {
+): FilletryClaims | null {
   if (!claims) return null;
   const { sub, org_id, app_role, device_id } = claims;
   if (typeof sub !== "string" || typeof org_id !== "string" || !isAppRole(app_role)) return null;
@@ -34,6 +34,6 @@ export function kovarioClaims(
   };
 }
 
-export function isManager(claims: KovarioClaims | null): boolean {
+export function isManager(claims: FilletryClaims | null): boolean {
   return claims !== null && MANAGER_ROLES.includes(claims.appRole);
 }

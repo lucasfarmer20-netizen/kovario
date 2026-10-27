@@ -20,7 +20,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   return (
     <div className="min-h-dvh">
       <header className="flex flex-wrap items-center gap-6 border-b border-border px-6 py-3">
-        <span className="font-semibold">{org?.name ?? "Kovario"}</span>
+        <span className="font-semibold">{org?.name ?? "Filletry"}</span>
         <nav className="flex gap-4 text-sm">
           {NAV.map((item) => (
             <Link key={item.href} href={item.href} className="hover:underline">

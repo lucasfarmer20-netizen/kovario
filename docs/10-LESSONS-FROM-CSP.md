@@ -1,13 +1,13 @@
 # Lessons carried from the Custom Seafoods reference implementation
 
 The CSP Odoo suite ran a full 2026 season. Nearly every late bug was an **invariant
-violation**, and the fixes are now written down. Kovario inherits the invariants as
+violation**, and the fixes are now written down. Filletry inherits the invariants as
 acceptance tests and the gotchas as design rules. Where a lesson is Odoo-specific it is
-translated to its Kovario equivalent.
+translated to its Filletry equivalent.
 
 ## 1. Translated design rules
 
-| CSP lesson | Kovario rule |
+| CSP lesson | Filletry rule |
 |---|---|
 | Occupancy read from `asset_tag_id` gave false "fish gone" (nulled tags on full baskets, untagged exchange baskets). | `vessel.lifecycle_state` is the only occupancy source. Lint rule: no query may infer occupancy from `asset_tag_id is null`. |
 | Stored computes with wrong `@api.depends` went stale forever; fixing the depends was not retroactive. | No app-maintained denormalised columns. Derived values are views or trigger-maintained; a migration that changes a trigger also backfills in the same migration. |

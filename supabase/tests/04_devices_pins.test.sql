@@ -5,10 +5,10 @@ set local search_path = public, extensions;
 select no_plan();
 
 insert into auth.users (id, email) values
-  ('a0000000-0000-4000-8000-0000000000a1', 'owner@test.kovario'),
-  ('a0000000-0000-4000-8000-0000000000a2', 'manager@test.kovario'),
-  ('a0000000-0000-4000-8000-0000000000a3', 'staff@test.kovario'),
-  ('a0000000-0000-4000-8000-0000000000d1', 'device-1@devices.kovario.internal');
+  ('a0000000-0000-4000-8000-0000000000a1', 'owner@test.filletry'),
+  ('a0000000-0000-4000-8000-0000000000a2', 'manager@test.filletry'),
+  ('a0000000-0000-4000-8000-0000000000a3', 'staff@test.filletry'),
+  ('a0000000-0000-4000-8000-0000000000d1', 'device-1@devices.filletry.internal');
 
 insert into public.org (id, slug, name, timezone) values
   ('a0000000-0000-4000-8000-00000000000a', 'org-a', 'Org A', 'UTC'),

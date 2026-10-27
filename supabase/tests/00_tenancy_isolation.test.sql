@@ -8,9 +8,9 @@ select no_plan();
 
 -- Fixtures: two orgs with one row of every tenancy table each ---------------------------
 insert into auth.users (id, email) values
-  ('a0000000-0000-4000-8000-0000000000a1', 'owner-a@test.kovario'),
-  ('b0000000-0000-4000-8000-0000000000b1', 'owner-b@test.kovario'),
-  ('a0000000-0000-4000-8000-0000000000a2', 'staff-a@test.kovario');
+  ('a0000000-0000-4000-8000-0000000000a1', 'owner-a@test.filletry'),
+  ('b0000000-0000-4000-8000-0000000000b1', 'owner-b@test.filletry'),
+  ('a0000000-0000-4000-8000-0000000000a2', 'staff-a@test.filletry');
 
 insert into public.org (id, slug, name, timezone) values
   ('a0000000-0000-4000-8000-00000000000a', 'org-a', 'Org A', 'America/Anchorage'),

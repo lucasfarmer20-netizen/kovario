@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
   ) {
     return json({ error: "invalid_input" }, 400);
   }
-  if (email.endsWith("@devices.kovario.internal")) return json({ error: "invalid_input" }, 400);
+  if (email.endsWith("@devices.filletry.internal")) return json({ error: "invalid_input" }, 400);
   if (role === "owner" && caller.appRole !== "owner") return json({ error: "forbidden" }, 403);
 
   const admin = serviceClient();

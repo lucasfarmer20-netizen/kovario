@@ -1,4 +1,4 @@
-# Kovario — Decisions (ADR log)
+# Filletry — Decisions (ADR log)
 
 Decided items are binding. Items tagged **DECISION NEEDED** are assumptions Lucas has
 not confirmed; agents build on the stated default and must not silently change it.
@@ -18,7 +18,7 @@ Lucas: edit the line, commit, and reference the ADR in the PR that applies it.
 | DECISION-10 | Framework versions: Next.js latest stable App Router (pinned 16.4.3 in WP-01; 15.x was current at kickoff), React 19, TypeScript 5.x strict, Tailwind 4, Node 22+ (raised from 20 in WP-02: supabase-js needs Node's built-in WebSocket), pnpm 9+. Agents pin exact versions in WP-01 and do not upgrade majors mid-build. | **Decided** 2026-10-25 |
 | DECISION-11 | Weight unit is lb in v1 (org setting reserved). Currency USD. | **Decided** 2026-10-25 |
 | DECISION-12 | Production-mode / split-intake (CSP deferred design) is **not** in v1. Schema reserves `intake.split_from_id`. | **Decided** 2026-10-25 |
-| DECISION-13 | Receipts rendered by Kovario from stored payment data; terminal receipts suppressed. | **Decided** (carried from CSP) |
+| DECISION-13 | Receipts rendered by Filletry from stored payment data; terminal receipts suppressed. | **Decided** (carried from CSP) |
 | DECISION-14 | No freezer capacity gating anywhere. Capacity is display-only. | **Decided** (carried from CSP) |
 | DECISION-15 | Location master is generated from the racking actually built; generator is idempotent; archived locations cannot be bound. | **Decided** (carried from CSP) |
 | DECISION-16 | Domain name / app host: `app.filletry.com` (Lucas owns `filletry.com` and `filletery.com`, which redirect to it). The product is being renamed from Kovario to Filletry because `kovario.com` was not available; marketing site out of scope for this repo. | **Decided** 2026-10-26 |

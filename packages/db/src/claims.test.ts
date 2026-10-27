@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isManager, kovarioClaims } from "./claims";
+import { isManager, filletryClaims } from "./claims";
 
-describe("kovarioClaims", () => {
+describe("filletryClaims", () => {
   it("reads org, role and device claims", () => {
     expect(
-      kovarioClaims({
+      filletryClaims({
         sub: "u1",
         org_id: "o1",
         app_role: "station",
@@ -15,17 +15,17 @@ describe("kovarioClaims", () => {
   });
 
   it("returns null without an org claim", () => {
-    expect(kovarioClaims({ sub: "u1", role: "authenticated" })).toBeNull();
+    expect(filletryClaims({ sub: "u1", role: "authenticated" })).toBeNull();
   });
 
   it("rejects unknown roles", () => {
-    expect(kovarioClaims({ sub: "u1", org_id: "o1", app_role: "superuser" })).toBeNull();
+    expect(filletryClaims({ sub: "u1", org_id: "o1", app_role: "superuser" })).toBeNull();
   });
 
   it("treats owner and manager as managers", () => {
-    expect(isManager(kovarioClaims({ sub: "u", org_id: "o", app_role: "owner" }))).toBe(true);
-    expect(isManager(kovarioClaims({ sub: "u", org_id: "o", app_role: "manager" }))).toBe(true);
-    expect(isManager(kovarioClaims({ sub: "u", org_id: "o", app_role: "cashier" }))).toBe(false);
+    expect(isManager(filletryClaims({ sub: "u", org_id: "o", app_role: "owner" }))).toBe(true);
+    expect(isManager(filletryClaims({ sub: "u", org_id: "o", app_role: "manager" }))).toBe(true);
+    expect(isManager(filletryClaims({ sub: "u", org_id: "o", app_role: "cashier" }))).toBe(false);
     expect(isManager(null)).toBe(false);
   });
 });

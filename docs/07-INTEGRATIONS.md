@@ -1,4 +1,4 @@
-# Kovario — Integrations
+# Filletry — Integrations
 
 ## 1. Print agent (`agent/print-agent/`)
 

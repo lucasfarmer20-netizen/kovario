@@ -4,7 +4,7 @@ import { ServiceWorkerRegistration } from "@/components/service-worker-registrat
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kovario",
+  title: "Filletry",
   description: "Processing stations for sport-caught fish",
   icons: { icon: "/icon.svg" },
 };

@@ -1,4 +1,4 @@
-# Kovario — Station UX
+# Filletry — Station UX
 
 ## Shared primitives (`apps/web/src/components/station/`)
 

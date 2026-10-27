@@ -2,7 +2,7 @@
 // served by `supabase start` (docs/01-ARCHITECTURE.md §5).
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { kovarioClaims } from "./claims";
+import { filletryClaims } from "./claims";
 import {
   anonClient,
   createOrg,
@@ -68,9 +68,9 @@ describe("device pairing", { timeout: 60_000 }, () => {
     const device = anonClient();
     await device.auth.setSession(body.session ?? { access_token: "", refresh_token: "" });
     const { data: user } = await device.auth.getUser();
-    expect(user.user?.email).toBe(`device-${deviceId}@devices.kovario.internal`);
+    expect(user.user?.email).toBe(`device-${deviceId}@devices.filletry.internal`);
     const { data: claims } = await device.auth.getClaims();
-    expect(kovarioClaims(claims?.claims)).toEqual({
+    expect(filletryClaims(claims?.claims)).toEqual({
       userId: user.user?.id,
       orgId: org.id,
       appRole: "station",
@@ -232,7 +232,7 @@ describe("device pairing", { timeout: 60_000 }, () => {
   });
 
   it("a manager invites a member through the member-invite function", async () => {
-    const email = `invitee-${Date.now()}@test.kovario`;
+    const email = `invitee-${Date.now()}@test.filletry`;
     const { data, error } = await manager.client.functions.invoke<{
       member_id: string;
       invited: boolean;
@@ -250,7 +250,7 @@ describe("device pairing", { timeout: 60_000 }, () => {
     const forbidden = await staff.client.functions.invoke("member-invite", {
       body: {
         client_action_id: randomUUID(),
-        email: `x-${Date.now()}@test.kovario`,
+        email: `x-${Date.now()}@test.filletry`,
         display_name: "X",
         role: "staff",
       },
