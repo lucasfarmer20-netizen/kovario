@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ActionForm } from "@/components/admin/action-form";
 import { Input, Label } from "@/components/ui/form";
 import { adminPageSession } from "@/lib/auth";
+import { orgWebhookUrl } from "@/lib/shipping/webhook-url";
 import { createSite, makeDefaultSite, renameSite, setShipFrom } from "./actions";
 
 type ShipFrom = Partial<Record<(typeof SHIP_FROM_FIELDS)[number][0], string>>;
@@ -24,6 +25,7 @@ export default async function SitesPage() {
     .from("site")
     .select("id, name, is_default, ship_from")
     .order("name");
+  const webhookUrl = await orgWebhookUrl(session.claims.orgId);
 
   return (
     <div className="flex flex-col gap-8">
@@ -39,6 +41,23 @@ export default async function SitesPage() {
             <Input name="name" required maxLength={80} />
           </Label>
         </ActionForm>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-lg font-semibold">Shippo tracking webhook</h2>
+        {webhookUrl ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              In this plant&apos;s Shippo account, add a webhook for <code>track_updated</code> with
+              this URL. It is this plant&apos;s own credential; keep it private.
+            </p>
+            <code className="break-all text-sm">{webhookUrl}</code>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Tracking webhooks are not configured on this server (SHIPPO_WEBHOOK_TOKEN).
+          </p>
+        )}
       </section>
 
       {error ? <p className="text-destructive">{error.message}</p> : null}

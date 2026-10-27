@@ -310,14 +310,21 @@ describe("shipping route flow (recorded Shippo fixtures)", { timeout: 60_000 }, 
       .from("box_plan")
       .update({ fulfillment_state: "packed" })
       .eq("shipment_id", sh.shipment_id);
-    const tracked = (await applyTracking(admin, f.trackUpdatedTransit)) as { state: string };
+    // Another org's credential cannot touch this shipment, even with its tracking number.
+    expect(await applyTracking(admin, randomUUID(), f.trackUpdatedTransit)).toEqual({
+      matched: false,
+    });
+    expect((await detail(sh.shipment_id)).state).toBe("label_bought");
+    const tracked = (await applyTracking(admin, org.id, f.trackUpdatedTransit)) as {
+      state: string;
+    };
     expect(tracked.state).toBe("shipped");
     const { data: boxes } = await admin
       .from("box_plan")
       .select("fulfillment_state")
       .eq("shipment_id", sh.shipment_id);
     expect(boxes?.map((b) => b.fulfillment_state)).toEqual(["shipped", "shipped"]);
-    expect(await applyTracking(admin, { event: "transaction_created", data: {} })).toEqual({
+    expect(await applyTracking(admin, org.id, { event: "transaction_created", data: {} })).toEqual({
       ignored: true,
     });
   });

@@ -1,7 +1,27 @@
 // Shippo tracking webhook (`track_updated`) → shipment state (docs/07-INTEGRATIONS.md §4).
-// Shippo does not sign webhooks, so the endpoint URL carries a shared token
-// (`?token=…`, env SHIPPO_WEBHOOK_TOKEN) compared in constant time.
+// Shippo does not sign webhooks, so each org registers its OWN URL in its own Shippo account:
+// `?org=<org id>&token=<webhookToken(SHIPPO_WEBHOOK_TOKEN, org id)>`. The platform secret never
+// leaves the server; a tenant holds only its derived token, which authenticates events for its
+// own org and no other. Compared in constant time.
 import type { TrackingStatus, TrackingUpdate } from "./types.ts";
+
+/** The org's webhook token: HMAC-SHA256(platform secret, org id), hex. */
+export async function webhookToken(platformSecret: string, orgId: string): Promise<string> {
+  if (!platformSecret) throw new Error("webhook secret is not configured");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(platformSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(`shippo-webhook:${orgId}`),
+  );
+  return Array.from(new Uint8Array(mac), (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 const STATUSES: readonly TrackingStatus[] = [
   "PRE_TRANSIT",

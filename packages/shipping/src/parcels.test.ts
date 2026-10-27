@@ -7,6 +7,7 @@ import {
   isInCarrierHands,
   parseTrackingEvent,
   tokensMatch,
+  webhookToken,
 } from "./tracking.ts";
 
 describe("cold chain parcel weight", () => {
@@ -110,6 +111,25 @@ describe("tracking webhook", () => {
     expect(tokensMatch("abc12", "abc123")).toBe(false);
     expect(tokensMatch("", "")).toBe(false);
     expect(tokensMatch(null, "abc")).toBe(false);
+  });
+});
+
+describe("per-org webhook credential", () => {
+  const orgA = "a1900000-0000-4000-8000-00000000000a";
+  const orgB = "b1900000-0000-4000-8000-00000000000b";
+
+  it("is stable per org, differs between orgs and secrets, never contains the secret", async () => {
+    const secret = "test-platform-secret-not-real";
+    const a = await webhookToken(secret, orgA);
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+    expect(await webhookToken(secret, orgA)).toBe(a);
+    expect(await webhookToken(secret, orgB)).not.toBe(a);
+    expect(await webhookToken("another-secret", orgA)).not.toBe(a);
+    expect(a).not.toContain(secret);
+  });
+
+  it("refuses to derive without a platform secret", async () => {
+    await expect(webhookToken("", orgA)).rejects.toThrow(/not configured/);
   });
 });
 

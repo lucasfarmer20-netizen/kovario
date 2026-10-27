@@ -432,20 +432,39 @@ update public.shipment set blockers = '[]', shippo_rate_id = 'rate_w', service =
 set local role service_role;
 select public.shipping_record_labels('a1900000-0000-4000-8000-00000000000a', pg_temp.id('walkin'),
   'a1900000-0000-4000-8000-00000000c1a1', 'rate_w', pg_temp.labels('walk', 1));
-select is(public.shipping_apply_tracking(null, 'no-such-number', 'TRANSIT', true, null) ->> 'matched', 'false',
+select is(public.shipping_apply_tracking('a1900000-0000-4000-8000-00000000000a', null, 'no-such-number', 'TRANSIT', true, null) ->> 'matched', 'false',
   'TRACKING — an unknown tracking number is acknowledged, not an error');
-select is(public.shipping_apply_tracking('walk_txn_0', '1Zwalk0', 'PRE_TRANSIT', false, null) ->> 'state', 'label_bought',
+-- Tenancy: an event authenticated for org B never touches org A's shipment, even carrying
+-- org A's real transaction id or tracking number (printed on the box).
+select is(public.shipping_apply_tracking('b1900000-0000-4000-8000-00000000000b', 'walk_txn_0', '1Zwalk0', 'TRANSIT', true, null) ->> 'matched', 'false',
+  'TRACKING TENANCY — org B''s webhook cannot apply an event to org A''s parcel by transaction id');
+select is(public.shipping_apply_tracking('b1900000-0000-4000-8000-00000000000b', null, '1Zwalk0', 'TRANSIT', true, null) ->> 'matched', 'false',
+  'TRACKING TENANCY — nor by tracking number');
+select is((pg_temp.sh('walkin')).state::text, 'label_bought', 'TRACKING TENANCY — org A''s shipment is untouched');
+select throws_like($$select public.shipping_apply_tracking(null, null, '1Zwalk0', 'TRANSIT', true, null)$$,
+  '%one org%', 'TRACKING TENANCY — an event is always applied for exactly one org');
+-- Strict matching: a transaction id that does not match never falls back to the tracking number.
+select is(public.shipping_apply_tracking('a1900000-0000-4000-8000-00000000000a', 'txn_someone_else', '1Zwalk0', 'TRANSIT', true, null) ->> 'matched', 'false',
+  'TRACKING — a mismatched transaction id does not fall back to the tracking number');
+select is((pg_temp.sh('walkin')).state::text, 'label_bought', 'TRACKING — so nothing changed');
+select is(public.shipping_apply_tracking('a1900000-0000-4000-8000-00000000000a', 'walk_txn_0', '1Zwalk0', 'PRE_TRANSIT', false, null) ->> 'state', 'label_bought',
   'TRACKING — PRE_TRANSIT records the status only');
-select is(public.shipping_apply_tracking('walk_txn_0', '1Zwalk0', 'TRANSIT', true, 'Origin Scan') ->> 'state', 'shipped',
+select is(public.shipping_apply_tracking('a1900000-0000-4000-8000-00000000000a', 'walk_txn_0', '1Zwalk0', 'TRANSIT', true, 'Origin Scan') ->> 'state', 'shipped',
   'TRACKING — the carrier has it (TRANSIT) → shipped');
 select is((select format('%s:%s', s.tracking_status, p.tracking_status) from public.shipment s
            join public.shipment_parcel p on p.shipment_id = s.id where s.id = pg_temp.id('walkin')),
   'TRANSIT:TRANSIT', 'TRACKING — shipment and parcel carry the latest status');
-select is(public.shipping_apply_tracking(null, '1Zwalk0', 'DELIVERED', true, null) ->> 'state', 'shipped',
-  'TRACKING — matched by tracking number too; later events keep it shipped');
-select public.shipping_apply_tracking(null, '1Zwalk0', 'RETURNED', false, 'Return to sender');
+select is(public.shipping_apply_tracking('a1900000-0000-4000-8000-00000000000a', null, '1Zwalk0', 'DELIVERED', true, null) ->> 'state', 'shipped',
+  'TRACKING — without a transaction id, matched by tracking number; later events keep it shipped');
+select public.shipping_apply_tracking('a1900000-0000-4000-8000-00000000000a', null, '1Zwalk0', 'RETURNED', false, 'Return to sender');
 select ok((pg_temp.sh('walkin')).notes like '%Carrier returned: Return to sender%',
   'TRACKING — a carrier exception is noted on the shipment, never auto-resolved');
+-- A tracking number on two of the org's parcels (e.g. carrier test numbers) is refused, not guessed.
+reset role;
+update public.shipment_parcel set tracking_number = '1Zdupe' where shipment_id = pg_temp.id('bo');
+set local role service_role;
+select throws_like($$select public.shipping_apply_tracking('a1900000-0000-4000-8000-00000000000a', null, '1Zdupe', 'TRANSIT', true, null)$$,
+  '%matches 2 parcels%', 'TRACKING — an ambiguous tracking number fails loudly instead of picking one');
 
 -- Cancel -----------------------------------------------------------------------------------------
 

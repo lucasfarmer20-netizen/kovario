@@ -335,12 +335,20 @@ export async function rateCheck(
   return { ...shop, cheapest: shop.rates[0] ?? null };
 }
 
-/** Shippo track_updated → shipment state. Unknown events and numbers are acknowledged. */
-export async function applyTracking(service: FilletryClient, body: unknown): Promise<Json> {
+/**
+ * Shippo track_updated → shipment state, for the org whose webhook credential the route
+ * verified; only that org's parcels can match. Unknown events and numbers are acknowledged.
+ */
+export async function applyTracking(
+  service: FilletryClient,
+  orgId: string,
+  body: unknown,
+): Promise<Json> {
   const update = parseTrackingEvent(body);
   if (!update) return { ignored: true };
   return rpc<Json>(
     service.rpc("shipping_apply_tracking", {
+      p_org_id: orgId,
       // null when absent; the generated RPC type cannot express a nullable text arg.
       p_transaction_id: update.transactionId as string,
       p_tracking_number: update.trackingNumber,

@@ -1225,12 +1225,19 @@ begin
 end;
 $$;
 
--- Shippo track_updated → parcel / shipment tracking status. When the carrier has it
--- (p_in_carrier_hands: TRANSIT or DELIVERED — packages/shipping isInCarrierHands) a
--- label_bought shipment becomes shipped. Unknown tracking numbers are acknowledged, not errors.
+-- Shippo track_updated → parcel / shipment tracking status, for ONE org: the org whose own
+-- webhook credential authenticated the event (the route checks it). Only that org's parcels
+-- are matched:
+--   * a transaction id, when the event carries one, must match a parcel of the org — there is
+--     no fallback to the tracking number;
+--   * without one, the tracking number must match exactly one parcel of the org; more than
+--     one raises instead of guessing.
+-- When the carrier has it (p_in_carrier_hands: TRANSIT or DELIVERED — packages/shipping
+-- isInCarrierHands) a label_bought shipment becomes shipped. An unknown parcel is acknowledged
+-- (matched: false), not an error.
 create or replace function public.shipping_apply_tracking(
-  p_transaction_id text, p_tracking_number text, p_status text, p_in_carrier_hands boolean,
-  p_details text
+  p_org_id uuid, p_transaction_id text, p_tracking_number text, p_status text,
+  p_in_carrier_hands boolean, p_details text
 )
 returns jsonb
 language plpgsql
@@ -1239,18 +1246,31 @@ set search_path = ''
 as $$
 declare
   v_parcel public.shipment_parcel;
+  v_matches int;
   v_sh public.shipment;
   v_unpacked text;
 begin
-  select * into v_parcel from public.shipment_parcel
-  where (p_transaction_id is not null and shippo_transaction_id = p_transaction_id)
-     or (tracking_number = p_tracking_number)
-  order by (shippo_transaction_id = p_transaction_id) desc nulls last
-  limit 1;
-  if not found then
+  if p_org_id is null then
+    raise exception 'tracking events are applied for one org' using errcode = '22004';
+  end if;
+  if nullif(btrim(p_transaction_id), '') is not null then
+    select * into v_parcel from public.shipment_parcel
+    where org_id = p_org_id and shippo_transaction_id = p_transaction_id;
+    v_matches := case when found then 1 else 0 end;
+  else
+    select count(*) into v_matches from public.shipment_parcel
+    where org_id = p_org_id and tracking_number = p_tracking_number;
+    if v_matches > 1 then
+      raise exception 'tracking number % matches % parcels in this org; not applied', p_tracking_number,
+        v_matches using errcode = '21000';
+    end if;
+    select * into v_parcel from public.shipment_parcel
+    where org_id = p_org_id and tracking_number = p_tracking_number;
+  end if;
+  if v_matches = 0 then
     return jsonb_build_object('matched', false);
   end if;
-  v_sh := app.lock_shipment(v_parcel.org_id, v_parcel.shipment_id);
+  v_sh := app.lock_shipment(p_org_id, v_parcel.shipment_id);
 
   update public.shipment_parcel set tracking_status = p_status where id = v_parcel.id;
   update public.shipment set tracking_status = p_status where id = v_sh.id;
@@ -1328,7 +1348,7 @@ revoke all on function
   public.shipping_record_labels(uuid, uuid, uuid, text, jsonb),
   public.shipping_buy_failed(uuid, uuid, uuid, text, boolean),
   public.shipping_start_purchase(uuid, uuid, uuid),
-  public.shipping_apply_tracking(text, text, text, boolean, text)
+  public.shipping_apply_tracking(uuid, text, text, text, boolean, text)
 from public, anon, authenticated;
 
 grant execute on function
@@ -1338,5 +1358,5 @@ grant execute on function
   public.shipping_record_labels(uuid, uuid, uuid, text, jsonb),
   public.shipping_buy_failed(uuid, uuid, uuid, text, boolean),
   public.shipping_start_purchase(uuid, uuid, uuid),
-  public.shipping_apply_tracking(text, text, text, boolean, text)
+  public.shipping_apply_tracking(uuid, text, text, text, boolean, text)
 to service_role;

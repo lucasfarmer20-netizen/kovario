@@ -2342,7 +2342,7 @@ isOneToOne: false
 { Args: { "p_org_id": string }; Returns: string
                            },
 "shipping_apply_tracking":
-{ Args: { "p_details": string,"p_in_carrier_hands": boolean,"p_status": string,"p_tracking_number": string,"p_transaction_id": string }; Returns: Json
+{ Args: { "p_details": string,"p_in_carrier_hands": boolean,"p_org_id": string,"p_status": string,"p_tracking_number": string,"p_transaction_id": string }; Returns: Json
                            },
 "shipping_buy_failed":
 { Args: { "p_charged": boolean,"p_claim_id": string,"p_error": string,"p_org_id": string,"p_shipment_id": string }; Returns: Json

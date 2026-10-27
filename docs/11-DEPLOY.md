@@ -118,7 +118,7 @@ rely on the deploy itself.
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | staging URL | prod URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | staging anon key | prod anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | **leave unset**: previews run unreviewed PR code against staging (CSP trial tenant); add it only when a `docs/05-PAYMENTS.md` handler must run in preview, and say so in that PR | prod, only for the handlers listed in `docs/05-PAYMENTS.md` |
+| `SUPABASE_SERVICE_ROLE_KEY` | **leave unset**: previews run unreviewed PR code against staging (CSP trial tenant); add it only when a `docs/05-PAYMENTS.md` handler must run in preview, and say so in that PR | prod, only for the handlers listed in `docs/05-PAYMENTS.md` and `docs/07-INTEGRATIONS.md` §4 |
 | `NEXT_PUBLIC_APP_URL` | leave unset (request origin is used) | `https://app.filletry.com` |
 
   Until the prod project exists both targets point at staging (proof of concept). When prod
