@@ -35,6 +35,7 @@ export async function createDevice(_state: ActionState, formData: FormData): Pro
     `Added ${parsed.data.name}. Press “Pair” to connect a tablet.`,
   );
   revalidatePath("/admin/devices");
+  revalidatePath("/onboarding"); // the onboarding wizard reuses this form
   return result;
 }
 

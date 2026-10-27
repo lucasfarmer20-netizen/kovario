@@ -357,10 +357,12 @@ select is(
 select is((select coalesce(plan, 'none') || '|' || subscription_status from public.org where slug = 'kenai-fish'),
   'none|canceled', 'plan cleared when the subscription ends');
 
+-- One transaction: every event has the same created_at, so compare without order.
 select is(
-  (select array_agg(payload ->> 'plan' order by created_at, id) from public.domain_event
+  (select array_agg(coalesce(payload ->> 'plan', 'none') order by coalesce(payload ->> 'plan', 'none'))
+   from public.domain_event
    where kind = 'org_plan_changed' and org_id = (select v #>> '{}' from t where k = 'org')::uuid),
-  array['plant', 'multi-site', null], 'org_plan_changed events for each real change');
+  array['multi-site', 'none', 'plant'], 'one org_plan_changed event per real change (none for stale/duplicate)');
 select is(
   (select array_agg(stripe_event_id || ':' || applied || ':' || coalesce(reason, '-') order by event_created_at)
    from public.billing_event where org_id = (select v #>> '{}' from t where k = 'org')::uuid),

@@ -49,10 +49,12 @@ async function counts(): Promise<Record<string, number>> {
 describe("seed-demo-org (demo-plant for e2e)", { timeout: 120_000 }, () => {
   let first: Record<string, number>;
 
+  // Shells out to the script (and `supabase status`): slower than vitest's 10 s hook default
+  // while other db suites load the database in parallel.
   beforeAll(async () => {
     seed();
     first = await counts();
-  });
+  }, 120_000);
 
   it("has an intake in every intake state", async () => {
     const { data } = await serviceRoleClient()
