@@ -107,9 +107,13 @@ jobs:
           # The environment's rules are the real gate (workflow_dispatch runs the dispatching
           # branch's copy of this file), so refuse a production environment that is not set up
           # as docs/11-DEPLOY.md §1 says: required reviewers, admin bypass off, `main` only.
-          if ! gh api "repos/$GITHUB_REPOSITORY/environments/production" > env.json 2>/dev/null; then
-            echo "::notice::production skipped: the production environment does not exist yet (docs/11-DEPLOY.md §1)"
-            exit 0
+          if ! gh api "repos/$GITHUB_REPOSITORY/environments/production" > env.json 2> env.err; then
+            if grep -q "HTTP 404" env.err; then
+              echo "::notice::production skipped: the production environment does not exist yet (docs/11-DEPLOY.md §1)"
+              exit 0
+            fi
+            echo "::error::could not read the production environment: $(tail -1 env.err)"
+            exit 1
           fi
           problems=()
           jq -e '[.protection_rules[]?.type] | index("required_reviewers")' env.json >/dev/null \
