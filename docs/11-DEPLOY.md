@@ -73,9 +73,9 @@ Supabase.
 Create the **`production` environment** with: *Required reviewers* (at least one human),
 *Prevent self-review* on, *Allow administrators to bypass configured protection rules*
 **unticked** (otherwise a repository admin can deploy prod without an approval), and
-*Deployment branches* limited to `main`. The deploy workflow
-refuses to promote while the environment exists without required reviewers, and skips prod
-while the environment does not exist. Do not create protection rules on `staging`; the staging
+*Deployment branches and tags* = **Selected branches and tags** with a single branch rule
+`main`. `promote-check` refuses to promote while any of these three is missing (reviewers,
+bypass off, `main`-only), and skips prod while the environment does not exist. Do not create protection rules on `staging`; the staging
 job must run unattended.
 
 The staging secrets are repository secrets because the PR migration dry-run (below) must read
@@ -182,12 +182,16 @@ recording it in a PR.
 
 ## 4. Promoting to prod
 
-1. Pick a commit on `main` whose staging deploy succeeded (Actions → Deploy, or the
-   `staging` environment's deployment list).
+1. Pick a commit on `main` with a **green Deploy run** (Actions → Deploy, or the `staging`
+   environment's deployment list). Not every `main` commit has one: GitHub replaces a still
+   *pending* CI run with a newer push, so when merges land in quick succession only the latest
+   commit is deployed to staging, and only deployed commits can be promoted.
 2. Actions → **Deploy** → *Run workflow* on `main`, input `sha` = that commit.
-3. `promote-check` refuses a commit without a successful staging deployment, skips while the
-   `production` environment does not exist, and refuses an environment without required
-   reviewers.
+3. `promote-check` refuses a commit without a successful staging deployment and skips while the
+   `production` environment does not exist. It also refuses an environment that is not set up
+   as in §1: no required reviewers, administrators allowed to bypass, or deployment branches
+   not limited to `main`. Those environment rules are the real gate, because
+   `workflow_dispatch` runs the dispatching branch's copy of `deploy.yml`.
 4. A required reviewer approves the `production` deployment. The job then runs the same
    script against prod (checked out at that commit). Without the prod secrets it skips with a
    notice.

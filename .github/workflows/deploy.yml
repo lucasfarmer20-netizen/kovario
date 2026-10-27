@@ -77,7 +77,7 @@ jobs:
 
   # Runs before any approval prompt. Fails unless the commit already has a successful staging
   # deployment. Skips production while the `production` environment does not exist, and fails
-  # if it exists without required reviewers: prod never deploys without an approval.
+  # unless it has required reviewers, admin bypass off and deployment branches = main.
   promote-check:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -104,14 +104,29 @@ jobs:
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-          if ! rules=$(gh api "repos/$GITHUB_REPOSITORY/environments/production" --jq '[.protection_rules[].type] | join(",")' 2>/dev/null); then
+          # The environment's rules are the real gate (workflow_dispatch runs the dispatching
+          # branch's copy of this file), so refuse a production environment that is not set up
+          # as docs/11-DEPLOY.md §1 says: required reviewers, admin bypass off, `main` only.
+          if ! gh api "repos/$GITHUB_REPOSITORY/environments/production" > env.json 2>/dev/null; then
             echo "::notice::production skipped: the production environment does not exist yet (docs/11-DEPLOY.md §1)"
             exit 0
           fi
-          case ",$rules," in
-            *,required_reviewers,*) ;;
-            *) echo "::error::the production environment has no required reviewers; add them before promoting"; exit 1 ;;
-          esac
+          problems=()
+          jq -e '[.protection_rules[]?.type] | index("required_reviewers")' env.json >/dev/null \
+            || problems+=("no required reviewers")
+          jq -e '.can_admins_bypass == false' env.json >/dev/null \
+            || problems+=("administrators may bypass the protection rules")
+          if jq -e '.deployment_branch_policy.custom_branch_policies == true' env.json >/dev/null; then
+            branches=$(gh api "repos/$GITHUB_REPOSITORY/environments/production/deployment-branch-policies" \
+              --jq '[.branch_policies[] | "\(.type // "branch"):\(.name)"] | join(",")')
+            [ "$branches" = "branch:main" ] || problems+=("deployment branches are '$branches', not only main")
+          else
+            problems+=("deployment branches are not limited to main")
+          fi
+          if [ ${#problems[@]} -gt 0 ]; then
+            for p in "${problems[@]}"; do echo "::error::production environment: $p (docs/11-DEPLOY.md §1)"; done
+            exit 1
+          fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
           echo "Promoting \`$sha\` (deployed to staging) to production" >> "$GITHUB_STEP_SUMMARY"
 

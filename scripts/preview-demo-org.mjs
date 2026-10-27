@@ -1,5 +1,5 @@
 // `pnpm db:preview-demo`: creates or refreshes the throwaway demo org that Vercel preview
-// deployments sign in to on **staging** (docs/01-ARCHITECTURE.md §8, docs/11-DEPLOY.md §4).
+// deployments sign in to on **staging** (docs/01-ARCHITECTURE.md §8, docs/11-DEPLOY.md §5).
 // Idempotent: upserts org `preview-demo` and its sites, adds the processing reference data and
 // default rate card the same way onboarding does (public.seed_org_reference with
 // referenceSeed(); existing rows are kept), then the demo owner (password reset to the given
