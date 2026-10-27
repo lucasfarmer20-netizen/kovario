@@ -7,16 +7,8 @@ describe("seedYieldFactor", () => {
     expect(seedYieldFactor("whitefish_lingcod", "filleted_ribs", "portions")).toBe(0.78);
   });
 
-  it("chum falls back to reds", () => {
-    // Chum has no smoked-exchange rows; reds does.
-    expect(seedYieldFactor("salmon_chum", "whole", "smoked_exchange_cajun")).toBe(0.39);
-    // An exact chum row wins over reds.
+  it("an exact chum row is used (chum → reds and exchange → smoking: yield.exchange.test.ts)", () => {
     expect(seedYieldFactor("salmon_chum", "gutted", "fillets")).toBe(0.57);
-  });
-
-  it("exchange methods fall back to smoking", () => {
-    expect(seedYieldFactor("salmon_kings", "hg", "smoked_exchange_traditional")).toBe(0.52);
-    expect(seedYieldFactor("salmon_pinks", "whole", "smoked_exchange_cajun")).toBe(0.39);
   });
 
   it("no row and no fallback → null", () => {
@@ -38,9 +30,14 @@ describe("seedYieldFactor", () => {
     // Split sides where fresh itself is forbidden (non-salmon; salmon vsr is Freeze only).
     expect(() => seedYieldFactor("other_octopus", "filleted", "fillets")).toThrow(RangeError);
     expect(() => seedYieldFactor("salmon_kings", "vsr", "portions")).toThrow(RangeError);
-    // Exchange where smoking is forbidden.
+    // The matrix has no smoked-exchange rows, even where smoking is allowed.
+    expect(() => seedYieldFactor("salmon_chum", "whole", "smoked_exchange_cajun")).toThrow(
+      new RangeError(
+        "salmon_chum/whole/smoked_exchange_cajun is not allowed by the processing matrix",
+      ),
+    );
     expect(() => seedYieldFactor("whitefish_lingcod", "whole", "smoked_exchange_cajun")).toThrow(
-      /whitefish_lingcod\/whole\/smoked_exchange_cajun/,
+      RangeError,
     );
   });
 });
@@ -94,10 +91,10 @@ describe("yieldFactor", () => {
     ).toThrow(RangeError);
   });
 
-  it("smoked-exchange lines are allowed wherever smoking is", () => {
-    expect(
+  it("smoked-exchange lines follow the matrix, which has no exchange rows", () => {
+    expect(() =>
       yieldFactor({ species: "salmon_chum", condition: "whole", method: "smoked_exchange_cajun" }),
-    ).toBe(0.39);
+    ).toThrow(RangeError);
     expect(() =>
       yieldFactor({ species: "salmon_reds", condition: "vsf", method: "smoked_exchange_cajun" }),
     ).toThrow(RangeError);

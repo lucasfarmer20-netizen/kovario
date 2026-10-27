@@ -26,15 +26,6 @@ export interface YieldInput {
   filletsPct?: number | null;
 }
 
-/**
- * Whether the matrix allows a line with this method. The matrix has no smoked-exchange
- * rows; an exchange line is allowed wherever smoking is, mirroring its yield fallback.
- */
-function lineAllowed(species: SpeciesCode, condition: ConditionCode, method: MethodCode): boolean {
-  if (isAllowed(species, condition, method)) return true;
-  return isExchangeMethod(method) && isAllowed(species, condition, SMOKING);
-}
-
 function rejectCombination(
   species: SpeciesCode,
   condition: ConditionCode,
@@ -69,7 +60,7 @@ export function seedYieldFactor(
 ): number | null {
   const freshSide =
     (FRESH_SPLIT as readonly MethodCode[]).includes(method) && isAllowed(species, condition, FRESH);
-  if (!freshSide && !lineAllowed(species, condition, method)) {
+  if (!freshSide && !isAllowed(species, condition, method)) {
     rejectCombination(species, condition, method);
   }
   return lookup(species, condition, method);
@@ -100,7 +91,7 @@ function freshFactor(input: YieldInput): number | null {
  * forbids (`fresh` is checked as `fresh`); `null` when an allowed one has no seed factor.
  */
 export function yieldFactor(input: YieldInput): number | null {
-  if (!lineAllowed(input.species, input.condition, input.method)) {
+  if (!isAllowed(input.species, input.condition, input.method)) {
     rejectCombination(input.species, input.condition, input.method);
   }
   const species = SPECIES[input.species];
