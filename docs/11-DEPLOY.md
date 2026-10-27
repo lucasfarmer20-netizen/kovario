@@ -121,6 +121,12 @@ rely on the deploy itself.
    staging's latest, or a version that exists only remotely) fails before merge. Skipped when
    the staging secrets are absent (forks). It checks history, not SQL: a migration that errors
    on staging *data* fails at deploy time — see §3.
+
+   **Parallel branches:** when `migrations-dry-run` reports a local migration older than staging's
+   latest (someone else's migration merged first), rename yours to a current timestamp
+   (`supabase/migrations/<now>_<slug>.sql`) after merging `main`, re-run `supabase db reset`, and
+   push. Never pass `--include-all` to work around it: that applies migrations out of order on
+   staging and prod.
 2. **Merge to `main`**: CI runs again; when `check` is green, job `deploy` calls
    `deploy.yml`, which deploys to the GitHub `staging` environment via
    `scripts/deploy-supabase.sh staging`:
