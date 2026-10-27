@@ -31,7 +31,10 @@ $pwsh = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
 if (-not $pwsh) { $pwsh = "$env:ProgramFiles\PowerShell\7\pwsh.exe" }
 $action = New-ScheduledTaskAction -Execute $pwsh -Argument (
   "-NoProfile -WindowStyle Hidden -Command `"& '$bash' '$svc'`"")
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+# Logon start, plus a 15-minute watchdog: if the loop has died, the next tick restarts it
+# (MultipleInstances IgnoreNew makes ticks no-ops while it is running).
+$watchdog = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15)
+$trigger = @((New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME), $watchdog)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
