@@ -32,12 +32,15 @@ export function useScanAction(scope: string, send: (request: ScanRequest) => Pro
       },
       setPending,
       show,
+      Date.now,
+      async (work) => await navigator.locks.request(`scan-storage:${scope}`, work),
+      async (work) => await navigator.locks.request(`scan-delivery:${scope}`, work),
     );
     queue.current = instance;
     const drain = (reconnect = false) => {
-      // A browser lock prevents two tabs replaying/overwriting the same IndexedDB queue.
-      void navigator.locks
-        .request(`scan:${scope}`, () => instance.drain(navigator.onLine, reconnect))
+      // Delivery has its own cross-tab lock; enqueue only waits for a short storage transaction.
+      void instance
+        .drain(navigator.onLine, reconnect)
         .catch(() =>
           show({ ok: false, reason: "Scan storage unavailable. Keep this station open." }),
         );
@@ -59,13 +62,13 @@ export function useScanAction(scope: string, send: (request: ScanRequest) => Pro
       return;
     }
     try {
-      await navigator.locks.request(`scan:${scope}`, () => instance.enqueue(request));
+      await instance.enqueue(request);
       const parsed = parse(request.raw);
       show({
         ok: parsed.ok,
         reason: parsed.ok ? "Read locally — pending confirmation" : parsed.reason,
       });
-      await navigator.locks.request(`scan:${scope}`, () => instance.drain(navigator.onLine));
+      await instance.drain(navigator.onLine);
     } catch {
       show({ ok: false, reason: "Scan could not be saved. Scan again." });
     }

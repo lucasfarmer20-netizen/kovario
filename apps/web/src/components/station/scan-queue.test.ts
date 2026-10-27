@@ -1,5 +1,11 @@
 import { expect, it, vi } from "vitest";
-import { ScanQueue, retryDelay, type PendingScan, type ScanRequest } from "./scan-queue";
+import {
+  ScanQueue,
+  retryDelay,
+  type PendingScan,
+  type ScanRequest,
+  type ScanReply,
+} from "./scan-queue";
 const request = (id: string): ScanRequest => ({
   client_action_id: id,
   raw: "KV:TOTE:INT-0001:1",
@@ -80,4 +86,64 @@ it("never sends a scan if durable storage fails", async () => {
   };
   await expect(s.queue.enqueue(request("unsaved"))).rejects.toThrow("quota");
   expect(s.send).not.toHaveBeenCalled();
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+}
+it("persists a second scan during delivery and preserves it when the first is acknowledged", async () => {
+  const first = deferred<ScanReply>();
+  const second = deferred<ScanReply>();
+  const firstStarted = deferred<void>();
+  const secondStarted = deferred<void>();
+  const s = setup();
+  s.send.mockImplementationOnce(() => {
+    firstStarted.resolve();
+    return first.promise;
+  });
+  s.send.mockImplementationOnce(() => {
+    secondStarted.resolve();
+    return second.promise;
+  });
+  await s.queue.enqueue(request("first"));
+  const delivery = s.queue.drain();
+  await firstStarted.promise;
+  await s.queue.enqueue(request("second"));
+  expect((await s.store.read()).map((row) => row.request.client_action_id)).toEqual([
+    "first",
+    "second",
+  ]);
+  expect(s.changed).toHaveBeenLastCalledWith(2);
+  expect(s.send).toHaveBeenCalledTimes(1);
+  first.resolve({ ok: true, reason: "accepted" });
+  await secondStarted.promise;
+  expect((await s.store.read()).map((row) => row.request.client_action_id)).toEqual(["second"]);
+  second.resolve({ ok: true, reason: "accepted" });
+  await delivery;
+  expect(await s.store.read()).toEqual([]);
+});
+it("preserves scans appended during a failed send when recording backoff", async () => {
+  const response = deferred<ScanReply>();
+  const started = deferred<void>();
+  const s = setup();
+  s.send.mockImplementationOnce(() => {
+    started.resolve();
+    return response.promise;
+  });
+  await s.queue.enqueue(request("first"));
+  const delivery = s.queue.drain();
+  await started.promise;
+  await s.queue.enqueue(request("second"));
+  response.reject(new Error("response lost"));
+  await delivery;
+  const rows = await s.store.read();
+  expect(rows.map((row) => row.request.client_action_id)).toEqual(["first", "second"]);
+  expect(rows[0]).toMatchObject({ attempts: 1, nextAt: 1000 });
+  expect(rows[1]).toMatchObject({ attempts: 0, nextAt: 0 });
 });
