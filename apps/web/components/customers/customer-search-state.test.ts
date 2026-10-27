@@ -6,6 +6,7 @@ import {
   canSearch,
   createDraft,
   moveHighlight,
+  searchOptions,
   validateDraft,
 } from "./customer-search-state";
 
@@ -28,6 +29,35 @@ describe("canSearch — phone first, >= 3 digits", () => {
     const tote = encode("TOTE", { intakeNumber: "INT-0001", toteNo: 1 });
     expect(canSearch(tote)).toBe(false);
     expect(canSearch(encode("TAG", { orgSlug: "demo", code: "042" }).toLowerCase())).toBe(false);
+  });
+});
+
+describe("searchOptions — only the current query's answer is selectable", () => {
+  const alice = {
+    id: "a",
+    name: "Alice",
+    phone: "+19075551234",
+    last_visit_at: null,
+    is_lodge_guest: false,
+    lodge_id: null,
+    lodge_name: null,
+  };
+
+  it("offers the hits and New customer once the current query is answered", () => {
+    expect(searchOptions([alice], "907555", "907555", true)).toEqual({
+      hits: [alice],
+      create: true,
+    });
+    expect(searchOptions([alice], "907555", "907555", false).create).toBe(false);
+  });
+
+  it("offers nothing while a newer query is debouncing or in flight", () => {
+    // Typed a different number and pressed Enter before its response: Alice must not be picked.
+    expect(searchOptions([alice], "907555", "208555", true)).toEqual({ hits: [], create: false });
+  });
+
+  it("offers nothing after the newer query's request failed", () => {
+    expect(searchOptions([alice], null, "208555", true)).toEqual({ hits: [], create: false });
   });
 });
 

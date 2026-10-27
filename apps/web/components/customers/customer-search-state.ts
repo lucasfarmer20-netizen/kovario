@@ -37,6 +37,21 @@ export function canSearch(q: string): boolean {
   return q.replace(/[^\p{L}]/gu, "").length >= MIN_NAME_LETTERS;
 }
 
+/**
+ * What the dropdown may show and Enter/click may pick. Only results answered for exactly the
+ * current query count: while a newer query is debouncing or in flight, or after its request
+ * failed, the previous query's customers are not selectable.
+ */
+export function searchOptions(
+  hits: CustomerHit[],
+  searched: string | null,
+  query: string,
+  canCreate: boolean,
+): { hits: CustomerHit[]; create: boolean } {
+  if (searched === null || searched !== query) return { hits: [], create: false };
+  return { hits, create: canCreate };
+}
+
 /** Next highlighted option, wrapping at both ends; -1 when there is nothing to highlight. */
 export function moveHighlight(current: number, count: number, delta: 1 | -1): number {
   if (count <= 0) return -1;

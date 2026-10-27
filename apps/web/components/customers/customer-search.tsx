@@ -9,6 +9,7 @@ import {
   canSearch,
   createDraft,
   moveHighlight,
+  searchOptions,
   validateDraft,
   type CreateCustomerInput,
   type CreateCustomerResult,
@@ -64,9 +65,9 @@ export function CustomerSearch({
     [],
   );
 
-  // Options: the hits, then "New customer" once a real query has been answered.
-  const canCreate = Boolean(create) && searched !== null && searched === query;
-  const optionCount = hits.length + (canCreate ? 1 : 0);
+  // Options: the hits, then "New customer" — only once the current query has been answered.
+  const options = searchOptions(hits, searched, query, Boolean(create));
+  const optionCount = options.hits.length + (options.create ? 1 : 0);
 
   function clear() {
     if (timer.current) clearTimeout(timer.current);
@@ -85,12 +86,11 @@ export function CustomerSearch({
     setError(null);
     if (timer.current) clearTimeout(timer.current);
     const seq = ++requestSeq.current;
-    if (!canSearch(value)) {
-      setHits([]);
-      setSearched(null);
-      setHighlight(-1);
-      return;
-    }
+    // The previous query's results stop being selectable now, not when the next answer lands.
+    setHits([]);
+    setSearched(null);
+    setHighlight(-1);
+    if (!canSearch(value)) return;
     timer.current = setTimeout(() => {
       search(value).then(
         (rows) => {
@@ -109,11 +109,11 @@ export function CustomerSearch({
   }
 
   function choose(index: number) {
-    const hit = hits[index];
+    const hit = options.hits[index];
     if (hit) {
       onSelect(hit);
       clear();
-    } else if (canCreate && index === hits.length) {
+    } else if (options.create && index === options.hits.length) {
       intentId.current = null;
       setDraft(createDraft(query));
       setOpen(false);
@@ -208,7 +208,7 @@ export function CustomerSearch({
           role="listbox"
           className="absolute top-full z-10 mt-1 w-full overflow-hidden rounded-md border border-border bg-background shadow-md"
         >
-          {hits.map((hit, i) => (
+          {options.hits.map((hit, i) => (
             <li
               key={hit.id}
               id={`${id}-opt-${i}`}
@@ -238,19 +238,19 @@ export function CustomerSearch({
               </span>
             </li>
           ))}
-          {canCreate ? (
+          {options.create ? (
             <li
-              id={`${id}-opt-${hits.length}`}
+              id={`${id}-opt-${options.hits.length}`}
               role="option"
-              aria-selected={highlight === hits.length}
+              aria-selected={highlight === options.hits.length}
               className={cn(
                 "flex min-h-12 cursor-pointer items-center px-3 py-2 font-medium",
-                highlight === hits.length && "bg-accent",
+                highlight === options.hits.length && "bg-accent",
               )}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => choose(hits.length)}
+              onClick={() => choose(options.hits.length)}
             >
-              {hits.length === 0 ? "No match — new customer…" : "New customer…"}
+              {options.hits.length === 0 ? "No match — new customer…" : "New customer…"}
             </li>
           ) : null}
         </ul>
