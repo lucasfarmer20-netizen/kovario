@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { dejavooProvider } from "./dejavoo";
 import { FakeProvider } from "./fake";
 import { manualProvider } from "./manual";
-import { ProviderUnavailableError, providerFor } from "./registry";
+import { providerFor } from "./registry";
+import { stripeTerminalProvider } from "./stripe-terminal";
 import { REDACTED, scrubSecrets } from "./scrub";
 
 const terminal = { secret: "" };
@@ -198,8 +200,9 @@ describe("scrub", () => {
 });
 
 describe("registry", () => {
-  it("manual is always available; Dejavoo lands in WP-17", () => {
+  it("every provider kind is registered: manual, dejavoo_spin (WP-17), stripe_terminal (WP-18)", () => {
     expect(providerFor("manual")).toBe(manualProvider);
-    expect(() => providerFor("dejavoo_spin")).toThrow(ProviderUnavailableError);
+    expect(providerFor("dejavoo_spin")).toBe(dejavooProvider);
+    expect(providerFor("stripe_terminal")).toBe(stripeTerminalProvider);
   });
 });

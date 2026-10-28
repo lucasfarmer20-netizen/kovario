@@ -5,5 +5,6 @@ export * from "./provider.ts";
 export * from "./scrub.ts";
 export * from "./manual.ts";
 export * from "./fake.ts";
+export * from "./dejavoo/index.ts";
 export * from "./stripe-terminal.ts";
 export * from "./registry.ts";

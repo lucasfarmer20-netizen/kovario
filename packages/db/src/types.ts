@@ -2167,6 +2167,9 @@ isOneToOne: false
 "admin_save_box_size":
 { Args: { "p_box_size_id": string,"p_client_action_id": string,"p_dims"?: Json,"p_fee": number,"p_is_active"?: boolean,"p_max_lb": number,"p_name": string }; Returns: Json
                            },
+"admin_save_payment_terminal":
+{ Args: { "p_client_action_id": string,"p_endpoint_url": string,"p_is_active"?: boolean,"p_name": string,"p_register_id"?: string,"p_secret_ref": string,"p_site_id"?: string,"p_terminal_id": string,"p_timeout_secs"?: number,"p_tpn": string }; Returns: Json
+                           },
 "admin_save_printer":
 { Args: { "p_address": string,"p_agent_id": string,"p_client_action_id": string,"p_kind": Database["public"]['Enums']["printer_kind"],"p_name": string,"p_printer_id"?: string,"p_site_id"?: string }; Returns: Json
                            },
