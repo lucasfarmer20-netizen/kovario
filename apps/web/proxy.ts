@@ -20,5 +20,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Staff pages only; stations (/pair, /device) keep their own device session.
-  matcher: ["/admin/:path*", "/login", "/auth/:path*", "/signup", "/onboarding"],
+  matcher: ["/admin/:path*", "/reports/:path*", "/login", "/auth/:path*", "/signup", "/onboarding"],
 };

@@ -55,12 +55,23 @@ export interface Tender {
   reason?: string;
 }
 
+/**
+ * Which Filletry payment a sale is for. Stripe Terminal stamps it on the PaymentIntent's
+ * metadata (docs/05 §5: `{org_id, payment_id}`) so its webhook can find the payment; other
+ * adapters ignore it. Additive to the docs/05 §1 signature.
+ */
+export interface SaleContext {
+  orgId: string;
+  paymentId: string;
+}
+
 export interface SaleRequest {
   terminal: TerminalConfig;
   amount: number;
   ref: string;
   timeoutMs: number;
   tender?: Tender;
+  context?: SaleContext;
 }
 
 // `indeterminate` (additive to docs/05 §1): the adapter cannot tell whether the money went

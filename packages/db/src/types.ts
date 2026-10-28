@@ -2064,6 +2064,100 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"report_daily_volume": {
+                  Row: {
+                    "day": string | null,"incoming_lb": number | null,"org_id": string,"site_id": string | null,"species_code": string
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"report_pipeline": {
+                  Row: {
+                    "day": string | null,"incoming_lb": number | null,"intake_count": number | null,"org_id": string,"site_id": string | null,"state": Database["public"]['Enums']["intake_state"]
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"report_reconcile_variance": {
+                  Row: {
+                    "actual_lb": number | null,"day": string | null,"expected_lb": number | null,"line_count": number | null,"org_id": string,"site_id": string | null,"species_code": string,"variance_pct": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"report_revenue": {
+                  Row: {
+                    "amount": number | null,"charge_count": number | null,"day": string | null,"kind": Database["public"]['Enums']["charge_kind"],"org_id": string,"site_id": string | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "charge_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"report_throughput": {
+                  Row: {
+                    "day": string | null,"hours": number | null,"intake_count": number | null,"org_id": string,"site_id": string | null,"stage": string | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"rollstock_tote_progress": {
                   Row: {
                     "intake_id": string,"org_id": string,"scanned": number | null,"tote_count": number
@@ -2221,6 +2315,9 @@ isOneToOne: false
                            },
 "admin_save_retail_product":
 { Args: { "p_client_action_id": string,"p_is_active"?: boolean,"p_name": string,"p_retail_product_id": string,"p_sku"?: string,"p_unit_price": number }; Returns: Json
+                           },
+"admin_save_stripe_terminal":
+{ Args: { "p_client_action_id": string,"p_is_active"?: boolean,"p_location_id"?: string,"p_name": string,"p_reader_id": string,"p_secret_ref": string,"p_site_id"?: string,"p_terminal_id": string,"p_webhook_secret_ref"?: string }; Returns: Json
                            },
 "admin_seed_reference":
 { Args: { "p_client_action_id": string,"p_reference": Json }; Returns: Json
@@ -2408,6 +2505,9 @@ isOneToOne: false
 "payment_for_provider":
 { Args: { "p_payment_id": string }; Returns: Json
                            },
+"payment_for_webhook":
+{ Args: { "p_org_id": string,"p_payment_id": string }; Returns: Json
+                           },
 "payment_log_event":
 { Args: { "p_kind": string,"p_payload": Json,"p_payment_id": string }; Returns: undefined
                            },
@@ -2431,6 +2531,9 @@ isOneToOne: false
                            },
 "payment_terminal_runtime":
 { Args: { "p_org_id": string,"p_terminal_id": string }; Returns: Json
+                           },
+"payment_terminal_webhook_secret":
+{ Args: { "p_terminal_id": string }; Returns: Json
                            },
 "place_vessel":
 { Args: { "p_client_action_id": string,"p_expected_vessel_id"?: string,"p_location_raw": string,"p_operator_session"?: string,"p_vessel_raw": string }; Returns: Json
