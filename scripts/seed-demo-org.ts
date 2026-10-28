@@ -1,8 +1,8 @@
 // `pnpm db:seed-demo`: fills the local demo org `demo-plant` (docs/01-ARCHITECTURE.md §8)
 // with everything the e2e smoke needs — processing rules + default rate card (the same
-// payload onboarding uses), demo rates, a lodge, customers, asset tags, freezer locations
-// and one intake in EVERY intake state with lines, tote tags and vessels that match the
-// state. Local Supabase only. Idempotent: ids are derived from stable names and every insert
+// payload onboarding uses), demo rates, a lodge, customers, asset tags, freezer locations,
+// box sizes and one intake in EVERY intake state with lines, tote tags and vessels that match
+// the state. Local Supabase only. Idempotent: ids are derived from stable names and every insert
 // ignores rows that already exist, so re-running changes nothing.
 //
 // Runs on plain Node (type stripping): node --experimental-strip-types scripts/seed-demo-org.ts
@@ -205,6 +205,16 @@ locations.push({
   capacity: null,
 });
 await insertMissing("location", locations, "org_id,code");
+
+// Box sizes for counter allocation box plans (the e2e smoke plans a will-call box).
+await insertMissing(
+  "box_size",
+  [
+    { id: id("box:25"), org_id: ORG_ID, name: "25 lb box", max_lb: 25, fee: 6.0 },
+    { id: id("box:50"), org_id: ORG_ID, name: "50 lb box", max_lb: 50, fee: 9.0 },
+  ],
+  "org_id,name",
+);
 
 // 4. One intake per state ------------------------------------------------------------------
 type Line = { species: string; condition: string; method: string; lb: number };
@@ -457,6 +467,6 @@ await rest(`sequence_counter?org_id=eq.${ORG_ID}&kind=eq.intake&value=lt.${lastN
 });
 
 console.log(
-  `demo-plant ready: ${CUSTOMERS.length} customers, 20 asset tags, ${locations.length} locations, ` +
+  `demo-plant ready: ${CUSTOMERS.length} customers, 20 asset tags, ${locations.length} locations, 2 box sizes, ` +
     `intakes in ${INTAKES.length} states (${INTAKES.map((i) => i.state).join(", ")}).`,
 );

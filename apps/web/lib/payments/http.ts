@@ -40,15 +40,18 @@ export const connectionTokenInput = z.object({ terminalId: id });
 
 export type MakeDeps = (req: Request) => Promise<PaymentsDeps>;
 
-async function callerFor(req: Request): Promise<FilletryClient> {
+async function callerFor(req: Request): Promise<{ caller: FilletryClient; jwt?: string }> {
   const header = req.headers.get("authorization") ?? "";
-  return header.startsWith("Bearer ") ? bearerClient(header.slice(7)) : createSupabaseServer();
+  if (!header.startsWith("Bearer ")) return { caller: await createSupabaseServer() };
+  const jwt = header.slice(7);
+  return { caller: bearerClient(jwt), jwt };
 }
 
 /** Production dependencies: the caller's session, the service role and the provider registry. */
 export const defaultDeps: MakeDeps = async (req) => {
-  const caller = await callerFor(req);
-  const { data, error } = await caller.auth.getClaims();
+  const { caller, jwt } = await callerFor(req);
+  // A bearer client holds no session of its own: verify the token it was given.
+  const { data, error } = await caller.auth.getClaims(jwt);
   if (error || !data) throw new PaymentRequestError("Sign in first", 401);
   return { caller, service: serviceRoleClient(), providerFor };
 };

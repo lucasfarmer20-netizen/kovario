@@ -14,3 +14,8 @@ issues/map.json
 .ao/
 next-env.d.ts
 *.tsbuildinfo
+
+# Playwright (apps/web/e2e)
+apps/web/e2e/.auth/
+apps/web/test-results/
+apps/web/playwright-report/

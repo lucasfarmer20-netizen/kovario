@@ -6,5 +6,7 @@ export default mergeConfig(
   shared,
   defineConfig({
     resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
+    // e2e/*.spec.ts are Playwright suites (`pnpm e2e`), not vitest.
+    test: { exclude: ["e2e/**"] },
   }),
 );

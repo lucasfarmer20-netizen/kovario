@@ -88,7 +88,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       openId
         ? client
             .from("vessel")
-            .select("*,asset_tag(code)")
+            .select("*,asset_tag!vessel_asset_tag_id_fkey(code)")
             .eq("intake_id", openId)
             .eq("lifecycle_state", "occupied")
             .order("id")
