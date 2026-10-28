@@ -40,7 +40,7 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
   const refresh = useCallback(async () => {
     const { data, error } = await client
       .from("vessel")
-      .select("id,blast_in_at,weight_lb,intake(number),asset_tag(code)")
+      .select("id,blast_in_at,weight_lb,intake(number),asset_tag!vessel_asset_tag_id_fkey(code)")
       .eq("lifecycle_state", "occupied")
       .not("blast_in_at", "is", null)
       .is("stored_at", null)
