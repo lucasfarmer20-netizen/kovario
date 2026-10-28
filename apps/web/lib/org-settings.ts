@@ -10,6 +10,8 @@ export type OrgSettings = {
   wave_target_lb: number;
   wave_tolerance_lb: number;
   receipt_footer: string;
+  pickup_hours?: string;
+  rates_notice?: string;
   status_page_enabled: boolean;
   tax: { mode: "exclusive"; rate: number; cap_amount: number | null };
   shipping: { carrier_allowlist: "*" | string[]; buy_window_days: number };
@@ -22,6 +24,8 @@ const formSchema = z.object({
   wave_target_lb: z.coerce.number().min(1).max(100_000),
   wave_tolerance_lb: z.coerce.number().min(0).max(100_000),
   receipt_footer: z.string().max(500),
+  pickup_hours: z.string().max(500).optional(),
+  rates_notice: z.string().max(500).optional(),
   status_page_enabled: z.literal("on").optional(),
   // Entered as a percentage (6 = 6%); stored as a fraction.
   tax_rate_pct: z.coerce.number().min(0).max(50),
@@ -69,6 +73,8 @@ export function settingsFromForm(form: FormData): { settings: OrgSettings } | { 
       wave_target_lb: d.wave_target_lb,
       wave_tolerance_lb: d.wave_tolerance_lb,
       receipt_footer: d.receipt_footer,
+      ...(d.pickup_hours !== undefined ? { pickup_hours: d.pickup_hours } : {}),
+      ...(d.rates_notice !== undefined ? { rates_notice: d.rates_notice } : {}),
       status_page_enabled: d.status_page_enabled === "on",
       tax: {
         mode: "exclusive",

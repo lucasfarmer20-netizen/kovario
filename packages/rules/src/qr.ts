@@ -15,6 +15,17 @@
 // scan at a station is never mistaken for one.
 
 export const QR_PREFIX = "FL";
+
+/** Public receipt QR: no phone, customer id or private bearer token in the URL. */
+export function statusPageUrl(orgSlug: string): string {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(orgSlug)) throw new RangeError("Invalid org slug");
+  return `https://app.filletry.com/s/${orgSlug}`;
+}
+
+export function parseStatusPageUrl(raw: string): string | null {
+  const match = /^https:\/\/app\.filletry\.com\/s\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(raw);
+  return match?.[1] ?? null;
+}
 export const QR_KINDS = ["TOTE", "TAG", "LOC", "BOX", "SBOX", "PAIR"] as const;
 export type QrKind = (typeof QR_KINDS)[number];
 

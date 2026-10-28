@@ -188,7 +188,7 @@ export async function printReceipt(client: FilletryClient, intakeId: string) {
 
 // One literal so supabase-js can type the selection.
 const INTAKE_COLUMNS =
-  "id, number, state, locked, customer_id, intake_at, hold_until, pulled_at, rollstock_at, rollstock_done_at, reconcile_at, blast_at, stored_at, done_at, cancelled_at, tote_count, dirty_fish, dirty_notes, cut_notes, processing_notes, fast_pass, is_lodge_guest, ribbing, total_incoming_lb, total_est_yield_lb, customer(name, phone)";
+  "id, number, state, locked, customer_id, intake_at, estimated_pickup_at, hold_until, pulled_at, rollstock_at, rollstock_done_at, reconcile_at, blast_at, stored_at, done_at, cancelled_at, tote_count, dirty_fish, dirty_notes, cut_notes, processing_notes, fast_pass, is_lodge_guest, ribbing, total_incoming_lb, total_est_yield_lb, customer(name, phone)";
 
 export async function loadIntake(client: FilletryClient, id: string) {
   const [intake, lines, charges, totes] = await Promise.all([

@@ -21,6 +21,7 @@ const NAV = [
   { href: "/admin/payment-terminals", label: "Payment terminals" },
   { href: "/admin/species", label: "Species" },
   { href: "/admin/settings", label: "Settings" },
+  { href: "/admin/notifications", label: "Notifications" },
   { href: "/admin/subscription", label: "Subscription" },
 ];
 

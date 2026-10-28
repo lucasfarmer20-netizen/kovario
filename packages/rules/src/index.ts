@@ -19,3 +19,4 @@ export * from "./allocation.ts";
 export * from "./release.ts";
 export * from "./locations";
 export * from "./tax.ts";
+export * from "./customer-status.ts";
