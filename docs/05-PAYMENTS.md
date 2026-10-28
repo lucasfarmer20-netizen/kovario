@@ -138,6 +138,24 @@ the CSP reference (`cs_pos_dejavoo`); keep these exact behaviours.
   (`payment_intent.succeeded`) only reconcile `indeterminate` payments.
 - Stripe Connect is **not** used in v1: each tenant supplies its own Stripe keys in
   Vault (DECISION-05).
+- Terminal config (WP-18, `/admin/payment-terminals` → `admin_save_stripe_terminal`):
+  `config.stripe_reader_id` (`tmr_…`), `config.stripe_location_id` (`tml_…`, scopes connection
+  tokens), `config.webhook_secret_ref` (Vault name of the endpoint's signing secret), and
+  `secret_ref` = Vault name of the tenant's **restricted key** (`rk_…`; write access to
+  PaymentIntents, Refunds, Terminal readers and connection tokens). Only names are stored; a
+  value that looks like a key is refused, and the adapter refuses a non-restricted key.
+- Server routes (Node runtime; service role, like `/api/payments/{sale,…}`):
+  `POST /api/payments/stripe/connection-token` (register roles; the caller must see the
+  terminal) and `POST /api/payments/stripe/webhook/<terminal id>` (no session — the
+  `Stripe-Signature` authenticates it; `payment_intent.{succeeded,payment_failed,canceled}`).
+  The webhook re-asks Stripe (`status`) for a payment that is `indeterminate` and records a
+  status check; any other state is acknowledged and left alone.
+- Never charge twice: a PaymentIntent that did not succeed (declined, cancelled, timed out at
+  the reader) is **cancelled** before the sale reports, so a retry (new ref → new
+  PaymentIntent, idempotency key `filletry-pi-<ref>`) never meets one a reader could still
+  collect. `abort` = `cancel_action` only when the reader is showing this payment's
+  PaymentIntent. Card meta reads the expanded `latest_charge` (API version pinned to
+  `2024-06-20`, where `charges` is no longer on the PaymentIntent).
 
 ## 6. Test harness
 `packages/payments/test/` has a **fake SPIn server** (HTTP, scriptable StatusCode /

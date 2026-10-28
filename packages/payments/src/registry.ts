@@ -1,7 +1,8 @@
-// Provider per terminal (DECISION-02): `manual` is always available; the Dejavoo SPIn (WP-17)
-// and Stripe Terminal (WP-18) adapters register here when they land.
+// Provider per terminal (DECISION-02): `manual` is always available; Stripe Terminal (WP-18) is
+// registered; the Dejavoo SPIn adapter (WP-17) registers here when it lands.
 import { manualProvider } from "./manual.ts";
 import type { PaymentProvider, ProviderKind } from "./provider.ts";
+import { stripeTerminalProvider } from "./stripe-terminal.ts";
 
 export class ProviderUnavailableError extends Error {
   constructor(readonly kind: ProviderKind) {
@@ -12,6 +13,7 @@ export class ProviderUnavailableError extends Error {
 
 const providers: Partial<Record<ProviderKind, PaymentProvider>> = {
   manual: manualProvider,
+  stripe_terminal: stripeTerminalProvider,
 };
 
 export function providerFor(kind: ProviderKind): PaymentProvider {

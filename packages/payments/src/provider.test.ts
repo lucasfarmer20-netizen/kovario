@@ -198,7 +198,7 @@ describe("scrub", () => {
 });
 
 describe("registry", () => {
-  it("manual is always available; card adapters land in WP-17/18", () => {
+  it("manual is always available; Dejavoo lands in WP-17", () => {
     expect(providerFor("manual")).toBe(manualProvider);
     expect(() => providerFor("dejavoo_spin")).toThrow(ProviderUnavailableError);
   });
