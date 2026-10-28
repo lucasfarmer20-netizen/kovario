@@ -18,6 +18,7 @@ const NAV = [
   { href: "/admin/rate-cards", label: "Rate cards" },
   { href: "/admin/box-sizes", label: "Box sizes" },
   { href: "/admin/retail-products", label: "Retail products" },
+  { href: "/admin/payment-terminals", label: "Payment terminals" },
   { href: "/admin/species", label: "Species" },
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/subscription", label: "Subscription" },
