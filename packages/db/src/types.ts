@@ -2018,6 +2018,100 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"report_daily_volume": {
+                  Row: {
+                    "day": string | null,"incoming_lb": number | null,"org_id": string,"site_id": string | null,"species_code": string
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"report_pipeline": {
+                  Row: {
+                    "day": string | null,"incoming_lb": number | null,"intake_count": number | null,"org_id": string,"site_id": string | null,"state": Database["public"]['Enums']["intake_state"]
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"report_reconcile_variance": {
+                  Row: {
+                    "actual_lb": number | null,"day": string | null,"expected_lb": number | null,"line_count": number | null,"org_id": string,"site_id": string | null,"species_code": string,"variance_pct": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"report_revenue": {
+                  Row: {
+                    "amount": number | null,"charge_count": number | null,"day": string | null,"kind": Database["public"]['Enums']["charge_kind"],"org_id": string,"site_id": string | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "charge_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"report_throughput": {
+                  Row: {
+                    "day": string | null,"hours": number | null,"intake_count": number | null,"org_id": string,"site_id": string | null,"stage": string | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"rollstock_tote_progress": {
                   Row: {
                     "intake_id": string,"org_id": string,"scanned": number | null,"tote_count": number
