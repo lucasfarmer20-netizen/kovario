@@ -44,11 +44,7 @@ export default async function SettingsPage() {
           </Label>
           <Label>
             Public rates notice
-            <Input
-              name="rates_notice"
-              defaultValue={s.rates_notice ?? s.receipt_footer}
-              maxLength={500}
-            />
+            <Input name="rates_notice" defaultValue={s.rates_notice ?? ""} maxLength={500} />
           </Label>
           <Label>
             Name

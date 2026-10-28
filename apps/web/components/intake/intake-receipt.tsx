@@ -9,6 +9,7 @@ type Receipt = {
   name: string;
   number: string;
   estimatedPickup: string | null;
+  timezone: string;
   hours: string;
   notice: string;
   qr: string;
@@ -32,17 +33,18 @@ export function IntakeReceipt({ intakeId }: { intakeId: string }) {
     if (!session) return;
     let live = true;
     void (async () => {
-      const [{ data: org, error: orgError }, detail] = await Promise.all([
+      const [{ data: org, error: orgError }, detail, estimate] = await Promise.all([
         session.client
           .from("org")
-          .select("name,slug,settings")
+          .select("name,slug,settings,timezone")
           .eq("id", session.claims.orgId)
           .single(),
         loadIntake(session.client, intakeId),
+        session.client.rpc("intake_pickup_estimate", { p_intake_id: intakeId }),
       ]);
-      if (orgError || !org || !detail.intake) throw new Error("Receipt unavailable");
+      if (orgError || estimate.error || !org || !detail.intake)
+        throw new Error("Receipt unavailable");
       const settings = org.settings as {
-        estimated_pickup_days?: number;
         pickup_hours?: string;
         rates_notice?: string;
         receipt_footer?: string;
@@ -53,14 +55,10 @@ export function IntakeReceipt({ intakeId }: { intakeId: string }) {
         setReceipt({
           name: org.name,
           number: detail.intake.number,
-          estimatedPickup:
-            detail.intake.estimated_pickup_at ??
-            new Date(
-              new Date(detail.intake.intake_at).getTime() +
-                (settings.estimated_pickup_days ?? 3) * 86400000,
-            ).toISOString(),
+          estimatedPickup: estimate.data,
+          timezone: org.timezone,
           hours: settings.pickup_hours ?? "Contact the plant",
-          notice: settings.rates_notice ?? settings.receipt_footer ?? "",
+          notice: settings.rates_notice || settings.receipt_footer || "",
           qr,
           url,
           charges: detail.charges
@@ -85,7 +83,14 @@ export function IntakeReceipt({ intakeId }: { intakeId: string }) {
       <h1 className="text-2xl font-semibold">
         {receipt.name} · {receipt.number}
       </h1>
-      <p>Estimated pickup: {receipt.estimatedPickup ?? "Ask the plant"}</p>
+      <p>
+        Estimated pickup:{" "}
+        {receipt.estimatedPickup
+          ? new Date(receipt.estimatedPickup).toLocaleString("en-US", {
+              timeZone: receipt.timezone,
+            })
+          : "Ask the plant"}
+      </p>
       <table className="w-full">
         <thead>
           <tr>

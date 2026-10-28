@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 import {
   customerEmail,
   deliverCustomerEmail,
+  dispatchAuthorized,
   scrubEmailError,
 } from "../../../supabase/functions/_shared/customer-email";
 
@@ -26,6 +27,15 @@ it.each(["intake_confirmation", "ready_for_pickup", "shipped"] as const)(
 );
 it("WP20 Resend errors retain only HTTP status", () => {
   expect(scrubEmailError(429)).toBe("resend_http_429");
+});
+
+it("WP20 dispatcher authentication accepts only the configured bearer credential", async () => {
+  const token = crypto.randomUUID();
+  expect(await dispatchAuthorized(`Bearer ${token}`, token)).toBe(true);
+  expect(await dispatchAuthorized(`Bearer ${crypto.randomUUID()}`, token)).toBe(false);
+  expect(await dispatchAuthorized(token, token)).toBe(false);
+  expect(await dispatchAuthorized(null, token)).toBe(false);
+  expect(await dispatchAuthorized(`Bearer ${token}`, undefined)).toBe(false);
 });
 
 it("WP20 Resend retries exact body with a stable idempotency key and scrubs failures", async () => {

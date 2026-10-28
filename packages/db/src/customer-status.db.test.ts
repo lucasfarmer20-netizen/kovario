@@ -225,4 +225,52 @@ describe("WP20 public status and transactional email", () => {
       rates_notice: "Quoted at intake",
     });
   });
+  it("WP20 public and receipt estimates share overrides, custom days and tenant guards", async () => {
+    const { rows } = await pool.query(
+      `insert into public.intake(org_id,number,customer_id,state,intake_at)
+      values($1,'INT-8000',$2,'holding','2026-10-31T23:00:00Z') returning id`,
+      [a.id, customer],
+    );
+    const id = rows[0].id as string;
+    await pool.query(
+      `update public.org set settings=settings || '{"estimated_pickup_days":5}' where id=$1`,
+      [a.id],
+    );
+    for (const [override, expected] of [
+      [null, "2026-11-05T23:00:00Z"],
+      ["2026-11-09T02:00:00Z", "2026-11-09T02:00:00Z"],
+    ]) {
+      await pool.query("update public.intake set estimated_pickup_at=$1 where id=$2", [
+        override,
+        id,
+      ]);
+      const receipt = await staff.client.rpc("intake_pickup_estimate", { p_intake_id: id });
+      expect(receipt.error).toBeNull();
+      const result = await lookup();
+      expect(result.error).toBeNull();
+      const publicDate = (
+        result.data as { intakes: { number: string; estimated_pickup_at: string }[] }
+      ).intakes.find((i) => i.number === "INT-8000")?.estimated_pickup_at;
+      expect(publicDate).toBe(receipt.data);
+      expect(new Date(receipt.data!).toISOString()).toBe(new Date(expected!).toISOString());
+    }
+    expect(
+      (await anonClient().rpc("intake_pickup_estimate", { p_intake_id: id })).error,
+    ).not.toBeNull();
+    const other = await pool.query("select id from public.intake where org_id=$1 limit 1", [b.id]);
+    const foreign = await staff.client.rpc("intake_pickup_estimate", {
+      p_intake_id: other.rows[0].id,
+    });
+    expect(foreign.error).toBeNull();
+    expect(foreign.data).toBeNull();
+  });
+  it("WP20 blank rates notice continues to follow later receipt footer edits", async () => {
+    for (const footer of ["Original footer", "Edited footer"]) {
+      await pool.query(
+        `update public.org set settings=settings || jsonb_build_object('rates_notice','','receipt_footer',$2::text) where id=$1`,
+        [a.id, footer],
+      );
+      expect((await lookup()).data).toMatchObject({ rates_notice: footer });
+    }
+  });
 });

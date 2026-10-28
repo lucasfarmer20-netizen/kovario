@@ -1,4 +1,22 @@
 -- WP-20: constrained anonymous projection and transactional email outbox.
+-- Shared by the public projection and the staff receipt; no client-side fallback.
+-- Generated from packages/rules/src/pickup.ts; pickup.test.ts detects drift.
+create function app.intake_estimated_pickup(p_intake public.intake, p_settings jsonb)
+returns timestamptz language sql stable set search_path = '' as $$
+  select coalesce(p_intake.estimated_pickup_at, p_intake.intake_at +
+    make_interval(days => coalesce((p_settings ->> 'estimated_pickup_days')::integer, 3)));
+$$;
+revoke all on function app.intake_estimated_pickup(public.intake,jsonb) from public;
+
+create function public.intake_pickup_estimate(p_intake_id uuid)
+returns timestamptz language sql stable security definer set search_path = '' as $$
+  select app.intake_estimated_pickup(i, o.settings)
+  from public.intake i join public.org o on o.id = i.org_id
+  where i.id = p_intake_id and i.org_id = app.org_id();
+$$;
+revoke all on function public.intake_pickup_estimate(uuid) from public, anon;
+grant execute on function public.intake_pickup_estimate(uuid) to authenticated;
+
 create table public.status_lookup_limit (
   org_id uuid primary key references public.org(id) on delete cascade,
   window_at timestamptz not null,
@@ -34,8 +52,7 @@ begin
     return jsonb_build_object('error', 'invalid_phone');
   end if;
   select coalesce(jsonb_agg(jsonb_build_object(
-    'number', i.number, 'state', i.state, 'estimated_pickup_at', coalesce(i.estimated_pickup_at,
-      i.intake_at + make_interval(days => coalesce((o.settings ->> 'estimated_pickup_days')::integer, 3))),
+    'number', i.number, 'state', i.state, 'estimated_pickup_at', app.intake_estimated_pickup(i, o.settings),
     'amount_due', coalesce((select sum(c.amount) from public.charge c
       where c.org_id = o.id and c.customer_id = i.customer_id
         and c.source_type = 'intake' and c.source_id = i.id and c.state = 'open'), 0)
@@ -45,7 +62,7 @@ begin
     and i.state not in ('draft', 'done', 'cancelled');
   return jsonb_build_object('org_name', o.name, 'timezone', o.timezone,
     'pickup_hours', coalesce(o.settings ->> 'pickup_hours', ''),
-    'rates_notice', coalesce(o.settings ->> 'rates_notice', o.settings ->> 'receipt_footer', ''),
+    'rates_notice', coalesce(nullif(o.settings ->> 'rates_notice', ''), o.settings ->> 'receipt_footer', ''),
     'intakes', orders);
 end $$;
 revoke all on function public.customer_status(text,text) from public;

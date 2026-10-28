@@ -21,6 +21,7 @@ it("WP20 saved intake browser receipt prints org notice, hours and canonical sta
     data: {
       name: "Plant A",
       slug: "plant-a",
+      timezone: "America/Anchorage",
       settings: { pickup_hours: "9–5", rates_notice: "Final charges apply" },
     },
     error: null,
@@ -29,7 +30,10 @@ it("WP20 saved intake browser receipt prints org notice, hours and canonical sta
   vi.mocked(useStationSession).mockReturnValue({
     loaded: true,
     session: {
-      client: { from: () => query },
+      client: {
+        from: () => query,
+        rpc: vi.fn().mockResolvedValue({ data: "2026-10-31T02:00:00Z", error: null }),
+      },
       claims: { orgId: "org-a" },
     } as unknown as NonNullable<ReturnType<typeof useStationSession>["session"]>,
   });
@@ -56,5 +60,6 @@ it("WP20 saved intake browser receipt prints org notice, hours and canonical sta
   );
   expect(screen.getByText("Pickup hours: 9–5")).toBeTruthy();
   expect(screen.getByText("Final charges apply")).toBeTruthy();
+  expect(screen.getByText("Estimated pickup: 10/30/2026, 6:00:00 PM")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Print receipt" })).toBeTruthy();
 });

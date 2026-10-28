@@ -2376,6 +2376,9 @@ isOneToOne: false
 "force_transition":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_entity": string,"p_id": string,"p_reason": string,"p_to_state": string }; Returns: Json
                            },
+"intake_pickup_estimate":
+{ Args: { "p_intake_id": string }; Returns: string
+                           },
 "intake_price_context":
 { Args: { "p_customer_id"?: string,"p_intake_id"?: string }; Returns: Json
                            },

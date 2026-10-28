@@ -1,11 +1,11 @@
 import { json, serviceClient } from "../_shared/supabase.ts";
-import { customerEmail, deliverCustomerEmail } from "../_shared/customer-email.ts";
+import { customerEmail, deliverCustomerEmail, dispatchAuthorized } from "../_shared/customer-email.ts";
 
 // Invoke from a scheduler using CUSTOMER_EMAIL_DISPATCH_TOKEN; never from the browser.
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   const token = Deno.env.get("CUSTOMER_EMAIL_DISPATCH_TOKEN");
-  if (!token || req.headers.get("Authorization") !== `Bearer ${token}`) return json({ error: "unauthorized" }, 401);
+  if (!await dispatchAuthorized(req.headers.get("Authorization"), token)) return json({ error: "unauthorized" }, 401);
   const key = Deno.env.get("RESEND_API_KEY");
   const from = Deno.env.get("RESEND_FROM");
   if (!key || !from) return json({ error: "email_not_configured" }, 503);
@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
         let payload = job.delivery_payload;
         if (!payload) {
           const message = customerEmail({ kind: job.kind, orgName: org.name, slug: org.slug, reference: job.reference,
-            pickupHours: org.settings.pickup_hours ?? "", notice: org.settings.rates_notice ?? org.settings.receipt_footer ?? "", tracking: job.tracking });
+            pickupHours: org.settings.pickup_hours ?? "", notice: org.settings.rates_notice || org.settings.receipt_footer || "", tracking: job.tracking });
           payload = { from, to: [customer.email], ...message };
           const { error: snapshotError } = await db.from("customer_email").update({ delivery_payload: payload }).eq("id", job.id);
           if (snapshotError) continue;
