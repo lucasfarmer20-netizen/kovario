@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "test": "vitest run --coverage",
     "gen:states": "tsx scripts/gen-states.ts",
-    "gen:sql": "tsx scripts/gen-sql.ts"
+    "gen:sql": "tsx scripts/gen-sql.ts",
+    "gen:functions": "tsx scripts/gen-functions.ts"
   },
   "devDependencies": {
     "@types/node": "20.19.43",
