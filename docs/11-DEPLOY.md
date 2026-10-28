@@ -152,6 +152,13 @@ rely on the deploy itself.
    committed local values never reach a hosted project). A missing `STAGING_SITE_URL` skips
    this last step with a warning.
 
+   **Edge Functions bundle only `supabase/functions/**`**: a function that imports
+   `packages/…` fails `functions deploy` with *Module not found*. Rules code a function needs
+   is generated into `supabase/functions/_shared/`: `qr.generated.ts` is `packages/rules/src/qr.ts`
+   copied by `pnpm --filter rules gen:functions`. `packages/rules/src/functions-qr.test.ts`
+   fails when the copy is stale or when any file under `supabase/functions` imports from
+   outside it.
+
    **Hosted auth policy** (the same `[remotes.<env>]` block; `config.toml` stays tuned for local
    dev). Set in `scripts/deploy-supabase.sh`; change it there, in a PR:
 

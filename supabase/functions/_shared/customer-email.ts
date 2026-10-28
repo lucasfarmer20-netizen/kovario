@@ -1,4 +1,6 @@
-import { statusPageUrl } from "../../../packages/rules/src/qr.ts";
+// Generated from packages/rules/src/qr.ts (`pnpm --filter rules gen:functions`): the hosted
+// bundler ships only supabase/functions, so functions cannot import packages/.
+import { statusPageUrl } from "./qr.generated.ts";
 
 export type EmailKind = "intake_confirmation" | "ready_for_pickup" | "shipped";
 const escape = (text: string) => text.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
