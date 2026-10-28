@@ -289,5 +289,44 @@ describe(
       });
       expect((await paymentRow(paid.payment.id)).state).toBe("voided");
     });
+
+    it("a deactivated terminal refuses new Charges but still reconciles and refunds its payments", async () => {
+      // an approved payment and an indeterminate one (the sale outlives the HTTP timeout)
+      const paidOrder = await cart(18);
+      const paid = await charge(paidOrder, 18);
+      expect(paid.payment.state).toBe("approved");
+      spin.queue("Sale", { delayMs: 1600 });
+      const openOrder = await cart(14);
+      const unknown = await charge(openOrder, 14);
+      expect(unknown.payment.state).toBe("indeterminate");
+
+      // the owner retires the terminal (Admin → Payment terminals, Active unchecked)
+      const { error } = await admin
+        .from("payment_terminal")
+        .update({ is_active: false })
+        .eq("id", terminalId);
+      if (error) throw error;
+
+      // existing payments: Status reconciles the indeterminate one …
+      while (!spin.txns.has(unknown.payment.provider_ref)) await sleep(20);
+      const resolved = res(await checkPaymentStatus(deps(), { paymentId: unknown.payment.id }));
+      expect(resolved.payment.state).toBe("approved");
+
+      // … and a manager can still refund the approved one
+      await reversePayment(deps(manager), {
+        clientActionId: cid("rf"),
+        paymentId: paid.payment.id,
+        kind: "refund",
+        amount: 18,
+        reason: "terminal retired",
+      });
+      expect(spin.requestsOf("Return")).toHaveLength(1);
+      expect((await paymentRow(paid.payment.id)).state).toBe("refunded");
+
+      // new sales: refused before anything reaches the terminal
+      const salesBefore = spin.requestsOf("Sale").length;
+      await expect(charge(await cart(6), 6)).rejects.toMatchObject({ status: 400 });
+      expect(spin.requestsOf("Sale")).toHaveLength(salesBefore);
+    });
   },
 );

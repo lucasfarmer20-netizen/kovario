@@ -48,8 +48,9 @@ $$;
 create function pg_temp.terminal(p_k text) returns public.payment_terminal language sql security definer as $$
   select * from public.payment_terminal where id = pg_temp.id(p_k);
 $$;
-create function pg_temp.runtime(p_k text) returns jsonb language sql security definer as $$
-  select public.payment_terminal_runtime(pg_temp.id(p_k), 'a1700000-0000-4000-8000-00000000000a');
+create function pg_temp.runtime(p_k text, p_org uuid default 'a1700000-0000-4000-8000-00000000000a')
+returns jsonb language sql security definer as $$
+  select public.payment_terminal_runtime(pg_temp.id(p_k), p_org);
 $$;
 grant execute on all functions in schema pg_temp to authenticated;
 
@@ -98,6 +99,11 @@ select public.admin_save_payment_terminal('wp17-act-t1-edit', pg_temp.id('t1'), 
 select pg_temp.chk('EDIT', 'register id set, timeout cleared, other keys kept, site cleared, inactive',
   (select format('%s|%s|%s', config, site_id is null, is_active) from pg_temp.terminal('t1')),
   format('%s|t|f', '{"tpn": "Z8TPN0001", "note": "kept", "register_id": "R7", "endpoint_url": "https://spinpos.net"}'::jsonb));
+select pg_temp.chk('EDIT', 'a deactivated terminal still resolves for its existing payments (status / void / refund)',
+  (select format('%s|%s|%s', r -> 'config' ->> 'tpn', r ->> 'is_active', r ->> 'secret') from pg_temp.runtime('t1') r),
+  'Z8TPN0001|false|not-a-real-authkey');
+select pg_temp.chk('EDIT', 'runtime stays org-scoped: org B''s id never resolves org A''s terminal',
+  pg_temp.err($$select pg_temp.runtime('t1', 'b1700000-0000-4000-8000-00000000000b')$$), 'P0002');
 select pg_temp.chk('EDIT', 'a non-Dejavoo terminal is not edited here',
   pg_temp.err($$select public.admin_save_payment_terminal('wp17-act-manual', 'a1700000-0000-4000-8000-000000000701',
     'Counter cash', 'https://spinpos.net', 'TPN0001', 'terminal:a1700000-0000-4000-8000-00000000000a:front')$$), '22023');

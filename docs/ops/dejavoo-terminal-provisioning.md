@@ -60,7 +60,9 @@ An **owner** opens **Admin → Payment terminals** and adds:
   blank = 120. Filletry waits that plus 30 s for the HTTP answer;
 - **Secret ref**: the `<name>` part of the Vault secret from §3.
 
-Uncheck **Active** to take a terminal out of service; the register stops offering it.
+Uncheck **Active** to take a terminal out of service: the register refuses new sales on it, but
+its existing payments can still be status-checked, voided and refunded. Keep its Vault secret
+until the last of them is settled.
 
 ## 5. First live test (required before the terminal takes customers)
 
