@@ -3,6 +3,7 @@
 # against every open, non-draft PR whose latest commit CustomSeafoods hasn't reviewed yet,
 # using scripts/review-prompt.md. Approves / requests changes as the REVIEWER account via
 # GH_TOKEN so the author (your gh login) and the reviewer are different identities, then
+# brings PRs that fall behind main up to date (main requires up-to-date branches), and
 # merges approved non-critical PRs itself: auto-merge if CI is still pending, else a direct
 # squash merge. Branch protection on main (required "check" + 1 approval) gates both; an
 # approved PR that didn't merge is retried on the next pass.
@@ -118,7 +119,7 @@ notify_worker() {
 }
 
 pass() {
-  gh pr list -R "$REPO" --state open --json number,isDraft,headRefOid,headRefName,labels,body,autoMergeRequest \
+  gh pr list -R "$REPO" --state open --json number,isDraft,headRefOid,headRefName,labels,body,autoMergeRequest,mergeStateStatus \
   | jq -c '.[] | select(.isDraft|not)' | while read -r pr; do
     num=$(jq -r .number <<<"$pr"); head=$(jq -r .headRefOid <<<"$pr")
     branch=$(jq -r .headRefName <<<"$pr")
@@ -127,6 +128,18 @@ pass() {
     critical=false
     [[ "$labels" == *area:critical* ]] && critical=true
     if [ -n "$issue" ] && gh issue view "$issue" -R "$REPO" --json labels -q '.labels[].name' | grep -q area:critical; then critical=true; fi
+    # main requires branches to be up to date (strict status checks), and GitHub doesn't update
+    # them: bring a branch that is behind main up to date first, so CI and migrations-dry-run
+    # run against the latest main before anyone reviews or merges it. Skip it this pass; the
+    # update starts a new CI run and the next pass reviews the up-to-date head.
+    if [ "$(jq -r .mergeStateStatus <<<"$pr")" = BEHIND ]; then
+      if GH_TOKEN="$REVIEWER_PAT" gh pr update-branch "$num" -R "$REPO" >/dev/null 2>&1; then
+        echo "-- #$num: behind main, branch updated; waiting for CI"
+      else
+        echo "!! #$num: behind main and update-branch failed (conflict?); the worker must merge main"
+      fi
+      continue
+    fi
     # already reviewed this exact commit by the reviewer account?
     # a transient API error skips this PR for this pass (under set -e it would end the pass,
     # and treating it as "not reviewed" would review the same commit twice)
