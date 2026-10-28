@@ -2177,6 +2177,9 @@ isOneToOne: false
 "blast_vessel":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed"?: Json,"p_raw": string }; Returns: Json
                            },
+"boxing_wizard":
+{ Args: { "p_session_id": string }; Returns: Json
+                           },
 "cancel_allocation_session":
 { Args: { "p_client_action_id": string,"p_reason"?: string,"p_session_id": string }; Returns: Json
                            },
@@ -2297,8 +2300,17 @@ isOneToOne: false
 "record_scale_reading":
 { Args: { "p_client_action_id": string,"p_scale_id": string,"p_stable": boolean,"p_weight": number }; Returns: Json
                            },
+"release_by_tag":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_lbs_left"?: number,"p_reason"?: string,"p_tag": string }; Returns: Json
+                           },
+"release_party":
+{ Args: { "p_box_ticks"?: (string)[],"p_client_action_id": string,"p_elevation_token"?: string,"p_i8_override_reason"?: string,"p_operator_session"?: string,"p_payment_ref"?: string,"p_session_id": string,"p_vessel_ticks"?: Json }; Returns: Json
+                           },
 "reprint_intake_tote_tags":
 { Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
+                           },
+"restore_vessel":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_reason": string,"p_vessel_id": string }; Returns: Json
                            },
 "rollstock_scan_advance":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_open_intake_id": string,"p_operator_session"?: string,"p_override_reason"?: string,"p_raw": string }; Returns: Json
@@ -2334,6 +2346,9 @@ isOneToOne: false
                            },
 "settlement_receipt":
 { Args: { "p_settlement_id": string }; Returns: Json
+                           },
+"shipment_buy_check":
+{ Args: { "p_elevation_token"?: string,"p_force_buy_held"?: boolean,"p_shipment_id": string }; Returns: Json
                            },
 "shipment_detail":
 { Args: { "p_shipment_id": string }; Returns: Json
