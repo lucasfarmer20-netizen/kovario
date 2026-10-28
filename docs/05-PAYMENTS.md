@@ -143,7 +143,10 @@ the CSP reference (`cs_pos_dejavoo`); keep these exact behaviours.
   tokens), `config.webhook_secret_ref` (Vault name of the endpoint's signing secret), and
   `secret_ref` = Vault name of the tenant's **restricted key** (`rk_…`; write access to
   PaymentIntents, Refunds, Terminal readers and connection tokens). Only names are stored; a
-  value that looks like a key is refused, and the adapter refuses a non-restricted key.
+  value that looks like a key is refused, and the adapter refuses a non-restricted key. Vault
+  is global, so both names are scoped to the org — `terminal:<org id>:<name>`, the convention
+  WP-17 introduced — and checked on save (owner only) and on every resolution
+  (`payment_terminal_runtime` for any provider, `payment_terminal_webhook_secret`).
 - Server routes (Node runtime; service role, like `/api/payments/{sale,…}`):
   `POST /api/payments/stripe/connection-token` (register roles; the caller must see the
   terminal) and `POST /api/payments/stripe/webhook/<terminal id>` (no session — the

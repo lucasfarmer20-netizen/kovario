@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { normalizeSpinEndpoint } from "payments";
 import { z } from "zod";
 import { adminMutation, unwrap, type ActionState } from "@/lib/admin-action";
-import { parseStripeTerminalForm } from "@/lib/payment-terminals";
+import { parseStripeTerminalForm, terminalSecretRef } from "@/lib/payment-terminals";
 
 const terminalSchema = z.object({
   terminal_id: z.union([z.literal(""), z.uuid()]).optional(),
@@ -63,7 +63,7 @@ export async function savePaymentTerminal(
   return result;
 }
 
-/** Adds a Stripe Terminal reader (no id) or edits one (docs/05-PAYMENTS.md §5). */
+/** Adds a Stripe Terminal reader (no id) or edits one (docs/05 §5). Owners only (checked in SQL). */
 export async function saveStripeTerminal(
   _state: ActionState,
   formData: FormData,
@@ -73,7 +73,7 @@ export async function saveStripeTerminal(
   const d = parsed.value;
   const result = await adminMutation(
     formData,
-    async ({ supabase }, id) =>
+    async ({ supabase, claims }, id) =>
       unwrap(
         await supabase.rpc("admin_save_stripe_terminal", {
           p_client_action_id: id,
@@ -81,9 +81,10 @@ export async function saveStripeTerminal(
           p_terminal_id: (d.terminal_id || null) as string,
           p_name: d.name,
           p_reader_id: d.reader_id,
-          p_secret_ref: d.secret_ref,
+          // Vault names are scoped to the org (terminal:<org id>:<name>); the DB enforces it too.
+          p_secret_ref: terminalSecretRef(claims.orgId, d.secret_name),
           p_location_id: d.location_id || undefined,
-          p_webhook_secret_ref: d.webhook_secret_ref || undefined,
+          p_webhook_secret_ref: terminalSecretRef(claims.orgId, d.webhook_secret_name) || undefined,
           p_site_id: d.site_id || undefined,
           p_is_active: d.is_active === "on",
         }),

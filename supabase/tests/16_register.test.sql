@@ -65,10 +65,10 @@ insert into public.settlement (id, org_id, number, session_id, angler_name, cust
 insert into public.payment_terminal (id, org_id, name, provider, config, secret_ref) values
   ('a1600000-0000-4000-8000-000000000701', 'a1600000-0000-4000-8000-00000000000a', 'Counter cash', 'manual', '{}', null),
   ('a1600000-0000-4000-8000-000000000702', 'a1600000-0000-4000-8000-00000000000a', 'Dejavoo 1', 'dejavoo_spin',
-   '{"tpn": "T-1", "endpoint_url": "https://dev.spinpos.net"}', 'wp16-test-dejavoo-1'),
+   '{"tpn": "T-1", "endpoint_url": "https://dev.spinpos.net"}', 'terminal:a1600000-0000-4000-8000-00000000000a:dejavoo-1'),
   ('a1600000-0000-4000-8000-000000000703', 'a1600000-0000-4000-8000-00000000000a', 'No secret yet', 'dejavoo_spin',
-   '{}', 'wp16-test-missing');
-select vault.create_secret('not-a-real-key', 'wp16-test-dejavoo-1');
+   '{}', 'terminal:a1600000-0000-4000-8000-00000000000a:missing');
+select vault.create_secret('not-a-real-key', 'terminal:a1600000-0000-4000-8000-00000000000a:dejavoo-1');
 
 create temp table t_ids (k text primary key, v text) on commit drop;
 create temp table t_check (seq serial, inv text, label text, got text, want text) on commit drop;
