@@ -79,12 +79,24 @@ jobs:
         with:
           path: /tmp/supabase-images.tar.zst
           key: ${{ steps.imgcache.outputs.cache-primary-key }}
+      # NEXT_PUBLIC_* are inlined at build time: point apps/web at the local stack first, so
+      # the e2e smoke can serve this build (writes the gitignored apps/web/.env.local).
+      - name: Point apps/web at the local stack
+        run: node scripts/web-env.mjs
       - run: pnpm build
-      - name: e2e smoke (only once apps/web/e2e exists)
-        if: ${{ hashFiles('apps/web/e2e/**') != '' }}
+      - name: e2e smoke (WP-23, apps/web/e2e) against the demo tenant
         run: |
           pnpm --filter web exec playwright install --with-deps chromium
           pnpm e2e
+      - name: Upload the Playwright report (failures only)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 7
 
   # A migration that cannot apply on top of staging's real migration history (out-of-order
   # timestamp, a remote-only version) fails here, before merge. Skipped when the staging

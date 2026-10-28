@@ -6,11 +6,12 @@
 import { FakeProvider, manualProvider, type ProviderKind } from "payments";
 import type { Json } from "db";
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   createOrg,
   createUser,
   dropOrg,
+  localSupabase,
   serviceRoleClient,
   type TestOrg,
   type TestUser,
@@ -23,6 +24,7 @@ import {
   reversePayment,
   type PaymentsDeps,
 } from "./service";
+import { defaultDeps } from "./http";
 
 type Payment = { id: string; state: string; amount: number; attempt: number; provider_ref: string };
 type Order = {
@@ -440,6 +442,27 @@ describe("payments route flow (fake provider)", { timeout: 60_000 }, () => {
       .select("refund_amount")
       .eq("refund_payment_id", paid.payment.id);
     expect(refundOrders).toEqual([{ refund_amount: 7 }]);
+  });
+
+  it("a register's bearer token is a signed-in caller (claims read from the JWT itself)", async () => {
+    const s = localSupabase();
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", s.API_URL);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", s.ANON_KEY);
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", s.SERVICE_ROLE_KEY);
+    try {
+      const { data } = await cashier.client.auth.getSession();
+      const req = new Request("http://test/api/payments/sale", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${data.session!.access_token}` },
+      });
+      const d = await defaultDeps(req);
+      const { data: claims } = await d.caller.auth.getClaims(data.session!.access_token);
+      expect(claims?.claims.org_id).toBe(org.id);
+      const read = await d.caller.from("register_order").select("id").limit(1);
+      expect(read.error).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("a setup failure before the provider is asked is a plain error: nothing reserved stays behind", async () => {
