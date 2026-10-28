@@ -424,3 +424,13 @@
     display: none;
   }
 }
+/* Boxing pick list prints alone, in walk order (shelf, basket, species, lb); the tick column
+   is left blank for a pen. */
+@media print {
+  .station:has(.boxing-picklist) > :not(.boxing-workspace),
+  .boxing-workspace > :not(.boxing-picklist),
+  .boxing-picklist button,
+  .boxing-picklist input {
+    display: none;
+  }
+}
