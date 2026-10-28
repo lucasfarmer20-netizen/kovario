@@ -429,6 +429,47 @@ describe("§6 reverse", () => {
     ).toBe("declined");
   });
 
+  it("a pending refund is indeterminate, never refunded — it can still fail (pending → failed)", async () => {
+    const s = await sale("orig-5", 40);
+    mock.refundStatus = "pending";
+    const r = await provider().refund({
+      terminal,
+      amount: 10,
+      ref: "orig-5-r1",
+      originalTxn: s.providerTxn,
+    });
+    expect(r.outcome).toBe("indeterminate");
+    expect(r.providerTxn).toMatch(/^re_/);
+    expect(r.raw).toMatchObject({ refund: { status: "pending" } });
+
+    // Stripe later fails it (e.g. insufficient balance): the money never went back
+    mock.settleRefund(r.providerTxn!, "failed");
+    expect(mock.intent(s.providerTxn!).refunded).toBe(0);
+    // so after the manager resolves it as not reversed, the full amount is refundable again
+    mock.refundStatus = "succeeded";
+    const again = await provider().refund({
+      terminal,
+      amount: 40,
+      ref: "orig-5-r2",
+      originalTxn: s.providerTxn,
+    });
+    expect(again.outcome).toBe("refunded");
+  });
+
+  it("a pending reverse is indeterminate too (pending → failed)", async () => {
+    const s = await sale("orig-6", 25);
+    mock.refundStatus = "pending";
+    const r = await provider().reverse({
+      terminal,
+      originalRef: "orig-6",
+      originalTxn: s.providerTxn,
+      amount: 25,
+    });
+    expect(r.outcome).toBe("indeterminate");
+    mock.settleRefund(r.providerTxn!, "failed");
+    expect(mock.intent(s.providerTxn!).refunded).toBe(0);
+  });
+
   it("no PaymentIntent on the payment or a bad config: error, nothing sent", async () => {
     expect((await provider().reverse({ terminal, originalRef: "x-1" })).outcome).toBe("error");
     expect(

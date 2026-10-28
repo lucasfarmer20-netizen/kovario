@@ -24,7 +24,7 @@ import {
   type TestUser,
 } from "../../../../packages/db/src/testing/local-supabase";
 import { StripeMock } from "../../../../packages/payments/test/stripe-mock";
-import { chargePayment, type PaymentsDeps } from "./service";
+import { chargePayment, reversePayment, type PaymentsDeps } from "./service";
 import { reconcileStripeWebhook } from "./stripe";
 
 type Payment = { id: string; state: string; amount: number; provider_ref: string };
@@ -60,6 +60,7 @@ describe(
   () => {
     let org: TestOrg;
     let cashier: TestUser;
+    let manager: TestUser;
     let customerId = "";
     let terminalId = "";
     let mock: StripeMock;
@@ -78,8 +79,8 @@ describe(
           },
         }),
       );
-    const deps = (): PaymentsDeps => ({
-      caller: cashier.client,
+    const deps = (user: TestUser = cashier): PaymentsDeps => ({
+      caller: user.client,
       service: admin,
       providerFor: (kind: ProviderKind) => (kind === "manual" ? manualProvider : stripe()),
       timeoutMs: 120_000,
@@ -140,6 +141,7 @@ describe(
         .eq("id", org.id);
       if (settingsError) throw settingsError;
       cashier = await createUser(org, "cashier");
+      manager = await createUser(org, "manager");
       const { data: c, error } = await admin
         .from("customer")
         .insert({ org_id: org.id, name: "Stripe Sue", phone: "+19075551718" })
@@ -266,6 +268,76 @@ describe(
         ...(await signed(event)),
       });
       expect(again.status).toBe("ignored");
+    });
+
+    it("a refund still pending at Stripe stays unresolved; when Stripe fails it, nothing was refunded", async () => {
+      mock = new StripeMock(KEY, ["tmr_A"]);
+      clock = 0;
+      const orderId = await cart(30);
+      const paid = res(
+        await chargePayment(deps(), {
+          clientActionId: cid("sale"),
+          orderId,
+          amount: 30,
+          terminalId,
+          tender: "card",
+        }),
+      );
+      expect(paid.payment.state).toBe("approved");
+      const piId = (await paymentRow(paid.payment.id)).provider_txn!;
+
+      mock.refundStatus = "pending";
+      const refund = () =>
+        reversePayment(deps(manager), {
+          clientActionId: cid("rf"),
+          paymentId: paid.payment.id,
+          kind: "refund",
+          amount: 30,
+          reason: "customer changed their mind",
+        });
+      const first = (await refund()) as unknown as {
+        status: string;
+        payment: Payment & { reverse_unresolved: boolean; refundable: number };
+      };
+      // pending is not money returned: the payment stays approved, the reversal unresolved
+      expect(first.status).toBe("indeterminate");
+      expect(first.payment).toMatchObject({ state: "approved", reverse_unresolved: true });
+      const { data: alerts } = await admin
+        .from("domain_event")
+        .select("payload")
+        .eq("subject_id", paid.payment.id)
+        .eq("kind", "payment_alert");
+      expect(JSON.stringify(alerts)).toContain("reversal_unresolved");
+      // and blocks another void / refund until a manager confirms the outcome
+      await expect(refund()).rejects.toMatchObject({ status: 409 });
+      expect(mock.callsTo("POST /v1/refunds")).toHaveLength(1);
+
+      // Stripe fails the pending refund (insufficient balance): the money never went back
+      const [refundId] = [...mock.refunds.keys()];
+      mock.settleRefund(refundId!, "failed");
+      expect(mock.intent(piId).refunded).toBe(0);
+
+      // the manager checks Stripe and records that it was not reversed
+      const { data, error } = await manager.client.rpc("payment_reverse_resolve", {
+        p_client_action_id: cid("rr"),
+        p_payment_id: paid.payment.id,
+        p_outcome: "not_reversed",
+        p_reason: "Stripe shows the refund failed",
+      });
+      expect(error).toBeNull();
+      expect(
+        (data as unknown as { payment: Payment & { refundable: number } }).payment,
+      ).toMatchObject({ state: "approved", refundable: 30 });
+      const { data: refundOrders } = await admin
+        .from("register_order")
+        .select("id")
+        .eq("refund_payment_id", paid.payment.id);
+      expect(refundOrders).toEqual([]);
+
+      // a later refund that succeeds settles normally
+      mock.refundStatus = "succeeded";
+      const second = (await refund()) as unknown as { payment: Payment };
+      expect(second.payment.state).toBe("refunded");
     });
   },
 );

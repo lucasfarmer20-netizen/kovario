@@ -95,7 +95,9 @@ export class StripeMock {
   private readonly failures: { match: string; failure: Failure }[] = [];
   private down = false;
   private seq = 0;
+  /** status of the next refunds; a `pending` one holds its amount until `settleRefund` */
   refundStatus = "succeeded";
+  readonly refunds = new Map<string, { id: string; pi: string; amount: number; status: string }>();
 
   constructor(
     readonly key: string,
@@ -159,6 +161,14 @@ export class StripeMock {
       pi.latest_charge = this.charge({ action: "approve" }, over.status === "succeeded");
     }
     return pi;
+  }
+
+  /** A pending refund completes later: `failed` gives its amount back to the payment. */
+  settleRefund(id: string, status: "succeeded" | "failed"): void {
+    const r = this.refunds.get(id);
+    if (!r || r.status !== "pending") throw new Error(`no pending refund ${id}`);
+    r.status = status;
+    if (status === "failed") this.intent(r.pi).refunded -= r.amount;
   }
 
   /** The customer finishes at the reader while the server cannot see it (e.g. an outage). */
@@ -515,8 +525,10 @@ export class StripeMock {
         }
         if (this.refundStatus === "succeeded" || this.refundStatus === "pending")
           pi.refunded += amount;
+        const id = this.id("re");
+        this.refunds.set(id, { id, pi: pi.id, amount, status: this.refundStatus });
         return json(200, {
-          id: this.id("re"),
+          id,
           object: "refund",
           amount,
           status: this.refundStatus,

@@ -819,8 +819,16 @@ function refundOutcome<O extends "voided" | "refunded">(
   const raw = { refund: { id: refund.id, status: refund.status } };
   switch (refund.status) {
     case "succeeded":
-    case "pending":
       return { outcome: ok, providerTxn: refund.id, raw };
+    // Not back yet: a pending refund can still fail (e.g. insufficient balance) and nothing here
+    // reconciles refund events, so the register keeps the reversal unresolved (reservation held,
+    // critical alert) until a manager confirms the outcome in Stripe — payment_reverse_resolve.
+    case "pending":
+      return {
+        outcome: "indeterminate",
+        providerTxn: refund.id,
+        raw: { ...raw, note: "refund pending at Stripe; confirm it succeeded before resolving" },
+      };
     case "failed":
     case "canceled":
       return { outcome: "declined", providerTxn: refund.id, raw };
