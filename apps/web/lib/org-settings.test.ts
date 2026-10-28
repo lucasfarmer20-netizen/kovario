@@ -21,6 +21,12 @@ function form(over: Record<string, string | null> = {}): FormData {
 }
 
 describe("settingsFromForm (/admin/settings)", () => {
+  it("WP20 pickup hours and rates notice round-trip through settings", () => {
+    expect(
+      settingsFromForm(form({ pickup_hours: "9–5", rates_notice: "Final services apply" })),
+    ).toMatchObject({ settings: { pickup_hours: "9–5", rates_notice: "Final services apply" } });
+    expect(settingsFromForm(form({ pickup_hours: "x".repeat(501) }))).toHaveProperty("error");
+  });
   it("builds exactly the docs §12 default object from the default form", () => {
     expect(settingsFromForm(form())).toEqual({
       settings: {

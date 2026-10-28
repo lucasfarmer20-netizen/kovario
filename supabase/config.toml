@@ -443,3 +443,6 @@ verify_jwt = false
 
 [functions.print-agent-pair]
 verify_jwt = false
+
+[functions.customer-email]
+verify_jwt = false

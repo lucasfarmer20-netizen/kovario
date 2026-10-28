@@ -343,6 +343,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"customer_email": {
+                  Row: {
+                    "attempts": number,"created_at": string,"customer_id": string,"delivery_payload": Json | null,"event_key": string,"first_attempt_at": string | null,"id": string,"kind": string,"last_error": string | null,"lease_until": string | null,"org_id": string,"reference": string,"sent_at": string | null,"tracking": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "attempts"?: number,"created_at"?: string,"customer_id": string,"delivery_payload"?: Json | null,"event_key": string,"first_attempt_at"?: string | null,"id"?: string,"kind": string,"last_error"?: string | null,"lease_until"?: string | null,"org_id": string,"reference": string,"sent_at"?: string | null,"tracking"?: string | null
+                  }
+                  Update: {
+                    "attempts"?: number,"created_at"?: string,"customer_id"?: string,"delivery_payload"?: Json | null,"event_key"?: string,"first_attempt_at"?: string | null,"id"?: string,"kind"?: string,"last_error"?: string | null,"lease_until"?: string | null,"org_id"?: string,"reference"?: string,"sent_at"?: string | null,"tracking"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "customer_email_customer_id_fkey"
+      columns: ["customer_id"]
+isOneToOne: false
+      referencedRelation: "customer"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "customer_email_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"device": {
                   Row: {
                     "auth_user_id": string | null,"created_at": string,"id": string,"is_active": boolean,"last_seen_at": string | null,"name": string,"org_id": string,"paired_at": string | null,"pairing_expires_at": string | null,"pairing_key": string,"printer_label_id": string | null,"printer_receipt_id": string | null,"scale_id": string | null,"site_id": string | null,"station": Database["public"]['Enums']["device_station"],"terminal_id": string | null,"token_hash": string | null,"updated_at": string
@@ -1577,6 +1603,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"status_lookup_limit": {
+                  Row: {
+                    "attempts": number,"org_id": string,"window_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "attempts": number,"org_id": string,"window_at": string
+                  }
+                  Update: {
+                    "attempts"?: number,"org_id"?: string,"window_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "status_lookup_limit_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: true
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"storage_box": {
                   Row: {
                     "batch_id": string | null,"box_no": number,"created_at": string,"description": string | null,"id": string,"label": string,"org_id": string,"released_at": string | null,"released_by": string | null,"state": Database["public"]['Enums']["storage_box_state"],"storage_intake_id": string,"updated_at": string,"weight_lb": number | null
@@ -2271,6 +2317,35 @@ isOneToOne: false
                            },
 "create_wave":
 { Args: { "p_client_action_id": string,"p_intake_ids": (string)[],"p_operator_session"?: string }; Returns: Json
+                           },
+"customer_email_claim":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "attempts": number,
+"created_at": string,
+"customer_id": string,
+"delivery_payload": Json | null,
+"event_key": string,
+"first_attempt_at": string | null,
+"id": string,
+"kind": string,
+"last_error": string | null,
+"lease_until": string | null,
+"org_id": string,
+"reference": string,
+"sent_at": string | null,
+"tracking": string | null
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "customer_email"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
+"customer_notify_ready":
+{ Args: { "p_client_action_id": string,"p_intake_id": string }; Returns: Json
+                           },
+"customer_status":
+{ Args: { "p_phone": string,"p_slug": string }; Returns: Json
                            },
 "device_bind_auth_user":
 { Args: { "p_device_id": string,"p_user_id": string }; Returns: undefined

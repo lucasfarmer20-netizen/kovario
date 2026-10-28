@@ -132,7 +132,7 @@ it("intake status QR and pickup receipt preserve stored card details", async () 
   const intake = await receiptHtml({
     ...receipt,
     kind: "intake",
-    statusUrl: "https://app.filletry.com/s/demo",
+    orgSlug: "demo",
     estimatedPickup: "Friday",
   });
   expect(intake).toContain('data-qr="https://app.filletry.com/s/demo"');

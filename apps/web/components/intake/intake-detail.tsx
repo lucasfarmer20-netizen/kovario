@@ -142,6 +142,7 @@ export function IntakeDetail({
           </div>
         </div>
         <div className="station-actions">
+          <Link href={`/intake/receipt/${intake.id}`}>Open customer receipt</Link>
           <button
             disabled={busy}
             onClick={() => void run("Tote tags", () => reprintToteTags(client, intake.id))}
