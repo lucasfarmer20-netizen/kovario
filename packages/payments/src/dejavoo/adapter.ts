@@ -37,6 +37,8 @@ export interface DejavooOptions {
   transportBufferMs?: number;
   /** clock for the Void reference suffix */
   now?: () => number;
+  /** random hex for the Void reference suffix (two Voids in one millisecond never collide) */
+  randomHex?: () => string;
 }
 
 type Answer =
@@ -202,6 +204,9 @@ export function createDejavooProvider(opts: DejavooOptions = {}): PaymentProvide
   const fetchImpl: SpinFetch = opts.fetch ?? ((url, init) => fetch(url, init));
   const bufferMs = opts.transportBufferMs ?? TRANSPORT_BUFFER_MS;
   const now = opts.now ?? Date.now;
+  const randomHex =
+    opts.randomHex ??
+    (() => crypto.getRandomValues(new Uint32Array(1))[0]!.toString(16).padStart(8, "0"));
   const scrub = (x: unknown) => scrubSecrets(x, SPIN_SECRET_KEYS);
 
   async function call(t: SpinTerminal, op: SpinOp, fields: SpinFields): Promise<Answer> {
@@ -318,7 +323,8 @@ export function createDejavooProvider(opts: DejavooOptions = {}): PaymentProvide
 
     // One /Void with the original ref: Dejavoo voids before the batch, else refunds — the
     // answer's ProcessedAs says which. No void-window tracking. The Void carries its own
-    // ReferenceId (a ref is never reused).
+    // ReferenceId — `<original>-V<ms base36><8 random hex>`, so a second Void of the same
+    // payment never reuses a ref, even within one millisecond.
     async reverse({ terminal, originalRef, originalTxn, amount }): Promise<ReverseResult> {
       const t = setup(terminal);
       if (typeof t === "string")
@@ -326,7 +332,7 @@ export function createDejavooProvider(opts: DejavooOptions = {}): PaymentProvide
       let a: Answer;
       try {
         a = await call(t, "Void", {
-          referenceId: `${originalRef}-V${now().toString(36)}`,
+          referenceId: `${originalRef}-V${now().toString(36)}${randomHex()}`,
           amount,
           originalReferenceId: originalRef,
           originalTransNum: originalTxn,

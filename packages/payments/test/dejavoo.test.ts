@@ -278,6 +278,26 @@ describe("§6 required cases (fake SPIn server)", () => {
     expect(r.raw).toMatchObject({ processedAs: "Void" });
   });
 
+  it("two Voids of one payment in the same millisecond still get distinct ReferenceIds", async () => {
+    const fixedClock = createDejavooProvider({
+      transportBufferMs: 150,
+      now: () => 1_700_000_000_000,
+    });
+    const ref = newRef();
+    await sale(25, ref);
+    spin.queue("Void", { http: 500, rawBody: "oops" });
+    expect(
+      (await fixedClock.reverse({ terminal: spin.terminal(), originalRef: ref })).outcome,
+    ).toBe("indeterminate");
+    expect(
+      (await fixedClock.reverse({ terminal: spin.terminal(), originalRef: ref })).outcome,
+    ).toBe("voided");
+    const [first, second] = spin.requestsOf("Void").map((b) => String(b.ReferenceId));
+    expect(first).not.toBe(second);
+    expect(first).toMatch(new RegExp(`^${ref}-V[0-9a-z]+[0-9a-f]{8}$`));
+    expect(first!.length).toBeLessThanOrEqual(50);
+  });
+
   it("reverse → refund: after the batch Dejavoo refunds instead (ProcessedAs Return)", async () => {
     const ref = newRef();
     await sale(25, ref);
