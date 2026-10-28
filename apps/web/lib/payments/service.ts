@@ -57,7 +57,7 @@ function toRequestError(error: RpcError): PaymentRequestError {
 }
 
 /** An rpc result, with SQL errors mapped to HTTP statuses (42501 → 403, P0002 → 404 …). */
-async function unwrap(
+export async function unwrap(
   request: PromiseLike<{ data: unknown; error: RpcError | null }>,
 ): Promise<Json> {
   const { data, error } = await request;
@@ -65,7 +65,7 @@ async function unwrap(
   return (data ?? null) as Json;
 }
 
-const paymentForProvider = z.object({
+export const paymentForProvider = z.object({
   id: z.string(),
   org_id: z.string(),
   state: z.string(),
@@ -80,7 +80,7 @@ const paymentForProvider = z.object({
   order_id: z.string().nullable().optional(),
   replayed: z.boolean().optional(),
 });
-type ProviderPayment = z.infer<typeof paymentForProvider>;
+export type ProviderPayment = z.infer<typeof paymentForProvider>;
 
 const reverseBegun = paymentForProvider.extend({
   kind: z.enum(["reverse", "refund"]),
@@ -94,7 +94,11 @@ const terminalRuntime = z.object({
   secret: z.string(),
 });
 
-async function terminalFor(deps: PaymentsDeps, p: ProviderPayment): Promise<TerminalConfig> {
+/** The payment's terminal config + its Vault secret (service role). */
+export async function terminalFor(
+  deps: Pick<PaymentsDeps, "service">,
+  p: Pick<ProviderPayment, "terminal_id" | "org_id">,
+): Promise<TerminalConfig> {
   if (!p.terminal_id) return { secret: "" };
   const t = terminalRuntime.parse(
     await unwrap(
@@ -126,8 +130,8 @@ function stored(result: SaleResult, provider: PaymentProvider | null): Json {
   ) as Json;
 }
 
-function record(
-  deps: PaymentsDeps,
+export function record(
+  deps: Pick<PaymentsDeps, "service">,
   paymentId: string,
   event: "sale_result" | "status_check",
   result: SaleResult,
@@ -154,7 +158,7 @@ async function current(deps: PaymentsDeps, paymentId: string, status = "current"
   return { status, payment, order };
 }
 
-async function askStatus(
+export async function askStatus(
   provider: PaymentProvider,
   terminal: TerminalConfig,
   p: ProviderPayment,
@@ -243,6 +247,7 @@ export async function chargePayment(deps: PaymentsDeps, input: ChargeInput): Pro
       ref: p.provider_ref,
       timeoutMs: deps.timeoutMs ?? SALE_TIMEOUT_MS,
       tender,
+      context: { orgId: p.org_id, paymentId: p.id },
     });
   } catch (e) {
     result = {
@@ -254,7 +259,9 @@ export async function chargePayment(deps: PaymentsDeps, input: ChargeInput): Pro
   }
   const recorded = await record(deps, p.id, "sale_result", result, provider);
   if (result.outcome !== "indeterminate") return recorded;
-  return record(deps, p.id, "status_check", await askStatus(provider, terminal, p), provider);
+  // Ask about the transaction the sale itself reported (e.g. Stripe's PaymentIntent id).
+  const asked = { ...p, provider_txn: result.providerTxn ?? p.provider_txn };
+  return record(deps, p.id, "status_check", await askStatus(provider, terminal, asked), provider);
 }
 
 /**

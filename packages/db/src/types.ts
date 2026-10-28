@@ -2222,6 +2222,9 @@ isOneToOne: false
 "admin_save_retail_product":
 { Args: { "p_client_action_id": string,"p_is_active"?: boolean,"p_name": string,"p_retail_product_id": string,"p_sku"?: string,"p_unit_price": number }; Returns: Json
                            },
+"admin_save_stripe_terminal":
+{ Args: { "p_client_action_id": string,"p_is_active"?: boolean,"p_location_id"?: string,"p_name": string,"p_reader_id": string,"p_secret_ref": string,"p_site_id"?: string,"p_terminal_id": string,"p_webhook_secret_ref"?: string }; Returns: Json
+                           },
 "admin_seed_reference":
 { Args: { "p_client_action_id": string,"p_reference": Json }; Returns: Json
                            },
@@ -2408,6 +2411,9 @@ isOneToOne: false
 "payment_for_provider":
 { Args: { "p_payment_id": string }; Returns: Json
                            },
+"payment_for_webhook":
+{ Args: { "p_org_id": string,"p_payment_id": string }; Returns: Json
+                           },
 "payment_log_event":
 { Args: { "p_kind": string,"p_payload": Json,"p_payment_id": string }; Returns: undefined
                            },
@@ -2431,6 +2437,9 @@ isOneToOne: false
                            },
 "payment_terminal_runtime":
 { Args: { "p_org_id": string,"p_terminal_id": string }; Returns: Json
+                           },
+"payment_terminal_webhook_secret":
+{ Args: { "p_terminal_id": string }; Returns: Json
                            },
 "place_vessel":
 { Args: { "p_client_action_id": string,"p_expected_vessel_id"?: string,"p_location_raw": string,"p_operator_session"?: string,"p_vessel_raw": string }; Returns: Json
