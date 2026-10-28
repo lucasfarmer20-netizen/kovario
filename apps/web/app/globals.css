@@ -417,6 +417,13 @@
     display: none;
   }
 }
+/* Register receipts print from the browser: the stored receipt alone, without station controls. */
+@media print {
+  .register-station header,
+  .register-station .station-actions {
+    display: none;
+  }
+}
 /* Boxing pick list prints alone, in walk order (shelf, basket, species, lb); the tick column
    is left blank for a pen. */
 @media print {

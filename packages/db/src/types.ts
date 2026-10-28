@@ -697,14 +697,14 @@ isOneToOne: false
                   ]
                 },"payment": {
                   Row: {
-                    "amount": number,"attempt": number,"auth_code": string | null,"card_brand": string | null,"card_last4": string | null,"created_at": string,"created_by": string | null,"customer_id": string | null,"decline_reason": string | null,"entry_mode": Database["public"]['Enums']["payment_entry_mode"] | null,"host_response_code": string | null,"id": string,"idempotency_key": string | null,"number": string,"org_id": string,"provider": Database["public"]['Enums']["payment_terminal_provider"],"provider_ref": string | null,"provider_txn": string | null,"receipt": Json | null,"settled_charge_ids": (string)[],"state": Database["public"]['Enums']["payment_state"],"terminal_id": string | null,"tip": number,"updated_at": string
+                    "amount": number,"approved_at": string | null,"attempt": number,"auth_code": string | null,"card_brand": string | null,"card_last4": string | null,"created_at": string,"created_by": string | null,"customer_id": string | null,"decline_reason": string | null,"entry_mode": Database["public"]['Enums']["payment_entry_mode"] | null,"host_response_code": string | null,"id": string,"idempotency_key": string | null,"message": string | null,"number": string,"org_id": string,"provider": Database["public"]['Enums']["payment_terminal_provider"],"provider_ref": string | null,"provider_txn": string | null,"reason": string | null,"receipt": Json | null,"register_order_id": string | null,"requested_amount": number | null,"reverse_pending_amount": number | null,"reverse_pending_at": string | null,"reverse_pending_kind": string | null,"reverse_pending_reason": string | null,"reverse_pending_ref": string | null,"reverse_reason": string | null,"reverse_txn": string | null,"reverse_unresolved": boolean,"reversed_amount": number | null,"reversed_at": string | null,"settled_charge_ids": (string)[],"state": Database["public"]['Enums']["payment_state"],"tender": Database["public"]['Enums']["payment_tender"],"tender_ref": string | null,"terminal_id": string | null,"tip": number,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount": number,"attempt"?: number,"auth_code"?: string | null,"card_brand"?: string | null,"card_last4"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"decline_reason"?: string | null,"entry_mode"?: Database["public"]['Enums']["payment_entry_mode"] | null,"host_response_code"?: string | null,"id"?: string,"idempotency_key"?: string | null,"number": string,"org_id": string,"provider": Database["public"]['Enums']["payment_terminal_provider"],"provider_ref"?: string | null,"provider_txn"?: string | null,"receipt"?: Json | null,"settled_charge_ids"?: (string)[],"state"?: Database["public"]['Enums']["payment_state"],"terminal_id"?: string | null,"tip"?: number,"updated_at"?: string
+                    "amount": number,"approved_at"?: string | null,"attempt"?: number,"auth_code"?: string | null,"card_brand"?: string | null,"card_last4"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"decline_reason"?: string | null,"entry_mode"?: Database["public"]['Enums']["payment_entry_mode"] | null,"host_response_code"?: string | null,"id"?: string,"idempotency_key"?: string | null,"message"?: string | null,"number": string,"org_id": string,"provider": Database["public"]['Enums']["payment_terminal_provider"],"provider_ref"?: string | null,"provider_txn"?: string | null,"reason"?: string | null,"receipt"?: Json | null,"register_order_id"?: string | null,"requested_amount"?: number | null,"reverse_pending_amount"?: number | null,"reverse_pending_at"?: string | null,"reverse_pending_kind"?: string | null,"reverse_pending_reason"?: string | null,"reverse_pending_ref"?: string | null,"reverse_reason"?: string | null,"reverse_txn"?: string | null,"reverse_unresolved"?: boolean,"reversed_amount"?: number | null,"reversed_at"?: string | null,"settled_charge_ids"?: (string)[],"state"?: Database["public"]['Enums']["payment_state"],"tender"?: Database["public"]['Enums']["payment_tender"],"tender_ref"?: string | null,"terminal_id"?: string | null,"tip"?: number,"updated_at"?: string
                   }
                   Update: {
-                    "amount"?: number,"attempt"?: number,"auth_code"?: string | null,"card_brand"?: string | null,"card_last4"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"decline_reason"?: string | null,"entry_mode"?: Database["public"]['Enums']["payment_entry_mode"] | null,"host_response_code"?: string | null,"id"?: string,"idempotency_key"?: string | null,"number"?: string,"org_id"?: string,"provider"?: Database["public"]['Enums']["payment_terminal_provider"],"provider_ref"?: string | null,"provider_txn"?: string | null,"receipt"?: Json | null,"settled_charge_ids"?: (string)[],"state"?: Database["public"]['Enums']["payment_state"],"terminal_id"?: string | null,"tip"?: number,"updated_at"?: string
+                    "amount"?: number,"approved_at"?: string | null,"attempt"?: number,"auth_code"?: string | null,"card_brand"?: string | null,"card_last4"?: string | null,"created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"decline_reason"?: string | null,"entry_mode"?: Database["public"]['Enums']["payment_entry_mode"] | null,"host_response_code"?: string | null,"id"?: string,"idempotency_key"?: string | null,"message"?: string | null,"number"?: string,"org_id"?: string,"provider"?: Database["public"]['Enums']["payment_terminal_provider"],"provider_ref"?: string | null,"provider_txn"?: string | null,"reason"?: string | null,"receipt"?: Json | null,"register_order_id"?: string | null,"requested_amount"?: number | null,"reverse_pending_amount"?: number | null,"reverse_pending_at"?: string | null,"reverse_pending_kind"?: string | null,"reverse_pending_reason"?: string | null,"reverse_pending_ref"?: string | null,"reverse_reason"?: string | null,"reverse_txn"?: string | null,"reverse_unresolved"?: boolean,"reversed_amount"?: number | null,"reversed_at"?: string | null,"settled_charge_ids"?: (string)[],"state"?: Database["public"]['Enums']["payment_state"],"tender"?: Database["public"]['Enums']["payment_tender"],"tender_ref"?: string | null,"terminal_id"?: string | null,"tip"?: number,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -718,6 +718,12 @@ isOneToOne: false
       columns: ["org_id"]
 isOneToOne: false
       referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "payment_register_order_id_fkey"
+      columns: ["register_order_id"]
+isOneToOne: false
+      referencedRelation: "register_order"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "payment_terminal_id_fkey"
@@ -1027,14 +1033,14 @@ isOneToOne: false
                   ]
                 },"register_order": {
                   Row: {
-                    "created_at": string,"customer_id": string | null,"id": string,"org_id": string,"payment_ids": (string)[],"state": Database["public"]['Enums']["register_order_state"],"updated_at": string
+                    "created_at": string,"created_by": string | null,"customer_id": string | null,"id": string,"kind": Database["public"]['Enums']["register_order_kind"],"number": string | null,"org_id": string,"paid_at": string | null,"paid_hook_at": string | null,"paid_hook_result": Json | null,"payment_ids": (string)[],"reason": string | null,"refund_amount": number | null,"refund_of_id": string | null,"refund_payment_id": string | null,"state": Database["public"]['Enums']["register_order_state"],"tax": NonNullable<Json>,"updated_at": string,"voided_at": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"customer_id"?: string | null,"id"?: string,"org_id": string,"payment_ids"?: (string)[],"state"?: Database["public"]['Enums']["register_order_state"],"updated_at"?: string
+                    "created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"id"?: string,"kind"?: Database["public"]['Enums']["register_order_kind"],"number"?: string | null,"org_id": string,"paid_at"?: string | null,"paid_hook_at"?: string | null,"paid_hook_result"?: Json | null,"payment_ids"?: (string)[],"reason"?: string | null,"refund_amount"?: number | null,"refund_of_id"?: string | null,"refund_payment_id"?: string | null,"state"?: Database["public"]['Enums']["register_order_state"],"tax"?: NonNullable<Json>,"updated_at"?: string,"voided_at"?: string | null
                   }
                   Update: {
-                    "created_at"?: string,"customer_id"?: string | null,"id"?: string,"org_id"?: string,"payment_ids"?: (string)[],"state"?: Database["public"]['Enums']["register_order_state"],"updated_at"?: string
+                    "created_at"?: string,"created_by"?: string | null,"customer_id"?: string | null,"id"?: string,"kind"?: Database["public"]['Enums']["register_order_kind"],"number"?: string | null,"org_id"?: string,"paid_at"?: string | null,"paid_hook_at"?: string | null,"paid_hook_result"?: Json | null,"payment_ids"?: (string)[],"reason"?: string | null,"refund_amount"?: number | null,"refund_of_id"?: string | null,"refund_payment_id"?: string | null,"state"?: Database["public"]['Enums']["register_order_state"],"tax"?: NonNullable<Json>,"updated_at"?: string,"voided_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -1049,18 +1055,30 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "org"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "register_order_refund_of_id_fkey"
+      columns: ["refund_of_id"]
+isOneToOne: false
+      referencedRelation: "register_order"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "register_order_refund_payment_id_fkey"
+      columns: ["refund_payment_id"]
+isOneToOne: false
+      referencedRelation: "payment"
+      referencedColumns: ["id"]
     }
                   ]
                 },"register_order_line": {
                   Row: {
-                    "amount": number | null,"batch_id": string | null,"charge_id": string | null,"created_at": string,"id": string,"org_id": string,"qty": number,"register_order_id": string,"retail_product_id": string | null,"unit_price": number,"updated_at": string
+                    "amount": number | null,"batch_id": string | null,"charge_id": string | null,"created_at": string,"description": string,"id": string,"org_id": string,"qty": number,"register_order_id": string,"retail_product_id": string | null,"settlement_id": string | null,"unit_price": number,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount"?: never,"batch_id"?: string | null,"charge_id"?: string | null,"created_at"?: string,"id"?: string,"org_id": string,"qty"?: number,"register_order_id": string,"retail_product_id"?: string | null,"unit_price": number,"updated_at"?: string
+                    "amount"?: never,"batch_id"?: string | null,"charge_id"?: string | null,"created_at"?: string,"description"?: string,"id"?: string,"org_id": string,"qty"?: number,"register_order_id": string,"retail_product_id"?: string | null,"settlement_id"?: string | null,"unit_price": number,"updated_at"?: string
                   }
                   Update: {
-                    "amount"?: never,"batch_id"?: string | null,"charge_id"?: string | null,"created_at"?: string,"id"?: string,"org_id"?: string,"qty"?: number,"register_order_id"?: string,"retail_product_id"?: string | null,"unit_price"?: number,"updated_at"?: string
+                    "amount"?: never,"batch_id"?: string | null,"charge_id"?: string | null,"created_at"?: string,"description"?: string,"id"?: string,"org_id"?: string,"qty"?: number,"register_order_id"?: string,"retail_product_id"?: string | null,"settlement_id"?: string | null,"unit_price"?: number,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -1086,6 +1104,18 @@ isOneToOne: false
       columns: ["register_order_id"]
 isOneToOne: false
       referencedRelation: "register_order"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "register_order_line_retail_product_id_fkey"
+      columns: ["retail_product_id"]
+isOneToOne: false
+      referencedRelation: "retail_product"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "register_order_line_settlement_id_fkey"
+      columns: ["settlement_id"]
+isOneToOne: false
+      referencedRelation: "settlement"
       referencedColumns: ["id"]
     }
                   ]
@@ -1161,6 +1191,26 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "vessel_walk_order"
       referencedColumns: ["vessel_id"]
+    }
+                  ]
+                },"retail_product": {
+                  Row: {
+                    "created_at": string,"id": string,"is_active": boolean,"name": string,"org_id": string,"sku": string | null,"unit_price": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name": string,"org_id": string,"sku"?: string | null,"unit_price": number,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"org_id"?: string,"sku"?: string | null,"unit_price"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "retail_product_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
     }
                   ]
                 },"scale": {
@@ -2120,6 +2170,9 @@ isOneToOne: false
 "admin_save_printer":
 { Args: { "p_address": string,"p_agent_id": string,"p_client_action_id": string,"p_kind": Database["public"]['Enums']["printer_kind"],"p_name": string,"p_printer_id"?: string,"p_site_id"?: string }; Returns: Json
                            },
+"admin_save_retail_product":
+{ Args: { "p_client_action_id": string,"p_is_active"?: boolean,"p_name": string,"p_retail_product_id": string,"p_sku"?: string,"p_unit_price": number }; Returns: Json
+                           },
 "admin_seed_reference":
 { Args: { "p_client_action_id": string,"p_reference": Json }; Returns: Json
                            },
@@ -2161,6 +2214,9 @@ isOneToOne: false
                            },
 "allocation_session_summary":
 { Args: { "p_session_id": string }; Returns: Json
+                           },
+"apply_paid_register_order":
+{ Args: { "p_order_id": string,"p_payment_id"?: string }; Returns: Json
                            },
 "begin_label_buy":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_force_buy_held"?: boolean,"p_shipment_id": string }; Returns: Json
@@ -2265,6 +2321,36 @@ isOneToOne: false
 "operator_identify":
 { Args: { "p_pin": string }; Returns: Json
                            },
+"payment_begin":
+{ Args: { "p_amount": number,"p_client_action_id": string,"p_elevation_token"?: string,"p_order_id": string,"p_reason"?: string,"p_tender"?: string,"p_tender_ref"?: string,"p_terminal_id"?: string }; Returns: Json
+                           },
+"payment_for_provider":
+{ Args: { "p_payment_id": string }; Returns: Json
+                           },
+"payment_log_event":
+{ Args: { "p_kind": string,"p_payload": Json,"p_payment_id": string }; Returns: undefined
+                           },
+"payment_receipt":
+{ Args: { "p_payment_id": string }; Returns: Json
+                           },
+"payment_record_result":
+{ Args: { "p_event": string,"p_payment_id": string,"p_result": Json }; Returns: Json
+                           },
+"payment_resolve":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_outcome": string,"p_payment_id": string,"p_reason": string }; Returns: Json
+                           },
+"payment_reverse_begin":
+{ Args: { "p_amount"?: number,"p_client_action_id": string,"p_elevation_token"?: string,"p_kind": string,"p_payment_id": string,"p_reason": string }; Returns: Json
+                           },
+"payment_reverse_record":
+{ Args: { "p_amount": number,"p_kind": string,"p_payment_id": string,"p_reason": string,"p_result": Json }; Returns: Json
+                           },
+"payment_reverse_resolve":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_outcome": string,"p_payment_id": string,"p_reason": string }; Returns: Json
+                           },
+"payment_terminal_runtime":
+{ Args: { "p_org_id": string,"p_terminal_id": string }; Returns: Json
+                           },
 "place_vessel":
 { Args: { "p_client_action_id": string,"p_expected_vessel_id"?: string,"p_location_raw": string,"p_operator_session"?: string,"p_vessel_raw": string }; Returns: Json
                            },
@@ -2299,6 +2385,21 @@ isOneToOne: false
                            },
 "record_scale_reading":
 { Args: { "p_client_action_id": string,"p_scale_id": string,"p_stable": boolean,"p_weight": number }; Returns: Json
+                           },
+"register_add_retail":
+{ Args: { "p_client_action_id": string,"p_order_id": string,"p_qty"?: number,"p_retail_product_id": string }; Returns: Json
+                           },
+"register_load_outstanding":
+{ Args: { "p_client_action_id": string,"p_customer_id": string,"p_order_id"?: string }; Returns: Json
+                           },
+"register_order":
+{ Args: { "p_order_id": string }; Returns: Json
+                           },
+"register_remove_line":
+{ Args: { "p_client_action_id": string,"p_line_id": string,"p_order_id": string }; Returns: Json
+                           },
+"register_void_order":
+{ Args: { "p_client_action_id": string,"p_order_id": string }; Returns: Json
                            },
 "release_by_tag":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_lbs_left"?: number,"p_reason"?: string,"p_tag": string }; Returns: Json
@@ -2400,7 +2501,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "allocation_session_fulfillment_status": "none"|"pending"|"partial"|"released","allocation_session_split_method": "weight"|"even","allocation_session_state": "draft"|"priced"|"done"|"cancelled","asset_tag_state": "available"|"in_use"|"retired","box_plan_fulfillment_state": "planned"|"packed"|"shipped"|"picked_up","box_plan_method": "air"|"ship"|"willcall","charge_kind": "processing"|"ribbing"|"storage"|"box_fee"|"freight"|"retail"|"adjustment","charge_source_type": "intake"|"storage_batch"|"settlement"|"manual","charge_state": "open"|"settled"|"voided"|"comped","device_station": "intake"|"storage"|"wave"|"rollstock"|"reconcile"|"blast"|"locate"|"allocate"|"boxing"|"register"|"shipping","intake_state": "draft"|"holding"|"processing"|"rollstock"|"reconcile"|"blast_freezer"|"stored"|"done"|"cancelled","location_depth": "F"|"R","location_kind": "rack"|"pallet","org_member_role": "owner"|"manager"|"staff"|"cashier","payment_entry_mode": "chip"|"contactless"|"swipe"|"manual"|"keyed","payment_event_kind": "sale_requested"|"sale_result"|"status_check"|"abort"|"reverse_requested"|"reverse_result"|"refund_requested"|"refund_result"|"error","payment_state": "pending"|"approved"|"declined"|"cancelled"|"indeterminate"|"voided"|"refunded"|"error","payment_terminal_provider": "manual"|"dejavoo_spin"|"stripe_terminal","print_job_kind": "tote_tag"|"receipt"|"storage_label"|"box_label"|"pick_list"|"location_tag"|"shipping_label"|"asset_tag_sheet","print_job_payload_type": "zpl"|"pdf_url","print_job_state": "queued"|"printing"|"done"|"failed","printer_kind": "label_zpl"|"receipt_pdf","processing_method_kind": "service"|"virtual","register_order_state": "open"|"paid"|"void","release_audit_event_kind": "moved"|"finalized"|"restored","scale_protocol": "toledo_8217"|"manual","scan_log_result": "ok"|"rejected","settlement_state": "draft"|"paid","shipment_state": "draft"|"held"|"label_bought"|"shipped"|"cancelled","species_group": "salmon"|"whitefish"|"other"|"byproduct","storage_box_state": "stored"|"released","storage_intake_state": "draft"|"stored"|"partial"|"released"|"cancelled","storage_pickup_batch_state": "pending"|"released"|"void","vessel_lifecycle_state": "occupied"|"emptied"|"void","wave_state": "draft"|"verifying"|"done"|"cancelled"
+            "allocation_session_fulfillment_status": "none"|"pending"|"partial"|"released","allocation_session_split_method": "weight"|"even","allocation_session_state": "draft"|"priced"|"done"|"cancelled","asset_tag_state": "available"|"in_use"|"retired","box_plan_fulfillment_state": "planned"|"packed"|"shipped"|"picked_up","box_plan_method": "air"|"ship"|"willcall","charge_kind": "processing"|"ribbing"|"storage"|"box_fee"|"freight"|"retail"|"adjustment","charge_source_type": "intake"|"storage_batch"|"settlement"|"manual","charge_state": "open"|"settled"|"voided"|"comped","device_station": "intake"|"storage"|"wave"|"rollstock"|"reconcile"|"blast"|"locate"|"allocate"|"boxing"|"register"|"shipping","intake_state": "draft"|"holding"|"processing"|"rollstock"|"reconcile"|"blast_freezer"|"stored"|"done"|"cancelled","location_depth": "F"|"R","location_kind": "rack"|"pallet","org_member_role": "owner"|"manager"|"staff"|"cashier","payment_entry_mode": "chip"|"contactless"|"swipe"|"manual"|"keyed","payment_event_kind": "sale_requested"|"sale_result"|"status_check"|"abort"|"reverse_requested"|"reverse_result"|"refund_requested"|"refund_result"|"error"|"paid_hook"|"manual_resolve","payment_state": "pending"|"approved"|"declined"|"cancelled"|"indeterminate"|"voided"|"refunded"|"error","payment_tender": "card"|"cash"|"check"|"external"|"comp","payment_terminal_provider": "manual"|"dejavoo_spin"|"stripe_terminal","print_job_kind": "tote_tag"|"receipt"|"storage_label"|"box_label"|"pick_list"|"location_tag"|"shipping_label"|"asset_tag_sheet","print_job_payload_type": "zpl"|"pdf_url","print_job_state": "queued"|"printing"|"done"|"failed","printer_kind": "label_zpl"|"receipt_pdf","processing_method_kind": "service"|"virtual","register_order_kind": "sale"|"refund","register_order_state": "open"|"paid"|"void","release_audit_event_kind": "moved"|"finalized"|"restored","scale_protocol": "toledo_8217"|"manual","scan_log_result": "ok"|"rejected","settlement_state": "draft"|"paid","shipment_state": "draft"|"held"|"label_bought"|"shipped"|"cancelled","species_group": "salmon"|"whitefish"|"other"|"byproduct","storage_box_state": "stored"|"released","storage_intake_state": "draft"|"stored"|"partial"|"released"|"cancelled","storage_pickup_batch_state": "pending"|"released"|"void","vessel_lifecycle_state": "occupied"|"emptied"|"void","wave_state": "draft"|"verifying"|"done"|"cancelled"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -2520,7 +2621,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "allocation_session_fulfillment_status": ["none", "pending", "partial", "released"],"allocation_session_split_method": ["weight", "even"],"allocation_session_state": ["draft", "priced", "done", "cancelled"],"asset_tag_state": ["available", "in_use", "retired"],"box_plan_fulfillment_state": ["planned", "packed", "shipped", "picked_up"],"box_plan_method": ["air", "ship", "willcall"],"charge_kind": ["processing", "ribbing", "storage", "box_fee", "freight", "retail", "adjustment"],"charge_source_type": ["intake", "storage_batch", "settlement", "manual"],"charge_state": ["open", "settled", "voided", "comped"],"device_station": ["intake", "storage", "wave", "rollstock", "reconcile", "blast", "locate", "allocate", "boxing", "register", "shipping"],"intake_state": ["draft", "holding", "processing", "rollstock", "reconcile", "blast_freezer", "stored", "done", "cancelled"],"location_depth": ["F", "R"],"location_kind": ["rack", "pallet"],"org_member_role": ["owner", "manager", "staff", "cashier"],"payment_entry_mode": ["chip", "contactless", "swipe", "manual", "keyed"],"payment_event_kind": ["sale_requested", "sale_result", "status_check", "abort", "reverse_requested", "reverse_result", "refund_requested", "refund_result", "error"],"payment_state": ["pending", "approved", "declined", "cancelled", "indeterminate", "voided", "refunded", "error"],"payment_terminal_provider": ["manual", "dejavoo_spin", "stripe_terminal"],"print_job_kind": ["tote_tag", "receipt", "storage_label", "box_label", "pick_list", "location_tag", "shipping_label", "asset_tag_sheet"],"print_job_payload_type": ["zpl", "pdf_url"],"print_job_state": ["queued", "printing", "done", "failed"],"printer_kind": ["label_zpl", "receipt_pdf"],"processing_method_kind": ["service", "virtual"],"register_order_state": ["open", "paid", "void"],"release_audit_event_kind": ["moved", "finalized", "restored"],"scale_protocol": ["toledo_8217", "manual"],"scan_log_result": ["ok", "rejected"],"settlement_state": ["draft", "paid"],"shipment_state": ["draft", "held", "label_bought", "shipped", "cancelled"],"species_group": ["salmon", "whitefish", "other", "byproduct"],"storage_box_state": ["stored", "released"],"storage_intake_state": ["draft", "stored", "partial", "released", "cancelled"],"storage_pickup_batch_state": ["pending", "released", "void"],"vessel_lifecycle_state": ["occupied", "emptied", "void"],"wave_state": ["draft", "verifying", "done", "cancelled"]
+            "allocation_session_fulfillment_status": ["none", "pending", "partial", "released"],"allocation_session_split_method": ["weight", "even"],"allocation_session_state": ["draft", "priced", "done", "cancelled"],"asset_tag_state": ["available", "in_use", "retired"],"box_plan_fulfillment_state": ["planned", "packed", "shipped", "picked_up"],"box_plan_method": ["air", "ship", "willcall"],"charge_kind": ["processing", "ribbing", "storage", "box_fee", "freight", "retail", "adjustment"],"charge_source_type": ["intake", "storage_batch", "settlement", "manual"],"charge_state": ["open", "settled", "voided", "comped"],"device_station": ["intake", "storage", "wave", "rollstock", "reconcile", "blast", "locate", "allocate", "boxing", "register", "shipping"],"intake_state": ["draft", "holding", "processing", "rollstock", "reconcile", "blast_freezer", "stored", "done", "cancelled"],"location_depth": ["F", "R"],"location_kind": ["rack", "pallet"],"org_member_role": ["owner", "manager", "staff", "cashier"],"payment_entry_mode": ["chip", "contactless", "swipe", "manual", "keyed"],"payment_event_kind": ["sale_requested", "sale_result", "status_check", "abort", "reverse_requested", "reverse_result", "refund_requested", "refund_result", "error", "paid_hook", "manual_resolve"],"payment_state": ["pending", "approved", "declined", "cancelled", "indeterminate", "voided", "refunded", "error"],"payment_tender": ["card", "cash", "check", "external", "comp"],"payment_terminal_provider": ["manual", "dejavoo_spin", "stripe_terminal"],"print_job_kind": ["tote_tag", "receipt", "storage_label", "box_label", "pick_list", "location_tag", "shipping_label", "asset_tag_sheet"],"print_job_payload_type": ["zpl", "pdf_url"],"print_job_state": ["queued", "printing", "done", "failed"],"printer_kind": ["label_zpl", "receipt_pdf"],"processing_method_kind": ["service", "virtual"],"register_order_kind": ["sale", "refund"],"register_order_state": ["open", "paid", "void"],"release_audit_event_kind": ["moved", "finalized", "restored"],"scale_protocol": ["toledo_8217", "manual"],"scan_log_result": ["ok", "rejected"],"settlement_state": ["draft", "paid"],"shipment_state": ["draft", "held", "label_bought", "shipped", "cancelled"],"species_group": ["salmon", "whitefish", "other", "byproduct"],"storage_box_state": ["stored", "released"],"storage_intake_state": ["draft", "stored", "partial", "released", "cancelled"],"storage_pickup_batch_state": ["pending", "released", "void"],"vessel_lifecycle_state": ["occupied", "emptied", "void"],"wave_state": ["draft", "verifying", "done", "cancelled"]
           }
         }
 } as const

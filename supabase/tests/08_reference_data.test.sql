@@ -11,8 +11,9 @@ select plan(5);
 select set_eq(
   $$ select kind from app.sequence_prefix $$,
   array['intake', 'storage_intake', 'storage_pickup_batch', 'wave', 'charge',
-        'allocation_session', 'settlement', 'box_plan', 'shipment', 'payment', 'audit_batch'],
-  'app.sequence_prefix has every document kind (docs/01-ARCHITECTURE.md §3)'
+        'allocation_session', 'settlement', 'box_plan', 'shipment', 'payment', 'audit_batch',
+        'register_order'],
+  'app.sequence_prefix has every document kind (docs/01-ARCHITECTURE.md §3; REG- is WP-16''s S7 cash ref)'
 );
 
 select set_eq(

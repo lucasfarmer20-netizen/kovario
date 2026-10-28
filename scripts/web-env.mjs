@@ -1,5 +1,5 @@
 // `node scripts/web-env.mjs`: point apps/web at this worktree's running local Supabase stack.
-// Reads URL and anon key from `supabase status` (which honours supabase/.env) and sets them in
+// Reads URL, anon key and the local service-role key from `supabase status` (which honours supabase/.env) and sets them in
 // apps/web/.env.local, keeping any other lines. Run after `supabase start`, before `pnpm dev`.
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -22,6 +22,9 @@ try {
 const values = {
   NEXT_PUBLIC_SUPABASE_URL: status.API_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: status.ANON_KEY,
+  // Server-only (the /api/payments/* route handlers, docs/05-PAYMENTS.md); the local stack's
+  // key, written to the gitignored .env.local only.
+  SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
 };
 const file = join(root, "apps", "web", ".env.local");
 const kept = existsSync(file)
