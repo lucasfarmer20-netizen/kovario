@@ -640,12 +640,17 @@ export function createStripeTerminalProvider(options: StripeTerminalOptions = {}
         await sleep(opts.pollIntervalMs);
       }
 
-      // Out of time: clear the reader, then cancel the PaymentIntent (Stripe refuses if the
-      // customer's card was approved meanwhile — then it is approved).
+      // Out of time: clear the reader only while it still shows THIS PaymentIntent — another
+      // register may have started its own payment on it meanwhile — then cancel the
+      // PaymentIntent (Stripe refuses if the card was approved meanwhile — then it is approved).
+      // An unreadable reader is left alone; cancelling the PaymentIntent alone still decides.
       try {
-        await c.cancelAction(s.readerId);
+        const reader = await c.getReader(s.readerId);
+        if (actionIntentId(reader.action) === pi.id && reader.action?.status === "in_progress") {
+          await c.cancelAction(s.readerId);
+        }
       } catch {
-        // busy authorising, idle, or unreachable — the PaymentIntent cancel below decides.
+        // busy authorising, or unreachable — the PaymentIntent cancel below decides.
       }
       const r = await settleByCancel(
         c,

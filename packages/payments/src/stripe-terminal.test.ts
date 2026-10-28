@@ -209,6 +209,43 @@ describe("§6 cashier cancel", () => {
   });
 });
 
+describe("timeout never clears another register's payment", () => {
+  it("our PaymentIntent stuck processing while the reader moved on: the reader is left alone", async () => {
+    let ours = "";
+    let theirs = "";
+    onSleep = async (t) => {
+      if (t === 2_000) {
+        ours = [...mock.intents.keys()][0]!; // this sale's PaymentIntent
+        mock.intent(ours).status = "processing"; // e.g. the network is still deciding
+        theirs = mock.occupy("tmr_A").id; // another register's customer is now at the reader
+      }
+    };
+    const r = await sale("ref-timeout-1", 20, { action: "hold" });
+    expect(clock).toBe(TIMEOUT);
+    expect(mock.callsTo("POST /v1/terminal/readers/tmr_A/cancel_action")).toHaveLength(0);
+    expect(mock.readers.get("tmr_A")!.action).toMatchObject({
+      status: "in_progress",
+      process_payment_intent: { payment_intent: theirs },
+    });
+    expect(mock.intent(theirs).status).toBe("requires_payment_method");
+    // ours cannot be cancelled while processing: unknown, settled later by status
+    expect(r).toMatchObject({ outcome: "indeterminate", providerTxn: ours });
+  });
+
+  it("lost contact until the deadline, reader unreadable: no cancel_action, our PaymentIntent decides", async () => {
+    onSleep = async (t) => {
+      if (t === 2_000) mock.failOn("GET /v1/payment_intents", "network", 200);
+      if (t === 3_000) mock.occupy("tmr_A");
+      if (t === TIMEOUT - 1_000) mock.failOn("GET /v1/terminal/readers/tmr_A", "network");
+    };
+    const r = await sale("ref-timeout-2", 20, { action: "hold" });
+    expect(mock.callsTo("POST /v1/terminal/readers/tmr_A/cancel_action")).toHaveLength(0);
+    expect(r).toMatchObject({ outcome: "cancelled" });
+    expect(mock.intent(r.providerTxn!).status).toBe("canceled");
+    expect(mock.readers.get("tmr_A")!.action?.status).toBe("in_progress");
+  });
+});
+
 describe("§6 timeout → status", () => {
   async function lostDuringSale(): Promise<SaleResult> {
     onSleep = async (t) => {

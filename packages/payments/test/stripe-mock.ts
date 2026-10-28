@@ -163,6 +163,23 @@ export class StripeMock {
     return pi;
   }
 
+  /** Another register starts its own payment on the reader (the customer is at it). */
+  occupy(readerId: string, amount = 999): Intent {
+    const r = this.readers.get(readerId);
+    if (!r) throw new Error(`no reader ${readerId}`);
+    const pi = this.newIntent(amount, { provider_ref: "another-register-1" }, "automatic");
+    r.action = {
+      type: "process_payment_intent",
+      status: "in_progress",
+      failure_code: null,
+      failure_message: null,
+      process_payment_intent: { payment_intent: pi.id },
+    };
+    r.script = { action: "hold" };
+    r.polls = 0;
+    return pi;
+  }
+
   /** A pending refund completes later: `failed` gives its amount back to the payment. */
   settleRefund(id: string, status: "succeeded" | "failed"): void {
     const r = this.refunds.get(id);
