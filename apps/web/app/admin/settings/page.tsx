@@ -39,6 +39,14 @@ export default async function SettingsPage() {
         <fieldset className="grid gap-4 sm:grid-cols-2">
           <legend className="mb-2 font-medium">Business</legend>
           <Label>
+            Public pickup hours
+            <Input name="pickup_hours" defaultValue={s.pickup_hours ?? ""} maxLength={500} />
+          </Label>
+          <Label>
+            Public rates notice
+            <Input name="rates_notice" defaultValue={s.rates_notice ?? ""} maxLength={500} />
+          </Label>
+          <Label>
             Name
             <Input name="name" defaultValue={org.name} required maxLength={120} />
           </Label>

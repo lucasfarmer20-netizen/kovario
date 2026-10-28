@@ -1,5 +1,5 @@
 export * from "./zpl";
-import { encode } from "rules";
+import { encode, parseStatusPageUrl, statusPageUrl } from "rules";
 import QRCode from "qrcode";
 import { chromium } from "playwright";
 const html = (v: string | number) =>
@@ -17,6 +17,7 @@ export type Receipt = {
   notice?: string;
   estimatedPickup?: string;
   statusUrl?: string;
+  orgSlug?: string;
   boxingToken?: string;
   storage?: { storageNumber: string; boxNo: number };
   // Snapshot from the stored payment row, never terminal/live lookup on reprint.
@@ -31,18 +32,19 @@ function document(title: string, body: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${html(title)}</title><style>@page{size:Letter;margin:15mm}body{font:16px Arial;color:#111}h1{font-size:28px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px;border-bottom:1px solid #bbb}figure{break-inside:avoid}img{image-rendering:pixelated}</style></head><body>${body}</body></html>`;
 }
 export async function receiptHtml(v: Receipt): Promise<string> {
+  const statusUrl = v.orgSlug ? statusPageUrl(v.orgSlug) : v.statusUrl;
   if (v.kind === "settlement" && !v.boxingToken)
     throw new RangeError("Settlement needs a boxing token");
-  if (v.kind === "intake" && !v.statusUrl) throw new RangeError("Intake needs a status URL");
+  if (v.kind === "intake" && !statusUrl) throw new RangeError("Intake needs a status URL");
   if (v.payment && !/^\d{4}$/.test(v.payment.last4))
     throw new RangeError("Payment snapshot needs last4 only");
-  if (v.statusUrl && !/^https:\/\//.test(v.statusUrl))
-    throw new RangeError("Status URL must use HTTPS");
+  if (statusUrl && !parseStatusPageUrl(statusUrl))
+    throw new RangeError("Invalid public status URL");
   const code = v.boxingToken
     ? encode("BOX", { token: v.boxingToken })
     : v.storage
       ? encode("SBOX", v.storage)
-      : v.statusUrl;
+      : statusUrl;
   return document(
     `${v.kind} receipt ${v.number}`,
     `<h1>${html(v.kind)} receipt · ${html(v.number)}</h1><p>${html(v.customer)} · ${html(v.date)}</p>
