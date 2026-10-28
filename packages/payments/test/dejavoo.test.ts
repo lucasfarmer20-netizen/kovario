@@ -191,6 +191,35 @@ describe("§6 required cases (fake SPIn server)", () => {
     expect(r.message).toMatch(/rejected the request \(1002 Amount is required\)/);
   });
 
+  it("a JSON 4xx WITHOUT a SPIn StatusCode (e.g. an intermediary's 408) proves nothing: indeterminate, never retryable", async () => {
+    const noCode = (http: number) => ({
+      http,
+      rawBody: JSON.stringify({
+        message: "Request Timeout",
+        GeneralResponse: { Message: "upstream" },
+      }),
+    });
+    const ref = newRef();
+    spin.queue("Sale", noCode(408));
+    const r = await sale(25, ref);
+    expect(r.outcome).toBe("indeterminate");
+    expect(r.message).not.toMatch(/Nothing was charged/);
+
+    spin.queue("Status", noCode(404));
+    expect((await provider.status({ terminal: spin.terminal(), ref })).outcome).toBe(
+      "indeterminate",
+    );
+
+    spin.queue("Void", noCode(408));
+    expect((await provider.reverse({ terminal: spin.terminal(), originalRef: ref })).outcome).toBe(
+      "indeterminate",
+    );
+    spin.queue("Return", noCode(400));
+    expect(
+      (await provider.refund({ terminal: spin.terminal(), amount: 5, ref: `${ref}-R1` })).outcome,
+    ).toBe("indeterminate");
+  });
+
   it("config error: RegisterId set to one the proxy does not know → 2003 'Register not found'", async () => {
     const r = await sale(25, newRef(), 1000, spin.terminal({ register_id: "REG-PLACEHOLDER" }));
     expect(r.outcome).toBe("error");

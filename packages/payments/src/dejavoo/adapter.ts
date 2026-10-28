@@ -214,9 +214,10 @@ export function createDejavooProvider(opts: DejavooOptions = {}): PaymentProvide
         fields.proxyTimeoutSecs * 1000 + bufferMs,
       );
       const g = generalResponse(body);
-      // A 4xx JSON answer without a StatusCode is an HTTP-level refusal: nothing was processed.
-      const cls: Cls =
-        http >= 400 && !g.statusCode ? "bad_request" : classifyStatusCode(g.statusCode);
+      // Only a SPIn StatusCode is a definite answer. Any reply without one — including a JSON
+      // 4xx from an intermediary (e.g. a 408) — is `unknown`: the operation may still have
+      // reached the terminal, so Status / the reversal reservation must settle it.
+      const cls: Cls = classifyStatusCode(g.statusCode);
       const raw = scrub({
         op,
         http,
