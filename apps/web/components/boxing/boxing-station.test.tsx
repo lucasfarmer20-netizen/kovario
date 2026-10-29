@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   session: null as unknown,
   push: vi.fn(),
   headers: [] as string[],
+  /** When set, a boxing_scan reply waits for it (deferred-RPC tests). */
+  scanGate: null as null | ((raw: string) => Promise<void>),
 }));
 vi.mock("@/components/intake/use-station-session", () => ({
   useStationSession: () => ({ session: mocks.session, loaded: true }),
@@ -61,6 +63,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   mocks.headers.length = 0;
+  mocks.scanGate = null;
 });
 
 const WIZARD: Wizard = {
@@ -184,7 +187,10 @@ function setup(
   // A PostgREST builder: thenable, with setHeader (a typed code's entry-method header).
   const rpc = vi.fn((name: string, args?: Record<string, unknown>): unknown => {
     const builder = Object.assign(
-      Promise.resolve().then(() => respond(name, args)),
+      Promise.resolve().then(async () => {
+        if (name === "boxing_scan" && mocks.scanGate) await mocks.scanGate(String(args?.p_raw));
+        return respond(name, args);
+      }),
       {
         setHeader: (header: string, value: string) => {
           mocks.headers.push(`${name} ${header}: ${value}`);
@@ -465,4 +471,76 @@ it("WP15 a tote-left refusal re-projects so the stale pick list shows the tote",
   expect(await screen.findByText("Tag 042 (INT-0001)")).toBeTruthy(); // the tote now shows
   expect(screen.getByText(/still has baskets in the freezer/)).toBeTruthy(); // pointer kept
   expect((screen.getByLabelText(/BOX-0001/) as HTMLInputElement).checked).toBe(true); // I15
+});
+
+// Review on #90: a scan reply must apply to the form as it is when the reply lands.
+const TWO_TAGS: Wizard = {
+  ...WIZARD,
+  vessels: [
+    ...WIZARD.vessels,
+    { ...WIZARD.vessels[0]!, vessel_id: "v2", tag_code: "043", walk_seq: 3 },
+  ],
+};
+
+/** Holds each boxing_scan reply until the test releases it. */
+function holdScans() {
+  const held = new Map<string, () => void>();
+  mocks.scanGate = (raw) => new Promise<void>((resolve) => held.set(raw, resolve));
+  return {
+    held,
+    release: async (raw: string) => {
+      await waitFor(() => expect(held.has(raw)).toBe(true));
+      held.get(raw)!();
+    },
+  };
+}
+const ticked = (label: string) =>
+  (screen.getByLabelText(`Tick ${label}`) as HTMLInputElement).checked;
+
+it("#84 overlapping scans both tick, whatever order their replies land in; Complete waits", async () => {
+  setup(undefined, "staff", [], TWO_TAGS);
+  const scanner = await screen.findByLabelText("Station scanner");
+  const scans = holdScans();
+  fireEvent.keyDown(scanner, { key: "Enter", target: { value: "042" } });
+  fireEvent.keyDown(scanner, { key: "Enter", target: { value: "043" } });
+  await waitFor(() => expect(scans.held.size).toBe(2));
+  const complete = screen.getByRole("button", { name: "Complete" }) as HTMLButtonElement;
+  expect(complete.disabled).toBe(true); // never Complete over a scan still being checked
+  await scans.release("043");
+  await waitFor(() => expect(ticked("Tag 043 (INT-0001)")).toBe(true));
+  await scans.release("042");
+  await waitFor(() => expect(ticked("Tag 042 (INT-0001)")).toBe(true));
+  expect(ticked("Tag 043 (INT-0001)")).toBe(true); // the first reply was not overwritten
+  await waitFor(() => expect(complete.disabled).toBe(false));
+});
+
+it("#84 an Lbs-left edit made while a scan is validated survives the reply (no silent full pull)", async () => {
+  setup(undefined, "staff", [], TWO_TAGS);
+  const scanner = await screen.findByLabelText("Station scanner");
+  fireEvent.click(screen.getByLabelText("Tick Tag 042 (INT-0001)"));
+  const scans = holdScans();
+  fireEvent.keyDown(scanner, { key: "Enter", target: { value: "043" } });
+  await waitFor(() => expect(scans.held.size).toBe(1));
+  const left = screen.getByLabelText("Lbs left Tag 042 (INT-0001)") as HTMLInputElement;
+  fireEvent.change(left, { target: { value: "5" } });
+  await scans.release("043");
+  await waitFor(() => expect(ticked("Tag 043 (INT-0001)")).toBe(true));
+  expect(left.value).toBe("5");
+  expect(ticked("Tag 042 (INT-0001)")).toBe(true);
+});
+
+it("#84 a scan reply landing after Complete reset the form is dropped, not ticked", async () => {
+  const { rpc } = setup(undefined, "staff", [], TWO_TAGS);
+  const scanner = await screen.findByLabelText("Station scanner");
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  fireEvent.click(screen.getByLabelText("Tick Tag 043 (INT-0001)"));
+  const scans = holdScans();
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+  // Scanned while Complete is running: validated, but it belongs to the old form.
+  fireEvent.keyDown(scanner, { key: "Enter", target: { value: "042" } });
+  expect(await screen.findByText(/Released:/)).toBeTruthy();
+  await scans.release("042");
+  expect(await screen.findByText("That scan arrived after Complete; scan it again.")).toBeTruthy();
+  expect(ticked("Tag 042 (INT-0001)")).toBe(false);
+  expect(rpc).toHaveBeenCalledWith("boxing_scan", expect.objectContaining({ p_raw: "042" }));
 });

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFreezerOperator } from "@/components/freezer/use-freezer-operator";
@@ -149,8 +149,17 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   const manual = useManualOptions(client, claims.orgId);
   const op = useFreezerOperator({ client, claims });
   const isManager = claims.appRole === "owner" || claims.appRole === "manager";
-  const [wizard, setWizard] = useState<Wizard | null>(null);
+  const [wizard, setWizardState] = useState<Wizard | null>(null);
   const [ticks, setTicks] = useState<Ticks>(emptyTicks);
+  // The form as it is NOW. Async work (a scan being validated, a re-projection) applies its
+  // result to these, never to the snapshot it started from, so a tick or an Lbs-left edit
+  // made meanwhile is kept.
+  const wizardRef = useRef<Wizard | null>(null);
+  const ticksRef = useRef<Ticks>(emptyTicks());
+  /** Bumped when Complete starts and when the form resets: an older scan reply is dropped. */
+  const formEpoch = useRef(0);
+  const scansInFlight = useRef(0);
+  const [validating, setValidating] = useState(0);
   const [notices, setNotices] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [reply, setReply] = useState<ReleaseReply | null>(null);
@@ -169,8 +178,18 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   const [i8Blocked, setI8Blocked] = useState<"none" | "tote_left" | "override">("none");
   const [i8Reason, setI8Reason] = useState("");
 
-  /** Any tick change or refresh makes an earlier I8 refusal stale: hide its override. */
-  function updateTicks(next: Ticks) {
+  function setWizard(next: Wizard) {
+    wizardRef.current = next;
+    setWizardState(next);
+  }
+
+  /**
+   * Applies `change` to the latest ticks. Any tick change or refresh makes an earlier I8
+   * refusal stale: hide its override.
+   */
+  function updateTicks(change: (current: Ticks) => Ticks) {
+    const next = change(ticksRef.current);
+    ticksRef.current = next;
     setTicks(next);
     setI8Blocked("none");
   }
@@ -184,11 +203,13 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   async function refresh(reset: boolean) {
     const next = await loadWizard(client, sessionId);
     if (reset) {
-      updateTicks(emptyTicks());
+      formEpoch.current++;
+      updateTicks(() => emptyTicks());
       setNotices([]);
     } else {
-      const r = reproject(wizard, ticks, next);
-      updateTicks(r.ticks);
+      // Against the form as it is after the load, not as it was when the load started.
+      const r = reproject(wizardRef.current, ticksRef.current, next);
+      updateTicks(() => r.ticks);
       setNotices(r.notices);
     }
     setWizard(next);
@@ -205,7 +226,8 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     loadWizard(client, sessionId).then(
       async (next) => {
         if (!live) return;
-        setWizard(next);
+        wizardRef.current = next;
+        setWizardState(next);
         const rows = await emptiedVessels(
           client,
           next.intakes.map((i) => i.intake_id),
@@ -220,10 +242,23 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   }, [client, sessionId]);
 
   async function onScan(raw: string, method: EntryMethod) {
-    if (!wizard) return;
+    if (!wizardRef.current) return;
     // The server validates the code against the masters and this party's pick list (I11),
-    // and logs it in scan_log; ticks stay a local projection (I15).
-    const reply = await boxingScan(client, raw, sessionId, op.proof, method).catch(() => null);
+    // and logs it in scan_log; ticks stay a local projection (I15). The form stays live
+    // meanwhile, so the reply is applied to the latest form state below.
+    const epoch = formEpoch.current;
+    setValidating(++scansInFlight.current);
+    let reply: Awaited<ReturnType<typeof boxingScan>> | null;
+    try {
+      reply = await boxingScan(client, raw, sessionId, op.proof, method).catch(() => null);
+    } finally {
+      setValidating(--scansInFlight.current);
+    }
+    if (epoch !== formEpoch.current) {
+      // Complete ran (or the form reset) while this was validated: never tick the new form.
+      setFeedback({ tone: "warn", text: "That scan arrived after Complete; scan it again." });
+      return;
+    }
     if (!reply) {
       setFeedback({ tone: "error", text: SCAN_UNRECORDED });
       return;
@@ -236,12 +271,14 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     if (reply.kind === "BOX") {
       // Additive re-scan: re-project, keeping ticks on still-eligible records (P15).
       await refresh(false);
-      setFeedback({ tone: "ok", text: `${wizard.number} refreshed` });
+      setFeedback({ tone: "ok", text: `${wizardRef.current?.number ?? "Party"} refreshed` });
       return;
     }
-    const outcome = scanTick(wizard, ticks, raw);
+    const form = wizardRef.current;
+    if (!form) return;
+    const outcome = scanTick(form, ticksRef.current, raw);
     if (outcome.kind === "ticked") {
-      updateTicks(outcome.ticks);
+      updateTicks(() => outcome.ticks);
       setFeedback({ tone: "ok", text: outcome.message });
     } else {
       // The server saw it on the pick list but this projection is stale: re-project.
@@ -254,13 +291,21 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   }
 
   async function complete(override?: { reason: string; token: string | null }) {
-    if (!wizard || busy || !op.allowed()) return;
-    const issues = lineIssues(wizard, ticks);
+    const form = wizardRef.current;
+    if (!form || busy || !op.allowed()) return;
+    if (scansInFlight.current > 0) {
+      setFeedback({ tone: "warn", text: "A scan is still being checked; Complete when it lands." });
+      return;
+    }
+    const current = ticksRef.current;
+    const issues = lineIssues(form, current);
     if (issues.length > 0) {
       setFeedback({ tone: "error", text: issues.map((i) => i.message).join(" · ") });
       return;
     }
-    const payload = completePayload(wizard, ticks);
+    const payload = completePayload(form, current);
+    // Scans started from here on belong to the form Complete is about to replace.
+    formEpoch.current++;
     if (nothingTicked(payload)) {
       setFeedback({ tone: "warn", text: "Nothing ticked: tick boxes or totes before Complete." });
       return;
@@ -374,7 +419,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       name={`Boxing · ${wizard.number}`}
       site={siteName}
       operator={op.operator}
-      pending={busy ? 1 : 0}
+      pending={validating + (busy ? 1 : 0)}
       paused={op.pinOpen || editing || pending !== null}
       status={<Status feedback={feedback} />}
       manual={{ ...manual, accept: ["TAG", "BOX"] }}
@@ -405,7 +450,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
                         <input
                           type="checkbox"
                           checked={tickedBoxes.has(b.box_id)}
-                          onChange={() => updateTicks(toggleBox(ticks, b.box_id))}
+                          onChange={() => updateTicks((t) => toggleBox(t, b.box_id))}
                         />
                         {b.number} · {b.method === "willcall" ? "will-call" : b.method} ·{" "}
                         {b.size ?? "box"} · {b.weight_lb} lb
@@ -448,7 +493,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
                         type="checkbox"
                         aria-label={`Tick ${label}`}
                         checked={l?.ticked ?? false}
-                        onChange={() => updateTicks(toggleVessel(ticks, v))}
+                        onChange={() => updateTicks((t) => toggleVessel(t, v))}
                       />
                     </td>
                     <td>{label}</td>
@@ -462,7 +507,10 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
                         aria-invalid={issues.has(v.vessel_id)}
                         placeholder="0 = all"
                         value={l?.lbsLeft ?? ""}
-                        onChange={(e) => updateTicks(setLbsLeft(ticks, v, e.target.value))}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          updateTicks((t) => setLbsLeft(t, v, value));
+                        }}
                         {...typing}
                       />
                     </td>
@@ -512,7 +560,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
           <input value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} {...typing} />
         </label>
         <div className="station-actions">
-          <button type="button" disabled={busy} onClick={() => void complete()}>
+          <button type="button" disabled={busy || validating > 0} onClick={() => void complete()}>
             Complete
           </button>
           <Link href="/boxing">Queue</Link>
