@@ -1,4 +1,5 @@
 "use client";
+import { StationsLink } from "@/src/components/station/stations-link";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,6 +17,7 @@ function Shell({ session, children }: { session: StationSession | null; children
           <h1>Cold storage</h1>
         </div>
         <nav className="station-actions" aria-label="Storage">
+          <StationsLink />
           <Link href="/storage">New Storage</Link>
           <Link href="/storage/queue">Storage Queue</Link>
         </nav>
