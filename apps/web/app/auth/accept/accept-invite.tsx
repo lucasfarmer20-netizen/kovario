@@ -44,7 +44,7 @@ export function AcceptInvite() {
     const { error: updateError } = await getBrowserClient().auth.updateUser({ password });
     setPending(false);
     if (updateError) setError(updateError.message);
-    else router.replace("/admin");
+    else router.replace("/stations");
   }
 
   if (error && !ready) return <p className="text-destructive">{error}</p>;

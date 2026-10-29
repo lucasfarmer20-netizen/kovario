@@ -1,4 +1,5 @@
 "use client";
+import { StationsLink } from "@/src/components/station/stations-link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { formatPhone } from "rules";
@@ -55,6 +56,7 @@ function Shell({ session, children }: { session: StationSession | null; children
           <p className="station-eyebrow">Filletry · {session?.siteName ?? "Register"}</p>
           <h1>Register</h1>
         </div>
+        <StationsLink />
       </header>
       {children}
     </main>

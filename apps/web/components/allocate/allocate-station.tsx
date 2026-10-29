@@ -1,4 +1,5 @@
 "use client";
+import { StationsLink } from "@/src/components/station/stations-link";
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +22,7 @@ function Shell({ session, children }: { session: StationSession | null; children
           <h1>Counter allocation</h1>
         </div>
         <nav className="station-actions" aria-label="Allocation">
+          <StationsLink />
           <Link href="/allocate/new">New Session</Link>
           <Link href="/allocate">Sessions</Link>
         </nav>

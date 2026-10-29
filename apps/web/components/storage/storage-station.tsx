@@ -1,4 +1,5 @@
 "use client";
+import { StationsLink } from "@/src/components/station/stations-link";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -6,6 +7,9 @@ import { useStationSession, type StationSession } from "@/components/intake/use-
 import { StorageDetail } from "./storage-detail";
 import { StorageForm } from "./storage-form";
 import { StorageQueue } from "./storage-queue";
+
+const storageNavButton =
+  "inline-flex min-h-14 min-w-14 items-center justify-center rounded-lg border border-border bg-secondary px-5 text-lg font-semibold hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring";
 
 function Shell({ session, children }: { session: StationSession | null; children: ReactNode }) {
   return (
@@ -16,8 +20,13 @@ function Shell({ session, children }: { session: StationSession | null; children
           <h1>Cold storage</h1>
         </div>
         <nav className="station-actions" aria-label="Storage">
-          <Link href="/storage">New Storage</Link>
-          <Link href="/storage/queue">Storage Queue</Link>
+          <StationsLink />
+          <Link href="/storage" className={storageNavButton}>
+            New Storage
+          </Link>
+          <Link href="/storage/queue" className={storageNavButton}>
+            Storage Queue
+          </Link>
         </nav>
       </header>
       {children}
