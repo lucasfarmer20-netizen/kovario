@@ -43,6 +43,7 @@ it("groups configured devices by site and requests active devices only", async (
       { id: "one", name: "Counter tablet", station: "intake", site_id: "main" },
       { id: "two", name: "Lodge tablet", station: "boxing", site_id: "lodge" },
       { id: "three", name: "Mobile", station: "wave", site_id: null },
+      { id: "four", name: "Storage desk", station: "storage", site_id: "main" },
     ],
     [
       { id: "main", name: "Main" },
@@ -54,6 +55,8 @@ it("groups configured devices by site and requests active devices only", async (
   expect(html).toMatch(/aria-label="Main"[^]*Counter tablet[^]*Intake/);
   expect(html).toMatch(/aria-label="Lodge"[^]*Lodge tablet[^]*Boxing/);
   expect(html).toMatch(/aria-label="No site"[^]*Mobile/);
+  expect(html).toMatch(/href="\/storage"[^>]*><span>Storage desk<\/span>/);
+  expect(html.match(/>Storage queue<\/a>/g)).toHaveLength(2);
 });
 
 it("unauthenticated visit stops at the staff login guard", async () => {

@@ -1,11 +1,32 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Constants } from "db";
 import { requireStaff } from "@/lib/auth";
-import { STATION_ROUTES } from "@/lib/station-routes";
+import { type StationKind, STATION_ROUTES } from "@/lib/station-routes";
 
 const tile =
   "flex min-h-28 min-w-14 flex-col justify-center gap-2 rounded-xl border border-border bg-card p-6 text-xl font-semibold hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring";
 const grid = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3";
+
+function StationTile({ kind, children }: { kind: StationKind; children: ReactNode }) {
+  const primary = (
+    <Link href={STATION_ROUTES[kind].href} className={tile}>
+      {children}
+    </Link>
+  );
+  if (kind !== "storage") return primary;
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-border p-2">
+      {primary}
+      <Link
+        href="/storage/queue"
+        className="inline-flex min-h-14 min-w-14 items-center justify-center rounded-lg border border-border bg-secondary px-4 text-lg font-semibold hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+      >
+        Storage queue
+      </Link>
+    </div>
+  );
+}
 
 export default async function StationsPage() {
   const { supabase, claims } = await requireStaff();
@@ -59,12 +80,12 @@ export default async function StationsPage() {
           <h2 className="text-2xl font-semibold">{group.name}</h2>
           <div className={grid}>
             {group.devices.map((device) => (
-              <Link key={device.id} href={STATION_ROUTES[device.station].href} className={tile}>
+              <StationTile key={device.id} kind={device.station}>
                 <span>{device.name}</span>
                 <span className="text-base font-normal text-muted-foreground">
                   {STATION_ROUTES[device.station].label}
                 </span>
-              </Link>
+              </StationTile>
             ))}
           </div>
         </section>
@@ -80,17 +101,11 @@ export default async function StationsPage() {
         </p>
         <div className={grid}>
           {Constants.public.Enums.device_station.map((kind) => (
-            <Link key={kind} href={STATION_ROUTES[kind].href} className={tile}>
+            <StationTile key={kind} kind={kind}>
               {STATION_ROUTES[kind].label}
-            </Link>
+            </StationTile>
           ))}
         </div>
-        <Link
-          href="/storage/queue"
-          className="inline-flex min-h-14 min-w-14 items-center self-start px-4 text-lg underline"
-        >
-          Storage queue
-        </Link>
       </section>
     </main>
   );

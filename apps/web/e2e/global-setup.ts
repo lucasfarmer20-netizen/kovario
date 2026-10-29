@@ -32,7 +32,7 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
     await page.getByLabel("Email").fill(OWNER_EMAIL);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await page.waitForURL("**/admin", { timeout: 120_000 }); // next dev compiles on first hit
+    await page.waitForURL("**/stations", { timeout: 120_000 }); // next dev compiles on first hit
     await page.context().storageState({ path: STORAGE_STATE });
   } finally {
     await browser.close();
