@@ -8,7 +8,7 @@ it("station-routes-complete", () => {
   );
   expect(Object.values(STATION_ROUTES).map((station) => station.href)).toEqual([
     "/intake",
-    "/storage/queue",
+    "/storage",
     "/wave",
     "/rollstock",
     "/reconcile",

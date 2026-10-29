@@ -31,6 +31,10 @@ it("fresh org exposes every station and device setup guidance", async () => {
   }
   expect(html.match(/min-h-28/g)).toHaveLength(11);
   expect(html).not.toContain("No site");
+  expect(html).toMatch(/href="\/storage"[^>]*>Cold storage<\/a>/);
+  expect(html).toMatch(
+    /<a(?=[^>]*href="\/storage\/queue")(?=[^>]*min-h-14)[^>]*>Storage queue<\/a>/,
+  );
 });
 
 it("groups configured devices by site and requests active devices only", async () => {

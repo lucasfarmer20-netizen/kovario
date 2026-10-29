@@ -85,6 +85,12 @@ export default async function StationsPage() {
             </Link>
           ))}
         </div>
+        <Link
+          href="/storage/queue"
+          className="inline-flex min-h-14 min-w-14 items-center self-start px-4 text-lg underline"
+        >
+          Storage queue
+        </Link>
       </section>
     </main>
   );

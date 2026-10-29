@@ -4,7 +4,7 @@ export type StationKind = Database["public"]["Enums"]["device_station"];
 
 export const STATION_ROUTES = {
   intake: { href: "/intake", label: "Intake" },
-  storage: { href: "/storage/queue", label: "Cold storage" },
+  storage: { href: "/storage", label: "Cold storage" },
   wave: { href: "/wave", label: "Wave" },
   rollstock: { href: "/rollstock", label: "Rollstock" },
   reconcile: { href: "/reconcile", label: "Reconcile" },
