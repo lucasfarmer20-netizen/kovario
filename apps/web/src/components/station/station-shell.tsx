@@ -1,6 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
 import type { ParseResult } from "rules";
+import { StationsLink } from "./stations-link";
 import { ScanInput } from "./scan-input";
 export function StationShell({
   name,
@@ -29,6 +30,7 @@ export function StationShell({
           <h1>{name}</h1>
         </div>
         <div className="station-chips">
+          <StationsLink />
           <span className="station-badge">{operator ?? "Identify operator"}</span>
           <span className="station-badge" role="status">
             {pending} pending

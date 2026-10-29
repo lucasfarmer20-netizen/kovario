@@ -1,4 +1,5 @@
 "use client";
+import { StationsLink } from "@/src/components/station/stations-link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { addressLine, walkinParcel, type Address, type Parcel } from "shipping";
@@ -49,6 +50,7 @@ function Shell({
           <h1>Shipping</h1>
         </div>
         <nav className="station-actions" aria-label="Shipping">
+          <StationsLink />
           {tab("queue", "Queue")}
           {tab("walkin", "Walk-in")}
           {tab("ratecheck", "Rate Check")}
