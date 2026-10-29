@@ -2387,6 +2387,9 @@ isOneToOne: false
 "blast_vessel":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed"?: Json,"p_raw": string }; Returns: Json
                            },
+"blast_vessel_by_id":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_vessel_id": string }; Returns: Json
+                           },
 "boxing_scan":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_raw": string,"p_session_id"?: string }; Returns: Json
                            },
@@ -2495,6 +2498,9 @@ isOneToOne: false
                            },
 "locate_scan":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed"?: Json,"p_pending_vessel_id"?: string,"p_pending_vessel_raw"?: string,"p_raw": string }; Returns: Json
+                           },
+"locate_vessel_by_id":
+{ Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_vessel_id": string }; Returns: Json
                            },
 "mark_shipment_shipped":
 { Args: { "p_client_action_id": string,"p_shipment_id": string }; Returns: Json
