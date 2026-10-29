@@ -9,6 +9,7 @@ import type { ScanReply } from "@/src/components/station/scan-queue";
 export type FreezerReply = ScanReply & {
   vessel_id?: string | null;
   tag_code?: string | null;
+  is_exchange?: boolean | null;
   intake_number?: string | null;
   species?: string | null;
   location_code?: string | null;

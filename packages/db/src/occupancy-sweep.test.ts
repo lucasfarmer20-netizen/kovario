@@ -50,6 +50,21 @@ const ALLOWLIST: Allowed[] = [
     line: "is_exchange and asset_tag_id is null and lifecycle_state='occupied'",
     why: "test: an untagged exchange basket is still occupied",
   },
+  {
+    file: "supabase/migrations/20261029010000_exchange_vessel_freezers.sql",
+    line: "if v.asset_tag_id is not null then",
+    why: "identity (#86): a tagged vessel is scanned, never taken by id; occupancy is the lifecycle_state check below",
+  },
+  {
+    file: "supabase/migrations/20261029010000_exchange_vessel_freezers.sql",
+    line: "if v.id is null or v.asset_tag_id is not null then",
+    why: "identity (#86): a by-id locate selection must be tagless; the row was read with lifecycle_state='occupied'",
+  },
+  {
+    file: "apps/web/components/freezer/locate-station.tsx",
+    line: '.is("asset_tag_id", null)',
+    why: "identity (#86): lists tagless baskets for tap selection; occupancy is the lifecycle_state filter",
+  },
 ];
 
 function* sources(dir: string): Generator<string> {

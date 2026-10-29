@@ -63,13 +63,18 @@ export function useScanAction(scope: string, send: (request: ScanRequest) => Pro
     }
     try {
       await instance.enqueue(request);
-      // A typed tag or location may be its bare short code, which only parseManual reads.
-      const parsed =
-        request.entry_method === "manual" ? parseManual(request.raw) : parse(request.raw);
-      show({
-        ok: parsed.ok,
-        reason: parsed.ok ? "Read locally — pending confirmation" : parsed.reason,
-      });
+      if (request.vessel_id) {
+        // A tap names a listed vessel: nothing to parse locally.
+        show({ ok: true, reason: "Sent — pending confirmation" });
+      } else {
+        // A typed tag or location may be its bare short code, which only parseManual reads.
+        const parsed =
+          request.entry_method === "manual" ? parseManual(request.raw) : parse(request.raw);
+        show({
+          ok: parsed.ok,
+          reason: parsed.ok ? "Read locally — pending confirmation" : parsed.reason,
+        });
+      }
       await instance.drain(navigator.onLine);
     } catch {
       show({ ok: false, reason: "Scan could not be saved. Scan again." });
