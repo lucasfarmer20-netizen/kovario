@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encode, parse } from "rules";
+import { encode, parse, parseManual } from "rules";
 import {
   assetTagSheet,
   boxLabel,
@@ -14,6 +14,11 @@ import {
   toteTag,
 } from "./index";
 const qrTexts = (s: string) => [...s.matchAll(/\^FDLA,([^^]+)\^FS/g)].map((m) => m[1]!);
+/** Decoded human-readable text fields (`^FH_^FD<_hex bytes>^FS`). */
+const printedTexts = (s: string) =>
+  [...s.matchAll(/\^FH_\^FD((?:_[0-9a-f]{2})*)\^FS/g)].map((m) =>
+    new TextDecoder().decode(Uint8Array.from(m[1]!.slice(1).split("_"), (b) => parseInt(b, 16))),
+  );
 const tote = {
   intakeNumber: "INT-0001",
   toteNo: 2,
@@ -78,10 +83,25 @@ describe("QR label round trips (CSP §1)", () => {
       );
       expect(output).toMatchSnapshot();
     });
+  // Issue #84: a person can read the code beside every QR and type it when the scanner dies.
+  for (const [name, render] of cases.filter(([name]) => name !== "box"))
+    it(`${name}: prints the short code, which types back to the label's QR text`, () => {
+      const output = render();
+      const printed = printedTexts(output).map((t) => t.replace(/^[FR] {2}/, ""));
+      for (const qrText of qrTexts(output)) {
+        const short = printed.find((t) => {
+          const typed = parseManual(t, { orgSlug: "demo-plant" });
+          return typed.ok && typed.text === qrText;
+        });
+        expect(short, `${name}: no printed short code for ${qrText}`).toBeDefined();
+      }
+    });
   it("asset tag sheet prints at the org's tag width (#85)", () => {
     const output = assetTagSheet({ orgSlug: "demo-plant", codes: ["42", "0999"], tagDigits: 4 });
     expect(qrTexts(output)).toEqual(["FL:TAG:demo-plant:0042", "FL:TAG:demo-plant:0999"]);
     expect(output).toContain("^FD0042^FS");
+    // The typeable short code beside the QR (#84) is at the same width.
+    expect(printedTexts(output)).toContain("0042");
     expect(() => assetTagSheet({ orgSlug: "demo-plant", codes: ["12345"], tagDigits: 4 })).toThrow(
       RangeError,
     );

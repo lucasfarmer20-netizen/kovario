@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createStore, get, set } from "idb-keyval";
-import { parse } from "rules";
+import { parse, parseManual } from "rules";
 import { ScanQueue, type PendingScan, type ScanReply, type ScanRequest } from "./scan-queue";
 
 export function useScanAction(scope: string, send: (request: ScanRequest) => Promise<ScanReply>) {
@@ -63,7 +63,9 @@ export function useScanAction(scope: string, send: (request: ScanRequest) => Pro
     }
     try {
       await instance.enqueue(request);
-      const parsed = parse(request.raw);
+      // A typed tag or location may be its bare short code, which only parseManual reads.
+      const parsed =
+        request.entry_method === "manual" ? parseManual(request.raw) : parse(request.raw);
       show({
         ok: parsed.ok,
         reason: parsed.ok ? "Read locally — pending confirmation" : parsed.reason,

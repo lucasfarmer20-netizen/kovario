@@ -9,6 +9,7 @@ import { OperatorPinOverlay } from "@/src/components/station/pin-overlay";
 import { useOperatorIdle } from "@/src/components/station/use-operator-idle";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
+import { useManualOptions, withEntryMethod } from "@/src/components/station/manual-entry";
 import type { ScanRequest, ScanReply } from "@/src/components/station/scan-queue";
 type Intake = Database["public"]["Tables"]["intake"]["Row"] & {
   intake_line: { species_code: string; est_yield_lb: number | null }[];
@@ -165,14 +166,17 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
               ? "Not a tag or tote"
               : null;
       if (rejection) {
-        const { data, error } = await client.rpc("station_scan", {
-          p_client_action_id: request.client_action_id,
-          p_station: "reconcile",
-          p_raw: request.raw,
-          p_parsed: parsed.ok ? parsed.value : null,
-          p_reason: rejection,
-          p_operator_session: request.operator_session ?? undefined,
-        });
+        const { data, error } = await withEntryMethod(
+          client.rpc("station_scan", {
+            p_client_action_id: request.client_action_id,
+            p_station: "reconcile",
+            p_raw: request.raw,
+            p_parsed: parsed.ok ? parsed.value : null,
+            p_reason: rejection,
+            p_operator_session: request.operator_session ?? undefined,
+          }),
+          request.entry_method,
+        );
         if (error) {
           const permanent = permanentScanFailure(error);
           if (permanent) return permanent;
@@ -182,19 +186,22 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
         if (reply.reason === "operator_pin_required") expire();
         return reply;
       }
-      const { data, error } = await client.rpc("reconcile_action", {
-        p_client_action_id: request.client_action_id,
-        p_intake_id: current ?? undefined,
-        p_operation: tagAllowed
-          ? "bind"
-          : parsed.ok && parsed.value.kind === "TOTE"
-            ? "open"
-            : "reject",
-        p_code: tagAllowed ? tag.code : undefined,
-        p_raw: request.raw,
-        p_parsed: parsed.ok ? parsed.value : null,
-        p_operator_session: request.operator_session ?? undefined,
-      });
+      const { data, error } = await withEntryMethod(
+        client.rpc("reconcile_action", {
+          p_client_action_id: request.client_action_id,
+          p_intake_id: current ?? undefined,
+          p_operation: tagAllowed
+            ? "bind"
+            : parsed.ok && parsed.value.kind === "TOTE"
+              ? "open"
+              : "reject",
+          p_code: tagAllowed ? tag.code : undefined,
+          p_raw: request.raw,
+          p_parsed: parsed.ok ? parsed.value : null,
+          p_operator_session: request.operator_session ?? undefined,
+        }),
+        request.entry_method,
+      );
       if (error) {
         const permanent = permanentScanFailure(error);
         if (permanent) return permanent;
@@ -212,6 +219,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
     [client, claims.orgId, scope, remember, expire, refresh],
   );
   const { scan, pending, feedback } = useScanAction(scope, send);
+  const manual = useManualOptions(client, claims.orgId);
   const allowed = () => {
     if (claims.appRole === "station" && (!operator || idle.check())) {
       setPinOpen(true);
@@ -279,13 +287,15 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
           <p role="status">{message}</p>
         </>
       }
-      onScan={(raw) => {
+      manual={{ ...manual, accept: ["TOTE", "TAG"] }}
+      onScan={(raw, _parsed, method) => {
         if (!manualOpen && allowed())
           void scan({
             raw,
             station: "reconcile",
             client_action_id: crypto.randomUUID(),
             operator_session: proof,
+            entry_method: method,
           });
       }}
     >
@@ -325,7 +335,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
                     }}
                   >
                     {v.is_exchange ? "Exchange" : v.asset_tag?.code} · {v.weight_lb} lb{" "}
-                    {v.manual && "(manual)"}
+                    {v.manual && <span className="station-badge">MANUAL WEIGHT</span>}
                   </button>
                 </div>
               ))}
@@ -352,6 +362,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
                     <input
                       autoFocus
                       type="number"
+                      inputMode="decimal"
                       min="0.01"
                       step="0.01"
                       value={weight}

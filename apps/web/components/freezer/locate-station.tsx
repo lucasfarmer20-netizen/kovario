@@ -5,6 +5,7 @@ import { StationShell } from "@/src/components/station/station-shell";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
+import { useManualOptions, withEntryMethod } from "@/src/components/station/manual-entry";
 import type { ScanReply, ScanRequest } from "@/src/components/station/scan-queue";
 import { freezerReply, useFreezerOperator, type FreezerReply } from "./use-freezer-operator";
 
@@ -91,13 +92,16 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
       // ScanQueue holds scan-delivery:<scope> across this call, so the pending vessel read
       // here is the one left by the previously delivered scan, even from another tab.
       const current = readPending(scope);
-      const { data, error } = await client.rpc("locate_scan", {
-        p_client_action_id: request.client_action_id,
-        p_raw: request.raw,
-        p_pending_vessel_raw: current?.raw ?? undefined,
-        p_pending_vessel_id: current?.id ?? undefined,
-        p_operator_session: request.operator_session ?? undefined,
-      });
+      const { data, error } = await withEntryMethod(
+        client.rpc("locate_scan", {
+          p_client_action_id: request.client_action_id,
+          p_raw: request.raw,
+          p_pending_vessel_raw: current?.raw ?? undefined,
+          p_pending_vessel_id: current?.id ?? undefined,
+          p_operator_session: request.operator_session ?? undefined,
+        }),
+        request.entry_method,
+      );
       if (error) {
         const rejection = permanentScanFailure(error);
         if (rejection) return rejection;
@@ -111,6 +115,7 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
     [client, expire, remember, scope],
   );
   const { scan, pending, feedback } = useScanAction(scope, send);
+  const manual = useManualOptions(client, claims.orgId);
   const cancel = async () => {
     await navigator.locks.request(`scan-delivery:${scope}`, () => remember(null));
   };
@@ -122,13 +127,15 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
       pending={pending}
       paused={op.pinOpen}
       status={<ScanFeedback feedback={feedback} />}
-      onScan={(raw) => {
+      manual={{ ...manual, accept: ["TAG", "LOC"] }}
+      onScan={(raw, _parsed, method) => {
         if (op.allowed())
           void scan({
             raw,
             station: "locate",
             client_action_id: crypto.randomUUID(),
             operator_session: op.proof,
+            entry_method: method,
           });
       }}
     >

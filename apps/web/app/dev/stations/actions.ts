@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { filletryClaims, withAction, type Database, type Json } from "db";
 import { parse } from "rules";
 import { supabaseEnv } from "@/lib/supabase/env";
+import { withEntryMethod } from "@/src/components/station/entry-method";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
 import type { ScanRequest, ScanReply } from "@/src/components/station/scan-queue";
 
@@ -24,14 +25,17 @@ export async function demoScan(request: ScanRequest, accessToken: string): Promi
     }
     const parsed = parse(request.raw);
     const result = await withAction(client, request.client_action_id, async (id) => {
-      const { data: reply, error: rpcError } = await client.rpc("station_scan", {
-        p_client_action_id: id,
-        p_raw: request.raw,
-        p_station: request.station,
-        p_parsed: parsed.ok ? (parsed.value as unknown as Json) : null,
-        p_reason: parsed.ok ? undefined : parsed.reason,
-        p_operator_session: request.operator_session ?? undefined,
-      });
+      const { data: reply, error: rpcError } = await withEntryMethod(
+        client.rpc("station_scan", {
+          p_client_action_id: id,
+          p_raw: request.raw,
+          p_station: request.station,
+          p_parsed: parsed.ok ? (parsed.value as unknown as Json) : null,
+          p_reason: parsed.ok ? undefined : parsed.reason,
+          p_operator_session: request.operator_session ?? undefined,
+        }),
+        request.entry_method === "manual" ? "manual" : undefined,
+      );
       if (rpcError) {
         const rejection = permanentScanFailure(rpcError);
         if (rejection) return rejection;

@@ -2,13 +2,22 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { FilletryClient } from "db";
+import type { ScanRequest } from "@/src/components/station/scan-queue";
 import { WaveStation } from "./wave-station";
-const mocks = vi.hoisted(() => ({ session: null as unknown, scan: vi.fn(), pending: 0 }));
+const mocks = vi.hoisted(() => ({
+  session: null as unknown,
+  scan: vi.fn(),
+  pending: 0,
+  send: null as null | ((request: ScanRequest) => Promise<unknown>),
+}));
 vi.mock("@/components/intake/use-station-session", () => ({
   useStationSession: () => ({ session: mocks.session, loaded: true }),
 }));
 vi.mock("@/src/components/station/use-scan-action", () => ({
-  useScanAction: () => ({ scan: mocks.scan, pending: mocks.pending, feedback: null }),
+  useScanAction: (_scope: string, send: (request: ScanRequest) => Promise<unknown>) => {
+    mocks.send = send;
+    return { scan: mocks.scan, pending: mocks.pending, feedback: null };
+  },
 }));
 vi.mock("@/src/components/station/scan-feedback", () => ({ ScanFeedback: () => null }));
 afterEach(() => {
@@ -209,3 +218,52 @@ it.each(["draft", "verifying"])(
     );
   },
 );
+
+it("#84 Type code: a typed tote short code takes the scan path, flagged manual", async () => {
+  const { rpc } = setup();
+  render(<WaveStation />);
+  fireEvent.click(await screen.findByRole("button", { name: /WAVE-0001/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Type code" }));
+  const field = screen.getByLabelText(/Type the code/);
+  fireEvent.change(field, { target: { value: "int-0003 1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  await waitFor(() =>
+    expect(mocks.scan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wave_id: "w1",
+        raw: "FL:TOTE:INT-0003:1",
+        station: "wave",
+        entry_method: "manual",
+      }),
+    ),
+  );
+  // Delivery: the same scan_wave_tote RPC, with the entry-method header for scan_log.
+  const setHeader = vi.fn();
+  const reply = {
+    data: { ok: false, reason: "Unknown tote: scan a numbered tote label" },
+    error: null,
+  };
+  rpc.mockImplementationOnce(() => {
+    const builder = Object.assign(Promise.resolve(reply), { setHeader });
+    setHeader.mockReturnValue(builder);
+    return builder as never;
+  });
+  await expect(
+    mocks.send!({
+      raw: "FL:TOTE:INT-9999:1",
+      station: "wave",
+      wave_id: "w1",
+      client_action_id: "typed-1",
+      operator_session: null,
+      entry_method: "manual",
+    }),
+  ).resolves.toEqual(reply.data);
+  expect(rpc).toHaveBeenCalledWith(
+    "scan_wave_tote",
+    expect.objectContaining({ p_raw: "FL:TOTE:INT-9999:1", p_client_action_id: "typed-1" }),
+  );
+  expect(setHeader).toHaveBeenCalledWith("x-filletry-entry-method", "manual");
+  // Closing returns to the hidden scanner.
+  fireEvent.click(screen.getByRole("button", { name: /Close/ }));
+  expect(document.activeElement).toBe(screen.getByLabelText("Station scanner"));
+});

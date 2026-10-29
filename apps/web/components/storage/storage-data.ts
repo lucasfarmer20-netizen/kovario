@@ -2,6 +2,8 @@
 import { withAction, type Database, type FilletryClient, type Json } from "db";
 import { renderStorageLabels, type LabelData } from "./storage-labels";
 import type { ConfirmPayload } from "./storage-state";
+import type { ParseResult } from "rules";
+import { withEntryMethod, type EntryMethod } from "@/src/components/station/entry-method";
 
 // Station-side calls for cold storage. Every mutation is one SQL function keyed by a
 // client_action_id (withAction), so a retried request replays instead of writing twice.
@@ -222,4 +224,33 @@ export async function listStorageIntakes(client: FilletryClient, state: StorageS
     days: days.get(r.id) ?? null,
     pending_batches: r.storage_pickup_batch.filter((b) => b.state === "pending").length,
   }));
+}
+
+export type BoxScanReply = { ok: boolean; reason: string; box_id: string | null };
+
+/**
+ * A box code typed (or scanned) into the pickup wizard, checked against the storage master
+ * and logged in scan_log (issue #84). `parsed` is what rules/qr.ts read from the text; the
+ * raw text is logged as entered. Typed codes carry the entry-method header.
+ */
+export async function scanStorageBox(
+  client: FilletryClient,
+  storageIntakeId: string,
+  raw: string,
+  parsed: ParseResult,
+  method: EntryMethod,
+): Promise<BoxScanReply> {
+  const box = parsed.ok && parsed.value.kind === "SBOX" ? parsed.value : null;
+  return act<BoxScanReply>(client, crypto.randomUUID(), (id) =>
+    withEntryMethod(
+      client.rpc("storage_box_scan", {
+        p_client_action_id: id,
+        p_raw: raw,
+        p_storage_intake_id: storageIntakeId,
+        p_storage_number: box?.storageNumber,
+        p_box_no: box?.boxNo,
+      }),
+      method,
+    ),
+  );
 }
