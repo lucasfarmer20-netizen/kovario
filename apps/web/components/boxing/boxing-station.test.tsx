@@ -254,6 +254,24 @@ it("WP15 Complete sends box ticks and tote ticks as independent facts (I1)", asy
   );
 });
 
+it("#86 an exchange basket (no tag to scan) is confirmed by tap and released on Complete", async () => {
+  const { rpc } = setup();
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  const tick = screen.getByLabelText("Tick Exchange basket (INT-0001)") as HTMLInputElement;
+  fireEvent.click(tick);
+  expect(tick.checked).toBe(true);
+  fireEvent.click(screen.getByText("Complete"));
+  await waitFor(() =>
+    expect(rpc).toHaveBeenCalledWith(
+      "release_party",
+      expect.objectContaining({
+        p_box_ticks: ["b1"],
+        p_vessel_ticks: [{ vessel_id: "vx", lbs_left: null, ticked: true, measure: 12 }],
+      }),
+    ),
+  );
+});
+
 it("WP15 I7 Complete with nothing ticked warns and never calls the server", async () => {
   const { rpc } = setup();
   fireEvent.click(await screen.findByText("Complete"));

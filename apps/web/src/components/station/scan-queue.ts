@@ -7,6 +7,8 @@ export type ScanRequest = {
   operator_session: string | null;
   /** "manual" for a typed code: same RPC, sent with the entry-method header (issue #84). */
   entry_method?: "scan" | "manual";
+  /** A tapped untagged (exchange) vessel (issue #86): `raw` is empty; the station routes by id. */
+  vessel_id?: string;
 };
 export type ScanReply = { ok: boolean; reason: string; scan_id?: string };
 export type PendingScan = { request: ScanRequest; attempts: number; nextAt: number };

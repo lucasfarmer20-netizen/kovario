@@ -64,10 +64,19 @@ exchange-vessel row type (no tag), **Send to Blast Freezer** when complete.
 
 ## Blast (scan only)
 Scan vessel tag → `blast_in_at`; list shows vessels in blast with time-in.
+**Released, waiting for blast-in** (v1.1, #86): occupied vessels of intakes sent to blast
+(`blast_freezer`, or already `stored` by a sibling vessel) with no `blast_in_at`, oldest release
+(`intake.blast_at`) first, showing tag (or "Exchange"), intake number and weight. Tagged vessels
+are blasted in by scan; an exchange (untagged) vessel has a **Blast in** button (≥ 56 px) that
+calls `blast_vessel_by_id` (same operator proof, locking, `action_log`, `scan_log`). A tagged
+vessel is never accepted by id. "Blast freezer empty" shows only when both lists are empty.
 
 ## Locate (scan only)
 Two-step loop: scan vessel tag (shows intake, species) → scan location → placement
 written; both reset. Reject archived/unknown locations. No capacity hints.
+Exchange (untagged) baskets awaiting a shelf (occupied, unlocated, intake sent to blast) are
+listed under step 1; tapping one (`locate_vessel_by_id`) makes it the pending vessel, keyed by
+id, and the location is then scanned or typed through `locate_scan` as usual (v1.1, #86).
 
 ## Counter allocation (tablet)
 Create session from one or more intakes (customer search / scan boxing QR) → anglers
@@ -78,7 +87,8 @@ hand off to register.
 ## Boxing / will-call (scan + ticks)
 Open by scanning a boxing QR or from the queue. Shows this party's `planned` boxes with
 tick boxes, and `occupied` vessels (tag, species, lb, location sorted by walk path)
-with tick + "Lbs left" input; notes panel (DIRTY, cut/processing notes, RIBBING,
+with tick + "Lbs left" input (an exchange basket has no tag to scan: it is ticked by tap);
+notes panel (DIRTY, cut/processing notes, RIBBING,
 SMOKING SPLIT links). **Complete** runs the release function. Pick list printable.
 Manager: Release-by-Tag.
 
