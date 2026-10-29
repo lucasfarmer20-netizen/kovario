@@ -2,6 +2,7 @@
 import { useState, type ReactNode } from "react";
 import type { ManualOptions, ParseResult } from "rules";
 import { ManualEntry, type EntryMethod } from "./manual-entry";
+import { StationsLink } from "./stations-link";
 import { ScanInput } from "./scan-input";
 export function StationShell({
   name,
@@ -35,6 +36,7 @@ export function StationShell({
           <h1>{name}</h1>
         </div>
         <div className="station-chips">
+          <StationsLink />
           <span className="station-badge">{operator ?? "Identify operator"}</span>
           <span className="station-badge" role="status">
             {pending} pending

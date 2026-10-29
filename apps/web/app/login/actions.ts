@@ -17,7 +17,7 @@ export async function signIn(_state: LoginState, formData: FormData): Promise<Lo
   const supabase = await createSupabaseServer();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: "Email or password is incorrect." };
-  redirect("/admin");
+  redirect("/stations");
 }
 
 export async function signOut(): Promise<void> {
