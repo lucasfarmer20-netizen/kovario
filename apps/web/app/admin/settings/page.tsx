@@ -1,11 +1,17 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import { MAX_TAG_DIGITS, maxTagNumber } from "rules";
 import { ActionForm } from "@/components/admin/action-form";
 import { TimezoneSelect } from "@/components/admin/timezone-select";
-import { Input, Label } from "@/components/ui/form";
+import { Input, Label, Select } from "@/components/ui/form";
 import { adminPageSession } from "@/lib/auth";
 import { formatCarrierAllowlist, type OrgSettings } from "@/lib/org-settings";
 import { saveOrgSettings } from "./actions";
+
+/** The current width and every wider one: tag_digits is raise-only (admin_update_org). */
+function tagDigitOptions(current: number): number[] {
+  return Array.from({ length: MAX_TAG_DIGITS - current + 1 }, (_, i) => current + i);
+}
 
 export default async function SettingsPage() {
   const session = await adminPageSession();
@@ -101,9 +107,18 @@ export default async function SettingsPage() {
             />
           </Label>
           <Label>
-            Asset tag digits
-            <Input value={s.scanner.tag_digits} readOnly aria-readonly className="bg-muted" />
-            <input type="hidden" name="tag_digits" value={s.scanner.tag_digits} />
+            Asset tag digits (raise only)
+            <Select name="tag_digits" defaultValue={s.scanner.tag_digits}>
+              {tagDigitOptions(s.scanner.tag_digits).map((d) => (
+                <option key={d} value={d}>
+                  {d} digits (0–{maxTagNumber(d)})
+                </option>
+              ))}
+            </Select>
+            <span className="text-xs text-muted-foreground">
+              Raising re-pads every tag (042 → 0042); labels already printed keep scanning. It
+              cannot be lowered.
+            </span>
           </Label>
         </fieldset>
 

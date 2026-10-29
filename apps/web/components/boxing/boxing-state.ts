@@ -1,4 +1,4 @@
-import { normalizeTagCode, parse, releaseLineIssue, type BoxPlanMethod } from "rules";
+import { parse, releaseLineIssue, sameTagCode, type BoxPlanMethod } from "rules";
 
 // Boxing / will-call screen state (docs/06-STATIONS-UX.md Boxing, docs/10-LESSONS-FROM-CSP.md
 // §2). Box ticks and tote ticks are two independent facts the crew reports (I1): nothing here
@@ -219,12 +219,13 @@ export function scanTick(wizard: Wizard, ticks: Ticks, raw: string): ScanOutcome
   if (parsed.value.kind === "BOX") return { kind: "box", token: parsed.value.token };
   if (parsed.value.kind !== "TAG")
     return { kind: "rejected", message: "Scan a basket tag or a boxing QR" };
-  const code = normalizeTagCode(parsed.value.code);
-  const v = wizard.vessels.find((x) => x.tag_code !== null && x.tag_code === code);
+  // Any padding: a label printed before the org raised tag_digits names the same tag.
+  const { code } = parsed.value;
+  const v = wizard.vessels.find((x) => x.tag_code !== null && sameTagCode(x.tag_code, code));
   if (!v)
     return {
       kind: "rejected",
-      message: `Tag ${code ?? parsed.value.code} is not on ${wizard.number}'s pick list`,
+      message: `Tag ${code} is not on ${wizard.number}'s pick list`,
     };
   if (ticks.vessels[v.vessel_id]?.ticked)
     return { kind: "ticked", ticks, message: `${vesselLabel(v)} already ticked` };

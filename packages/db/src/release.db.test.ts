@@ -9,6 +9,8 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   encode,
+  NEW_ORG_TAG_DIGITS,
+  normalizeTagCode,
   releaseLineIssue,
   shipmentBuyGate,
   vesselReleaseAction,
@@ -110,11 +112,16 @@ async function party(n: number, pooled = true): Promise<Party> {
     const vessels: string[] = [];
     const tags: string[] = [];
     for (let i = 1; i <= n; i++) {
-      const code = String(k * 10 + i).padStart(3, "0");
+      // createOrg takes the org.settings default width.
+      const code = normalizeTagCode(String(k * 10 + i), NEW_ORG_TAG_DIGITS)!;
       const tag = await insertId(
         c,
         "insert into public.asset_tag (org_id, code, qr) values ($1, $2, $3) returning id",
-        [org.id, code, encode("TAG", { orgSlug: org.slug, code })],
+        [
+          org.id,
+          code,
+          encode("TAG", { orgSlug: org.slug, code }, { tagDigits: NEW_ORG_TAG_DIGITS }),
+        ],
       );
       const vessel = await insertId(
         c,

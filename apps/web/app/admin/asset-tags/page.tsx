@@ -1,25 +1,34 @@
 import { randomUUID } from "node:crypto";
+import { maxTagNumber } from "rules";
 import { adminPageSession } from "@/lib/auth";
 import { ActionForm } from "@/components/admin/action-form";
+import type { OrgSettings } from "@/lib/org-settings";
 import { manageTags, printTags } from "./actions";
 export default async function AssetTagsPage() {
   const session = await adminPageSession();
   if (!session) return null;
-  const [tags, printers] = await Promise.all([
+  const [tags, printers, org] = await Promise.all([
     session.supabase.from("asset_tag").select("*").order("code"),
     session.supabase.from("printer").select("id,name").eq("kind", "label_zpl"),
+    session.supabase.from("org").select("settings").maybeSingle(),
   ]);
+  const digits = (org.data?.settings as OrgSettings | undefined)?.scanner.tag_digits;
+  if (!digits) return <p role="alert">Unable to load the organisation</p>;
+  const max = maxTagNumber(digits);
   return (
     <div className="space-y-6">
       <h1>Asset tag pool</h1>
+      <p>
+        {digits}-digit tags (0–{max}). Raise the width in Settings → Asset tag digits.
+      </p>
       <ActionForm action={manageTags} actionId={randomUUID()} submitLabel="Create range">
         <label>
           First
-          <input name="first" type="number" min="0" max="999" required />
+          <input name="first" type="number" min="0" max={max} required />
         </label>
         <label>
           Last
-          <input name="last" type="number" min="0" max="999" required />
+          <input name="last" type="number" min="0" max={max} required />
         </label>
       </ActionForm>
       <ActionForm action={printTags} actionId={randomUUID()} submitLabel="Print active tag sheet">

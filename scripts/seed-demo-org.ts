@@ -9,7 +9,7 @@
 import { createHash } from "node:crypto";
 import { execSync } from "node:child_process";
 import { join } from "node:path";
-import { encode } from "../packages/rules/src/qr.ts";
+import { encode, normalizeTagCode } from "../packages/rules/src/qr.ts";
 import { referenceSeed } from "../packages/rules/src/reference-seed.ts";
 import { SEED } from "../packages/rules/src/seed.ts";
 
@@ -155,16 +155,24 @@ await insertMissing(
   })),
 );
 
-// 3. Asset tags 001–020 and freezer locations (one built rack + a pallet) ------------------
+// 3. Asset tags 1–20 and freezer locations (one built rack + a pallet) --------------------
+// Codes at the org's width (4 digits for a new org: 0001); fixtures below name tags by their
+// 3-digit key ("001"), which also keeps the row ids stable.
+const [demoOrg] = (await rest(`org?id=eq.${ORG_ID}&select=settings`)) as {
+  settings: { scanner: { tag_digits: number } };
+}[];
+if (!demoOrg) throw new Error("demo-plant org missing");
+const tagDigits = demoOrg.settings.scanner.tag_digits;
 await insertMissing(
   "asset_tag",
   Array.from({ length: 20 }, (_, i) => {
-    const code = String(i + 1).padStart(3, "0");
+    const key = String(i + 1).padStart(3, "0");
+    const code = normalizeTagCode(key, tagDigits)!;
     return {
-      id: id(`tag:${code}`),
+      id: id(`tag:${key}`),
       org_id: ORG_ID,
       code,
-      qr: encode("TAG", { orgSlug: ORG_SLUG, code }),
+      qr: encode("TAG", { orgSlug: ORG_SLUG, code }, { tagDigits }),
     };
   }),
   "org_id,code",

@@ -1,4 +1,4 @@
-import { encode, normalizeTagCode } from "rules";
+import { encode, normalizeTagCode, TAG_DIGITS } from "rules";
 
 // 4 x 6 inches at the Zebra default 203 dpi. All field bytes are escaped: customer
 // text cannot inject ^XZ, ~JA or a second printer command. TextEncoder (not Buffer) so
@@ -83,15 +83,19 @@ export function locationTagSheet(v: { orgSlug: string; codes: string[] }): strin
   }
   return labels.join("\n");
 }
-export function assetTagSheet(v: { orgSlug: string; codes: string[] }): string {
+/** One label per tag at the org's width (`scanner.tag_digits`, default 3). */
+export function assetTagSheet(v: { orgSlug: string; codes: string[]; tagDigits?: number }): string {
+  const digits = v.tagDigits ?? TAG_DIGITS;
   return v.codes
     .map((raw) => {
-      const code = normalizeTagCode(raw);
-      if (!code || code.length !== 3) throw new RangeError("Asset codes must fit three digits");
+      const code = normalizeTagCode(raw, digits);
+      if (!code || code.length !== digits) {
+        throw new RangeError(`Asset codes must fit ${digits} digits`);
+      }
       return label(
         text(25, 25, code, 200),
         `^FO25,280^BCN,120,Y,N,N^FD${code}^FS`,
-        qr(25, 520, encode("TAG", { orgSlug: v.orgSlug, code })),
+        qr(25, 520, encode("TAG", { orgSlug: v.orgSlug, code }, { tagDigits: digits })),
       );
     })
     .join("\n");

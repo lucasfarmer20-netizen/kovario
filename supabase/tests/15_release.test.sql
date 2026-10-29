@@ -12,6 +12,8 @@ select no_plan();
 insert into public.org (id, slug, name, timezone) values
   ('a1500000-0000-4000-8000-00000000000a', 'rel-a', 'Release A', 'UTC'),
   ('b1500000-0000-4000-8000-00000000000b', 'rel-b', 'Release B', 'UTC');
+-- An org from before v1.1 (#85): 3-digit asset tags; new orgs default to 4.
+update public.org set settings = jsonb_set(settings, '{scanner,tag_digits}', '3') where id in ('a1500000-0000-4000-8000-00000000000a', 'b1500000-0000-4000-8000-00000000000b');
 insert into public.site (id, org_id, name, is_default) values
   ('a1500000-0000-4000-8000-0000000000a5', 'a1500000-0000-4000-8000-00000000000a', 'Dock', true);
 insert into public.customer (id, org_id, name, phone) values

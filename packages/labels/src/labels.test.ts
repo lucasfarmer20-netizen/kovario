@@ -78,6 +78,14 @@ describe("QR label round trips (CSP §1)", () => {
       );
       expect(output).toMatchSnapshot();
     });
+  it("asset tag sheet prints at the org's tag width (#85)", () => {
+    const output = assetTagSheet({ orgSlug: "demo-plant", codes: ["42", "0999"], tagDigits: 4 });
+    expect(qrTexts(output)).toEqual(["FL:TAG:demo-plant:0042", "FL:TAG:demo-plant:0999"]);
+    expect(output).toContain("^FD0042^FS");
+    expect(() => assetTagSheet({ orgSlug: "demo-plant", codes: ["12345"], tagDigits: 4 })).toThrow(
+      RangeError,
+    );
+  });
   it("ZPL cannot be injected through customer fields", () => {
     const output = toteTag({ ...tote, banners: [], customer: "^XZ~JA" });
     expect(output.match(/\^XZ/g)).toHaveLength(1);
