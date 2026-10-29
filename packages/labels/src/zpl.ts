@@ -1,4 +1,4 @@
-import { encode, normalizeTagCode } from "rules";
+import { encode, normalizeTagCode, shortCode } from "rules";
 
 // 4 x 6 inches at the Zebra default 203 dpi. All field bytes are escaped: customer
 // text cannot inject ^XZ, ~JA or a second printer command. TextEncoder (not Buffer) so
@@ -30,6 +30,8 @@ export function toteTag(v: ToteTag): string {
       text(24, 435 + i * 45, `${l.species} ${l.lb} lb ${l.shorthand}`.slice(0, 42)),
     ),
     qr(24, 740, encode("TOTE", v)),
+    // The typed short code (rules/qr.ts shortCode) under the QR, clear of the banners.
+    text(24, 905, shortCode("TOTE", v), 60, 26),
     ...(v.banners ?? []).map((b, i) => text(330, 770 + i * 85, b, 42, 25)),
   );
 }
@@ -44,6 +46,7 @@ export function storageBoxLabel(v: {
     text(25, 180, v.customer.slice(0, 32), 44),
     text(25, 260, `Box ${v.boxNo} · ${v.date}`),
     qr(25, 380, encode("SBOX", v)),
+    text(230, 420, shortCode("SBOX", v), 90, 50),
   );
 }
 /** Pass two existing location master codes; this renderer never generates phantom locations. */
@@ -51,16 +54,16 @@ export function locationTag(v: { orgSlug: string; rearCode: string; frontCode: s
   if (!v.rearCode.endsWith("-R") || v.frontCode !== v.rearCode.slice(0, -1) + "F")
     throw new RangeError("Expected matching rear/front shelf positions");
   return label(
-    text(25, 20, `R  ${v.rearCode}`, 62, 38),
+    text(25, 20, `R  ${shortCode("LOC", { orgSlug: v.orgSlug, code: v.rearCode })}`, 62, 38),
     qr(25, 140, encode("LOC", { orgSlug: v.orgSlug, code: v.rearCode })),
-    text(25, 620, `F  ${v.frontCode}`, 62, 38),
+    text(25, 620, `F  ${shortCode("LOC", { orgSlug: v.orgSlug, code: v.frontCode })}`, 62, 38),
     qr(25, 750, encode("LOC", { orgSlug: v.orgSlug, code: v.frontCode })),
   );
 }
 /** One existing location master code: a pallet / quarantine location or an unpaired shelf. */
 export function singleLocationTag(v: { orgSlug: string; code: string }): string {
   return label(
-    text(25, 20, v.code, 62, 38),
+    text(25, 20, shortCode("LOC", v), 62, 38),
     qr(25, 140, encode("LOC", { orgSlug: v.orgSlug, code: v.code })),
   );
 }
@@ -89,7 +92,7 @@ export function assetTagSheet(v: { orgSlug: string; codes: string[] }): string {
       const code = normalizeTagCode(raw);
       if (!code || code.length !== 3) throw new RangeError("Asset codes must fit three digits");
       return label(
-        text(25, 25, code, 200),
+        text(25, 25, shortCode("TAG", { orgSlug: v.orgSlug, code }), 200),
         `^FO25,280^BCN,120,Y,N,N^FD${code}^FS`,
         qr(25, 520, encode("TAG", { orgSlug: v.orgSlug, code })),
       );

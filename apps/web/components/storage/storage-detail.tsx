@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { encode, formatPhone } from "rules";
 import { ManagerPinOverlay } from "@/src/components/station/pin-overlay";
+import { ManualEntry, useManualOptions } from "@/src/components/station/manual-entry";
 import { money } from "@/components/intake/intake-form-state";
 import { managerElevation, type StationSession } from "@/components/intake/use-station-session";
 import {
@@ -14,6 +15,7 @@ import {
   pickupReceipt,
   printLabels,
   quotePickup,
+  scanStorageBox,
   type LabelsQueued,
   type LoadedStorageIntake,
   type PickupReceipt,
@@ -55,6 +57,8 @@ export function StorageDetail({
   const [message, setMessage] = useState(notice ?? "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const manual = useManualOptions(client, session.claims.orgId);
   const [version, setVersion] = useState(0);
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
   // One id per "create batch" intent; changing the selection starts a new one.
@@ -164,6 +168,32 @@ export function StorageDetail({
       <div className="station-workspace">
         <section className="station-card" aria-label="Boxes">
           <h2>Boxes</h2>
+          {/* Freezer pickups: a box code typed into this field is checked against the storage
+              master and logged in scan_log (issue #84); an accepted box joins the selection. */}
+          <ManualEntry
+            open={typing}
+            onOpenChange={setTyping}
+            disabled={busy}
+            options={{ ...manual, accept: ["SBOX"] }}
+            label="Type the box code printed on its label (STG-0001-2)"
+            onSubmit={(text, parsed) => {
+              void scanStorageBox(client, intake.id, text, parsed, "manual").then(
+                (reply) => {
+                  const boxId = reply.box_id;
+                  if (reply.ok && boxId) {
+                    batchActionId.current = null;
+                    setSelected((ids) => (ids.includes(boxId) ? ids : [...ids, boxId]));
+                  }
+                  setError(reply.ok ? "" : reply.reason);
+                  setMessage(reply.ok ? reply.reason : "");
+                },
+                () => {
+                  setMessage("");
+                  setError("Code not recorded; check the connection and enter it again.");
+                },
+              );
+            }}
+          />
           <table className="intake-lines">
             <thead>
               <tr>

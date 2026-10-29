@@ -14,6 +14,7 @@ import { OperatorPinOverlay, ManagerPinOverlay } from "@/src/components/station/
 import { useOperatorIdle } from "@/src/components/station/use-operator-idle";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
+import { useManualOptions, withEntryMethod } from "@/src/components/station/manual-entry";
 import type { ScanReply, ScanRequest } from "@/src/components/station/scan-queue";
 
 type Intake = Database["public"]["Tables"]["intake"]["Row"] & {
@@ -117,12 +118,15 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
       // ScanQueue holds scan-delivery:<scope> across this call. Read shared state
       // inside that lock: another tab may have delivered the previous scan, even
       // if its storage event has not reached this tab yet.
-      const { data, error } = await client.rpc("rollstock_scan_advance", {
-        p_raw: request.raw,
-        p_open_intake_id: (localStorage.getItem(scope) || null)!,
-        p_client_action_id: request.client_action_id,
-        p_operator_session: request.operator_session ?? undefined,
-      });
+      const { data, error } = await withEntryMethod(
+        client.rpc("rollstock_scan_advance", {
+          p_raw: request.raw,
+          p_open_intake_id: (localStorage.getItem(scope) || null)!,
+          p_client_action_id: request.client_action_id,
+          p_operator_session: request.operator_session ?? undefined,
+        }),
+        request.entry_method,
+      );
       if (error) {
         const rejection = permanentScanFailure(error);
         if (rejection) return rejection;
@@ -137,6 +141,7 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
     [client, expire, refresh, remember, scope],
   );
   const { scan, pending, feedback } = useScanAction(scope, send);
+  const manual = useManualOptions(client, claims.orgId);
   const allowed = () => {
     if (claims.appRole === "station" && (!operator || idle.check())) {
       setPinOpen(true);
@@ -187,13 +192,15 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
           <p role="status">{message}</p>
         </>
       }
-      onScan={(raw) => {
+      manual={{ ...manual, accept: ["TOTE"] }}
+      onScan={(raw, _parsed, method) => {
         if (allowed())
           void scan({
             raw,
             station: "rollstock",
             client_action_id: crypto.randomUUID(),
             operator_session: proof,
+            entry_method: method,
           });
       }}
     >

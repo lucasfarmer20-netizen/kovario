@@ -269,3 +269,46 @@ it("WP11 two queue consumers share open intake before storage events and synchro
     within(second.container).getByText("Scan a numbered tote to open an intake."),
   ).toBeTruthy();
 });
+
+it("#84 Type code: a typed tote short code takes the rollstock scan path, flagged manual", async () => {
+  const rpc = setup();
+  render(<RollstockStation />);
+  await screen.findByText("Totes 1/2");
+  fireEvent.click(screen.getByRole("button", { name: "Type code" }));
+  fireEvent.change(screen.getByLabelText(/Type the code/), { target: { value: "INT-0002-1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  await waitFor(() =>
+    expect(mocks.scan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        raw: "FL:TOTE:INT-0002:1",
+        station: "rollstock",
+        entry_method: "manual",
+      }),
+    ),
+  );
+  const setHeader = vi.fn();
+  rpc.mockImplementationOnce(() => {
+    const builder = Object.assign(
+      Promise.resolve({
+        data: { ok: false, reason: "Unknown tote", open_intake_id: "i1" },
+        error: null,
+      }),
+      { setHeader },
+    );
+    setHeader.mockReturnValue(builder);
+    return builder as never;
+  });
+  const reply = await mocks.send!({
+    raw: "FL:TOTE:INT-9999:1",
+    station: "rollstock",
+    client_action_id: "typed-1",
+    operator_session: null,
+    entry_method: "manual",
+  });
+  expect(reply).toMatchObject({ ok: false, reason: "Unknown tote" });
+  expect(rpc).toHaveBeenLastCalledWith(
+    "rollstock_scan_advance",
+    expect.objectContaining({ p_raw: "FL:TOTE:INT-9999:1", p_client_action_id: "typed-1" }),
+  );
+  expect(setHeader).toHaveBeenCalledWith("x-filletry-entry-method", "manual");
+});

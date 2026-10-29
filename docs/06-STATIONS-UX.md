@@ -9,6 +9,15 @@
   Enter submits; input cleared; re-focused after every render and every dialog close
   (dialogs are non-modal overlays, never trap focus). Emits parsed `{kind, …}` via
   `packages/rules/qr.parse`; unknown → red flash + buzz + `scan_log(rejected)`.
+- **Type code** (v1.1, #84) — every scan station (and the storage pickup wizard, `/pair`) has a
+  "Type code" button (≥ 56 px) that opens a visible field with the normal on-screen keyboard.
+  It reads the short code printed beside each QR (`INT-0001-3`, `042`, `IF-A-01-1-F`,
+  `STG-0001-2`, the pairing code) or full QR text via `packages/rules/qr.parseManual`, and
+  submits the text a scan of that label would send through the **same** scan RPC (same
+  validation, `action_log`, `client_action_id`), so a phantom code is rejected exactly like a
+  scan. The request carries `x-filletry-entry-method: manual`, recorded as
+  `scan_log.entry_method`. Closing it refocuses `<ScanInput>`. No PIN or manager gate beyond the
+  station's own.
 - **Feedback** — green flash + short beep on accept; red flash + double buzz on reject;
   text reason in ≥ 24 px for 3 s. Sounds are Web Audio, preloaded, user-gesture-unlocked
   on station open.
@@ -48,7 +57,9 @@ and NEXT UP list. Scan loop per `04-BUSINESS-RULES.md §5`. One de-emphasised
 ## Reconcile (scan + scale)
 Queue (FIFO by `rollstock_done_at`); tap or scan a tote to open. Form: expected yield per
 line, vessel table (rows added by scanning a tag), live scale reading widget (latest
-stable weight; **Accept** writes it to the highlighted vessel row), variance %,
+stable weight; **Accept** writes it to the highlighted vessel row; **Manual entry** types a
+weight > 0 when the scale or its link is down, flagged MANUAL WEIGHT and counted in reports),
+variance %,
 exchange-vessel row type (no tag), **Send to Blast Freezer** when complete.
 
 ## Blast (scan only)
