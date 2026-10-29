@@ -5,6 +5,8 @@ set local search_path=public,extensions;
 select no_plan();
 -- Fixture: party ALC-0001 owns INT-0001 (vessel on tag 042); ALC-0002 is another party.
 insert into public.org(id,slug,name,timezone) values ('a2400000-0000-4000-8000-00000000000a','boxing-scan','Boxing scan','UTC');
+-- An org from before v1.1 (#85): 3-digit asset tags; new orgs default to 4.
+update public.org set settings = jsonb_set(settings, '{scanner,tag_digits}', '3') where id in ('a2400000-0000-4000-8000-00000000000a');
 insert into public.site(id,org_id,name) values ('a2400000-0000-4000-8000-000000000001','a2400000-0000-4000-8000-00000000000a','Main');
 insert into public.customer(id,org_id,name) values ('a2400000-0000-4000-8000-000000000002','a2400000-0000-4000-8000-00000000000a','Party');
 insert into auth.users(id,email) values ('a2400000-0000-4000-8000-0000000000a1','boxing-scan@example.test');
