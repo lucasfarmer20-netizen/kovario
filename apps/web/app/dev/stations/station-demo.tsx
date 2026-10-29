@@ -146,7 +146,7 @@ function LiveStation({ client, claims, station, site }: Context) {
       pending={pending}
       paused={pinOpen || managerOpen}
       status={<ScanFeedback feedback={feedback} />}
-      onScan={(raw) => {
+      onScan={(raw, _parsed, method) => {
         if (isDevice && (!operator || checkIdle())) {
           setPinOpen(true);
           return;
@@ -156,6 +156,7 @@ function LiveStation({ client, claims, station, site }: Context) {
           station,
           client_action_id: crypto.randomUUID(),
           operator_session: operatorSession,
+          entry_method: method,
         });
       }}
     >

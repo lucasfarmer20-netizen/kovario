@@ -1,6 +1,7 @@
 "use client";
-import type { ReactNode } from "react";
-import type { ParseResult } from "rules";
+import { useState, type ReactNode } from "react";
+import type { ManualOptions, ParseResult } from "rules";
+import { ManualEntry, type EntryMethod } from "./manual-entry";
 import { ScanInput } from "./scan-input";
 export function StationShell({
   name,
@@ -9,6 +10,7 @@ export function StationShell({
   pending,
   onScan,
   paused,
+  manual,
   status,
   children,
 }: {
@@ -16,11 +18,15 @@ export function StationShell({
   site: string;
   operator: string | null;
   pending: number;
-  onScan: (raw: string, parsed: ParseResult) => void;
+  /** Hardware scans and typed codes alike; `method` is "manual" for "Type code". */
+  onScan: (raw: string, parsed: ParseResult, method: EntryMethod) => void;
   paused?: boolean;
+  /** Typed-code reading for this station (org slug, tag digits, accepted kinds). */
+  manual?: ManualOptions;
   status: ReactNode;
   children: ReactNode;
 }) {
+  const [typing, setTyping] = useState(false);
   return (
     <main className="station">
       <header>
@@ -36,7 +42,14 @@ export function StationShell({
         </div>
       </header>
       {status}
-      <ScanInput onScan={onScan} paused={paused} />
+      <ScanInput onScan={(raw, parsed) => onScan(raw, parsed, "scan")} paused={paused || typing} />
+      <ManualEntry
+        open={typing}
+        onOpenChange={setTyping}
+        disabled={paused}
+        options={manual}
+        onSubmit={(text, parsed) => onScan(text, parsed, "manual")}
+      />
       {children}
     </main>
   );

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { encode, formatPhone } from "rules";
 import { ManagerPinOverlay } from "@/src/components/station/pin-overlay";
+import { ManualEntry, useManualOptions } from "@/src/components/station/manual-entry";
 import { money } from "@/components/intake/intake-form-state";
 import { managerElevation, type StationSession } from "@/components/intake/use-station-session";
 import {
@@ -24,6 +25,7 @@ import {
   STORAGE_STATE_LABELS,
   boxRollup,
   daysLabel,
+  pickBoxByCode,
   toggleBox,
 } from "./storage-state";
 
@@ -55,6 +57,8 @@ export function StorageDetail({
   const [message, setMessage] = useState(notice ?? "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const manual = useManualOptions(client, session.claims.orgId);
   const [version, setVersion] = useState(0);
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
   // One id per "create batch" intent; changing the selection starts a new one.
@@ -164,6 +168,23 @@ export function StorageDetail({
       <div className="station-workspace">
         <section className="station-card" aria-label="Boxes">
           <h2>Boxes</h2>
+          {/* Freezer pickups: a box code typed or scanned into this field selects that box. */}
+          <ManualEntry
+            open={typing}
+            onOpenChange={setTyping}
+            disabled={busy}
+            options={{ ...manual, accept: ["SBOX"] }}
+            label="Type the box code printed on its label (STG-0001-2)"
+            onSubmit={(_text, parsed) => {
+              const picked = pickBoxByCode(intake.number, boxes, selected, parsed);
+              if (picked.selected !== selected) {
+                batchActionId.current = null;
+                setSelected(picked.selected);
+              }
+              setError(picked.ok ? "" : picked.message);
+              setMessage(picked.ok ? picked.message : "");
+            }}
+          />
           <table className="intake-lines">
             <thead>
               <tr>

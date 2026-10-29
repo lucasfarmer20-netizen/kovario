@@ -2,6 +2,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
+import type { ManualOptions } from "rules";
 import { BoxingStation } from "./boxing-station";
 import type { Wizard } from "./boxing-state";
 
@@ -11,29 +12,45 @@ vi.mock("@/components/intake/use-station-session", () => ({
   managerElevation: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
-// The shell's scanner is exercised in its own tests; here a plain input stands in for it.
-vi.mock("@/src/components/station/station-shell", () => ({
-  StationShell: ({
-    onScan,
-    status,
-    children,
-  }: {
-    onScan: (raw: string) => void;
-    status: ReactNode;
-    children: ReactNode;
-  }) => (
-    <main>
-      {status}
-      <input
-        aria-label="Station scanner"
-        onKeyDown={(e) => {
-          if (e.key === "Enter") onScan(e.currentTarget.value);
-        }}
-      />
-      {children}
-    </main>
-  ),
-}));
+// The shell's scanner is exercised in its own tests; here a plain input stands in for it,
+// beside the real "Type code" field (issue #84).
+vi.mock("@/src/components/station/station-shell", async () => {
+  const { useState } = await import("react");
+  const { ManualEntry } = await import("@/src/components/station/manual-entry");
+  return {
+    StationShell: function MockShell({
+      onScan,
+      manual,
+      status,
+      children,
+    }: {
+      onScan: (raw: string) => void;
+      manual?: ManualOptions;
+      status: ReactNode;
+      children: ReactNode;
+    }) {
+      const [typing, setTyping] = useState(false);
+      return (
+        <main>
+          {status}
+          <input
+            aria-label="Station scanner"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onScan(e.currentTarget.value);
+            }}
+          />
+          <ManualEntry
+            open={typing}
+            onOpenChange={setTyping}
+            options={manual}
+            onSubmit={(text) => onScan(text)}
+          />
+          {children}
+        </main>
+      );
+    },
+  };
+});
 
 afterEach(() => {
   cleanup();
@@ -225,6 +242,22 @@ it("WP15 scanning a tag ticks its tote; another party's boxing QR is refused (I1
   );
   fireEvent.keyDown(scanner, { key: "Enter", target: { value: "FL:BOX:othertoken" } });
   expect(await screen.findByText(/belongs to another party; one party per Complete/)).toBeTruthy();
+});
+
+it("#84 Type code: a typed tag ticks its tote; a tag off the pick list is refused", async () => {
+  setup();
+  fireEvent.click(await screen.findByRole("button", { name: "Type code" }));
+  const field = screen.getByLabelText(/Type the code/);
+  fireEvent.change(field, { target: { value: "42" } });
+  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  await waitFor(() =>
+    expect((screen.getByLabelText("Tick Tag 042 (INT-0001)") as HTMLInputElement).checked).toBe(
+      true,
+    ),
+  );
+  fireEvent.change(field, { target: { value: "0999" } });
+  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  expect(await screen.findByText("Tag 999 is not on ALC-0001's pick list")).toBeTruthy();
 });
 
 // The SQL HINT is the contract the screen branches on (15_release.test.sql pins both codes).

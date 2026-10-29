@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   send: null as null | ((r: ScanRequest) => Promise<ScanReply>),
   pending: 0,
   vesselFilters: [] as Array<[string, unknown]>,
+  scan: vi.fn(),
 }));
 vi.mock("@/components/intake/use-station-session", () => ({
   useStationSession: () => ({ session: mocks.session, loaded: true }),
@@ -15,7 +16,7 @@ vi.mock("@/components/intake/use-station-session", () => ({
 vi.mock("@/src/components/station/use-scan-action", () => ({
   useScanAction: (_: string, send: (r: ScanRequest) => Promise<ScanReply>) => {
     mocks.send = send;
-    return { scan: vi.fn(), pending: mocks.pending, feedback: null };
+    return { scan: mocks.scan, pending: mocks.pending, feedback: null };
   },
 }));
 vi.mock("@/src/components/station/scan-feedback", () => ({ ScanFeedback: () => null }));
@@ -78,7 +79,7 @@ it("WP12 renders expected yield, manual flag and variance; send gate blocks unwe
   render(<ReconcileStation />);
   expect(await screen.findByText("salmon_reds: 20 lb")).toBeTruthy();
   expect(screen.getByText(/Variance -100%/)).toBeTruthy();
-  expect(screen.getByRole("button", { name: /042.*manual/ })).toBeTruthy();
+  expect(screen.getByRole("button", { name: /042.*MANUAL WEIGHT/ })).toBeTruthy();
   expect(
     (screen.getByRole("button", { name: "Send to Blast Freezer" }) as HTMLButtonElement).disabled,
   ).toBe(true);
@@ -183,4 +184,65 @@ it("WP12 unsupported scans produce an audited floor-friendly rejection", async (
     expect.objectContaining({ p_reason: "Not a tag or tote" }),
   );
   expect(rpc).not.toHaveBeenCalledWith("reconcile_action", expect.anything());
+});
+
+it("#84 Type code: a typed tag code binds through the scan path, flagged manual", async () => {
+  const rpc = setup();
+  render(<ReconcileStation />);
+  await screen.findByText("salmon_reds: 20 lb");
+  fireEvent.click(screen.getByRole("button", { name: "Type code" }));
+  fireEvent.change(screen.getByLabelText(/Type the code/), { target: { value: "42" } });
+  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  await waitFor(() =>
+    expect(mocks.scan).toHaveBeenCalledWith(
+      expect.objectContaining({ raw: "042", station: "reconcile", entry_method: "manual" }),
+    ),
+  );
+  const builder = (data: unknown) => {
+    const setHeader = vi.fn();
+    const b = Object.assign(Promise.resolve({ data, error: null }), { setHeader });
+    setHeader.mockReturnValue(b);
+    return b;
+  };
+  // A phantom tag is rejected by the same bind RPC as a scan of it.
+  const bind = builder({ ok: false, reason: "Unknown tag", intake_id: "i1", vessel_id: null });
+  rpc.mockImplementationOnce(() => bind as never);
+  const reply = await mocks.send!({
+    raw: "999",
+    station: "reconcile",
+    client_action_id: "typed-1",
+    operator_session: null,
+    entry_method: "manual",
+  });
+  expect(reply).toMatchObject({ ok: false, reason: "Unknown tag" });
+  expect(rpc).toHaveBeenLastCalledWith(
+    "reconcile_action",
+    expect.objectContaining({ p_operation: "bind", p_code: "999", p_raw: "999" }),
+  );
+  expect(bind.setHeader).toHaveBeenCalledWith("x-filletry-entry-method", "manual");
+  // A malformed typed code is audited by station_scan, also flagged manual.
+  const audit = builder({ ok: false, reason: "Not a tag or tote" });
+  rpc.mockImplementationOnce(() => audit as never);
+  await mocks.send!({
+    raw: "hello",
+    station: "reconcile",
+    client_action_id: "typed-2",
+    operator_session: null,
+    entry_method: "manual",
+  });
+  expect(rpc).toHaveBeenLastCalledWith(
+    "station_scan",
+    expect.objectContaining({ p_raw: "hello", p_reason: "Not a tag or tote" }),
+  );
+  expect(audit.setHeader).toHaveBeenCalledWith("x-filletry-entry-method", "manual");
+});
+
+it("#84 manual weight uses a visible decimal field and is flagged on the vessel row", async () => {
+  setup(12.5);
+  render(<ReconcileStation />);
+  fireEvent.click(await screen.findByRole("button", { name: /042/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Manual entry" }));
+  const field = screen.getByLabelText("Manual weight (lb)");
+  expect(field.getAttribute("inputmode")).toBe("decimal");
+  expect(screen.getByText("MANUAL WEIGHT")).toBeTruthy();
 });

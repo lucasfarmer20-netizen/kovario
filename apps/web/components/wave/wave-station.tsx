@@ -10,6 +10,7 @@ import { OperatorPinOverlay } from "@/src/components/station/pin-overlay";
 import { useOperatorIdle } from "@/src/components/station/use-operator-idle";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
+import { useManualOptions, withEntryMethod } from "@/src/components/station/manual-entry";
 import type { ScanRequest, ScanReply } from "@/src/components/station/scan-queue";
 
 type Intake = Database["public"]["Tables"]["intake"]["Row"] & {
@@ -113,12 +114,15 @@ function LiveWave({ client, claims, siteName }: StationSession) {
   }, [client, claims.orgId, refresh]);
   const send = useCallback(
     async (request: ScanRequest): Promise<ScanReply> => {
-      const { data, error } = await client.rpc("scan_wave_tote", {
-        p_wave_id: request.wave_id ?? "00000000-0000-0000-0000-000000000000",
-        p_raw: request.raw,
-        p_client_action_id: request.client_action_id,
-        p_operator_session: request.operator_session ?? undefined,
-      });
+      const { data, error } = await withEntryMethod(
+        client.rpc("scan_wave_tote", {
+          p_wave_id: request.wave_id ?? "00000000-0000-0000-0000-000000000000",
+          p_raw: request.raw,
+          p_client_action_id: request.client_action_id,
+          p_operator_session: request.operator_session ?? undefined,
+        }),
+        request.entry_method,
+      );
       if (error) {
         const rejection = permanentScanFailure(error);
         if (rejection) return rejection;
@@ -132,6 +136,7 @@ function LiveWave({ client, claims, siteName }: StationSession) {
     [client, expire, refresh],
   );
   const { scan, pending, feedback } = useScanAction(`${claims.orgId}:${claims.userId}:wave`, send);
+  const manual = useManualOptions(client, claims.orgId);
   const wave = waves.find((w) => w.id === active);
   const queue = intakes.filter((i) => !i.wave_id);
   const members = intakes.filter((i) => i.wave_id === active);
@@ -189,7 +194,8 @@ function LiveWave({ client, claims, siteName }: StationSession) {
           <p role="status">{message}</p>
         </>
       }
-      onScan={(raw) => {
+      manual={{ ...manual, accept: ["TOTE"] }}
+      onScan={(raw, _parsed, method) => {
         if (!allowed()) return;
         void scan({
           raw,
@@ -197,6 +203,7 @@ function LiveWave({ client, claims, siteName }: StationSession) {
           wave_id: active ?? undefined,
           client_action_id: crypto.randomUUID(),
           operator_session: proof,
+          entry_method: method,
         });
       }}
     >

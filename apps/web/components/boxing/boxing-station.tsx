@@ -12,6 +12,7 @@ import {
 } from "@/components/intake/use-station-session";
 import { ManagerPinOverlay } from "@/src/components/station/pin-overlay";
 import { StationShell } from "@/src/components/station/station-shell";
+import { useManualOptions } from "@/src/components/station/manual-entry";
 import {
   boxingQueue,
   completeRelease,
@@ -71,7 +72,8 @@ export function BoxingQueueStation() {
   return <NeedSession>{(session) => <BoxingQueue {...session} />}</NeedSession>;
 }
 
-function BoxingQueue({ client, siteName }: StationSession) {
+function BoxingQueue({ client, claims, siteName }: StationSession) {
+  const manual = useManualOptions(client, claims.orgId);
   const router = useRouter();
   const [rows, setRows] = useState<Awaited<ReturnType<typeof boxingQueue>> | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -92,6 +94,7 @@ function BoxingQueue({ client, siteName }: StationSession) {
       operator={null}
       pending={0}
       status={<Status feedback={feedback} />}
+      manual={{ ...manual, accept: ["BOX"] }}
       onScan={async (raw) => {
         const scanned = parse(raw);
         if (!scanned.ok || scanned.value.kind !== "BOX") {
@@ -145,6 +148,7 @@ type ManagerAction =
 
 function BoxingParty({ session, sessionId }: { session: StationSession; sessionId: string }) {
   const { client, claims, siteName } = session;
+  const manual = useManualOptions(client, claims.orgId);
   const op = useFreezerOperator({ client, claims });
   const isManager = claims.appRole === "owner" || claims.appRole === "manager";
   const [wizard, setWizard] = useState<Wizard | null>(null);
@@ -365,6 +369,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       pending={busy ? 1 : 0}
       paused={op.pinOpen || editing || pending !== null}
       status={<Status feedback={feedback} />}
+      manual={{ ...manual, accept: ["TAG", "BOX"] }}
       onScan={(raw) => void onScan(raw)}
     >
       <p className="station-hint">

@@ -19,6 +19,8 @@ const DESCRIPTIONS: Record<ReportKind, string> = {
     "Currently settled charges by kind and payment approval date (USD). Excludes tax, tips, comped and voided charges; not net of refunds.",
   variance:
     "Recorded reconcile weights by species and reconcile date. Variance is weighted by expected lb; zero expected lb has no percentage.",
+  manual:
+    "Codes typed at a station instead of scanned (of all scans that day), and reconcile weights typed instead of read from the scale (of all weighed vessels, by reconcile date).",
 };
 const METRICS: Record<ReportKind, string> = {
   volume: "incoming_lb",
@@ -26,6 +28,7 @@ const METRICS: Record<ReportKind, string> = {
   throughput: "hours",
   revenue: "amount",
   variance: "variance_pct",
+  manual: "manual_count",
 };
 const LABELS: Record<string, string> = {
   day: "Date",
@@ -43,6 +46,10 @@ const LABELS: Record<string, string> = {
   expected_lb: "Expected lb",
   actual_lb: "Actual lb",
   variance_pct: "Variance %",
+  station: "Station",
+  entry: "Entry",
+  entry_count: "Total",
+  manual_count: "Manual",
 };
 
 function chartRows(kind: ReportKind, rows: ReportRow[]) {
@@ -59,7 +66,10 @@ function chartRows(kind: ReportKind, rows: ReportRow[]) {
           : kind === "throughput"
             ? "stage"
             : "day";
-    const label = String(reportValue(row, dimension));
+    const label =
+      kind === "manual"
+        ? `${reportValue(row, "station")} · ${reportValue(row, "entry") === "weight" ? "weights" : "codes"}`
+        : String(reportValue(row, dimension));
     const g = groups.get(label) ?? { value: 0, weight: 0, expected: 0, actual: 0 };
     const weight = kind === "throughput" ? Number(reportValue(row, "intake_count")) : 1;
     g.value += Number(reportValue(row, METRICS[kind])) * weight;

@@ -5,6 +5,8 @@ export type ScanRequest = {
   raw: string;
   station: "wave" | "rollstock" | "reconcile" | "blast" | "locate" | "boxing";
   operator_session: string | null;
+  /** "manual" for a typed code: same RPC, sent with the entry-method header (issue #84). */
+  entry_method?: "scan" | "manual";
 };
 export type ScanReply = { ok: boolean; reason: string; scan_id?: string };
 export type PendingScan = { request: ScanRequest; attempts: number; nextAt: number };

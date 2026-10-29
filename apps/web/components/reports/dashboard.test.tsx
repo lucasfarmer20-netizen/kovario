@@ -5,7 +5,14 @@ import { ReportsDashboard } from "./dashboard";
 import type { ReportData } from "@/lib/reports";
 
 afterEach(cleanup);
-const data: ReportData = { volume: [], pipeline: [], throughput: [], revenue: [], variance: [] };
+const data: ReportData = {
+  volume: [],
+  pipeline: [],
+  throughput: [],
+  revenue: [],
+  variance: [],
+  manual: [],
+};
 const filters = { from: "2026-10-01", to: "2026-10-28", site: "site" };
 it("WP21 dashboard renders date/site controls, five empty states and filtered CSV links", () => {
   render(
@@ -19,8 +26,8 @@ it("WP21 dashboard renders date/site controls, five empty states and filtered CS
   expect((screen.getByLabelText("From") as HTMLInputElement).value).toBe(filters.from);
   expect((screen.getByLabelText("To") as HTMLInputElement).value).toBe(filters.to);
   expect((screen.getByLabelText("Site") as HTMLSelectElement).value).toBe("site");
-  expect(screen.getAllByText("No data for this selection.")).toHaveLength(5);
-  expect(screen.getAllByRole("link", { name: /Export CSV/ })).toHaveLength(5);
+  expect(screen.getAllByText("No data for this selection.")).toHaveLength(6);
+  expect(screen.getAllByRole("link", { name: /Export CSV/ })).toHaveLength(6);
   expect(
     screen.getByRole("link", { name: /Export CSV — Daily volume/ }).getAttribute("href"),
   ).toContain("from=2026-10-01&to=2026-10-28&site=site&report=volume");
@@ -114,4 +121,40 @@ it("WP21 charts weight throughput by samples and variance by expected lb", () =>
   expect(
     within(screen.getByRole("figure", { name: "Reconcile variance chart" })).getByText("-10"),
   ).toBeTruthy();
+});
+
+it("#84 manual entries: typed codes by station and manual weights, beside the totals", () => {
+  const row = (station: string, entry: string, entry_count: number, manual_count: number) => ({
+    org_id: "org",
+    site_id: null,
+    day: "2026-10-27",
+    station,
+    entry,
+    entry_count,
+    manual_count,
+  });
+  render(
+    <ReportsDashboard
+      filters={filters}
+      sites={[]}
+      timezone="UTC"
+      data={{
+        ...data,
+        manual: [
+          row("wave", "code", 40, 3),
+          row("reconcile", "code", 12, 1),
+          row("reconcile", "weight", 9, 2),
+        ],
+      }}
+    />,
+  );
+  const chart = screen.getByRole("figure", { name: "Manual entries chart" });
+  expect(within(chart).getByText("wave · codes")).toBeTruthy();
+  expect(within(chart).getByText("reconcile · weights")).toBeTruthy();
+  const table = screen.getByRole("table", { name: "Manual entries daily detail" });
+  expect(within(table).getByText("Manual")).toBeTruthy();
+  expect(within(table).getByText("weight")).toBeTruthy();
+  expect(
+    screen.getByRole("link", { name: /Export CSV — Manual entries/ }).getAttribute("href"),
+  ).toContain("report=manual");
 });

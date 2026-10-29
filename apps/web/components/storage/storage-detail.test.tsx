@@ -177,3 +177,27 @@ it("storage form: refuses without a customer; Confirm sends the boxes, then queu
     ["box-2", true],
   ]);
 });
+
+it("#84 freezer pickup Type code: a typed box code selects that box; others are refused", async () => {
+  const { client } = fakeClient({});
+  render(<StorageDetail session={session(client)} storageIntakeId="si-1" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Type code" }));
+  const field = screen.getByLabelText(/Type the box code/);
+  const enter = (value: string) => {
+    fireEvent.change(field, { target: { value } });
+    fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  };
+  enter("stg-0007 2");
+  await waitFor(() =>
+    expect((screen.getByLabelText("Pick up Box 2") as HTMLInputElement).checked).toBe(true),
+  );
+  expect(screen.getByText("Box 2 selected for pickup.")).toBeTruthy();
+  enter("STG-0008-1");
+  expect(screen.getByRole("alert").textContent).toBe("STG-0008-1 is not on STG-0007.");
+  enter("STG-0007-9");
+  expect(screen.getByRole("alert").textContent).toBe("No box 9 on STG-0007.");
+  enter("042");
+  expect(screen.getByRole("alert").textContent).toMatch(/Not a storage box code/);
+  expect((screen.getByLabelText("Pick up Box 1") as HTMLInputElement).checked).toBe(false);
+  expect((screen.getByLabelText("Pick up Box 2") as HTMLInputElement).checked).toBe(true);
+});

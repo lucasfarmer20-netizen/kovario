@@ -5,6 +5,7 @@ import { StationShell } from "@/src/components/station/station-shell";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
+import { useManualOptions, withEntryMethod } from "@/src/components/station/manual-entry";
 import type { ScanReply, ScanRequest } from "@/src/components/station/scan-queue";
 import { freezerReply, timeIn, useFreezerOperator } from "./use-freezer-operator";
 
@@ -70,11 +71,14 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
   }, [client, claims.orgId, refresh, scope]);
   const send = useCallback(
     async (request: ScanRequest): Promise<ScanReply> => {
-      const { data, error } = await client.rpc("blast_vessel", {
-        p_client_action_id: request.client_action_id,
-        p_raw: request.raw,
-        p_operator_session: request.operator_session ?? undefined,
-      });
+      const { data, error } = await withEntryMethod(
+        client.rpc("blast_vessel", {
+          p_client_action_id: request.client_action_id,
+          p_raw: request.raw,
+          p_operator_session: request.operator_session ?? undefined,
+        }),
+        request.entry_method,
+      );
       if (error) {
         const rejection = permanentScanFailure(error);
         if (rejection) return rejection;
@@ -88,6 +92,7 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
     [client, expire, refresh],
   );
   const { scan, pending, feedback } = useScanAction(scope, send);
+  const manual = useManualOptions(client, claims.orgId);
   return (
     <StationShell
       name="Blast"
@@ -101,13 +106,15 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
           <p role="status">{message}</p>
         </>
       }
-      onScan={(raw) => {
+      manual={{ ...manual, accept: ["TAG"] }}
+      onScan={(raw, _parsed, method) => {
         if (op.allowed())
           void scan({
             raw,
             station: "blast",
             client_action_id: crypto.randomUUID(),
             operator_session: op.proof,
+            entry_method: method,
           });
       }}
     >

@@ -183,3 +183,75 @@ it("WP13 malformed freezer reply is refused", () => {
   expect(() => freezerReply({ ok: "yes" })).toThrow();
   expect(timeIn("2026-10-27T10:00:00Z", new Date("2026-10-27T12:05:00Z"))).toBe("2h 05m");
 });
+
+/** An RPC builder for a typed code: thenable, with PostgREST's setHeader. */
+function typedRpc(data: unknown) {
+  const setHeader = vi.fn();
+  const builder = Object.assign(Promise.resolve({ data, error: null }), { setHeader });
+  setHeader.mockReturnValue(builder);
+  return builder;
+}
+
+it("#84 blast Type code: a typed tag takes blast_vessel, flagged manual", async () => {
+  const { rpc } = setup();
+  render(<BlastStation />);
+  await screen.findByText("IN BLAST (1)");
+  fireEvent.click(screen.getByRole("button", { name: "Type code" }));
+  fireEvent.change(screen.getByLabelText(/Type the code/), { target: { value: "41" } });
+  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  await waitFor(() =>
+    expect(mocks.scan).toHaveBeenCalledWith(
+      expect.objectContaining({ raw: "041", station: "blast", entry_method: "manual" }),
+    ),
+  );
+  const call = typedRpc({ ok: false, reason: "Unknown tag" });
+  rpc.mockImplementationOnce(() => call as never);
+  const reply = await mocks.send!({
+    raw: "999",
+    station: "blast",
+    client_action_id: "typed-1",
+    operator_session: null,
+    entry_method: "manual",
+  });
+  expect(reply).toMatchObject({ ok: false, reason: "Unknown tag" });
+  expect(rpc).toHaveBeenLastCalledWith(
+    "blast_vessel",
+    expect.objectContaining({ p_raw: "999", p_client_action_id: "typed-1" }),
+  );
+  expect(call.setHeader).toHaveBeenCalledWith("x-filletry-entry-method", "manual");
+});
+
+it("#84 locate Type code: typed tag then typed location; a phantom location is rejected", async () => {
+  const { rpc } = setup();
+  render(<LocateStation />);
+  fireEvent.click(await screen.findByRole("button", { name: "Type code" }));
+  const field = screen.getByLabelText(/Type the code/);
+  fireEvent.change(field, { target: { value: "if a 01 1 f" } });
+  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  await waitFor(() =>
+    expect(mocks.scan).toHaveBeenCalledWith(
+      expect.objectContaining({ raw: "IF-A-01-1-F", station: "locate", entry_method: "manual" }),
+    ),
+  );
+  const tag = typedRpc({
+    ok: true,
+    reason: "Vessel 041",
+    pending_vessel_raw: "041",
+    pending_vessel_id: "v1",
+    tag_code: "041",
+    intake_number: "INT-0001",
+  });
+  const phantom = typedRpc({ ok: false, reason: "Unknown location" });
+  rpc.mockImplementationOnce(() => tag as never).mockImplementationOnce(() => phantom as never);
+  await mocks.send!({ ...request("041", "typed-1"), entry_method: "manual" });
+  const reply = await mocks.send!({ ...request("ZZ-9-99-9-F", "typed-2"), entry_method: "manual" });
+  expect(reply).toMatchObject({ ok: false, reason: "Unknown location" });
+  expect(rpc).toHaveBeenLastCalledWith(
+    "locate_scan",
+    expect.objectContaining({ p_raw: "ZZ-9-99-9-F", p_pending_vessel_id: "v1" }),
+  );
+  expect(tag.setHeader).toHaveBeenCalledWith("x-filletry-entry-method", "manual");
+  expect(phantom.setHeader).toHaveBeenCalledWith("x-filletry-entry-method", "manual");
+  // The vessel stays pending for a retyped location.
+  expect(JSON.parse(localStorage.getItem("org:staff:locate")!)).toMatchObject({ id: "v1" });
+});

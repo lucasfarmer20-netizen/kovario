@@ -267,6 +267,20 @@
   bottom: 0;
   left: 0;
 }
+/* "Type code" (issue #84): visible manual entry for a dead scanner. */
+.station-manual {
+  margin: 16px 0;
+}
+.station-manual label {
+  display: grid;
+  gap: 8px;
+  font-size: 20px;
+}
+.station-manual input {
+  font-family: ui-monospace, monospace;
+  font-size: 28px;
+  text-transform: uppercase;
+}
 @media (max-width: 850px) {
   .station-workspace {
     grid-template-columns: 1fr;

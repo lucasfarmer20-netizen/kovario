@@ -15,6 +15,10 @@
 // `042` / `42` (an asset tag), with asset-tag padding normalised. A pairing code has no bare
 // legacy form: only /pair accepts a typed code (via normalizePairingCode), so an 8-character
 // scan at a station is never mistaken for one.
+//
+// Typed codes (a dead scanner, issue #84) go through parseManual: it reads the short code a
+// person can see printed beside the QR (shortCode) and returns the text a scan of that label
+// would have sent, so a typed code takes the same server path as a scan.
 
 export const QR_PREFIX = "FL";
 
@@ -60,7 +64,8 @@ export type QrPayload = { [K in QrKind]: { kind: K } & QrFields[K] }[QrKind];
 export type ParsedQr =
   | (QrPayload & { legacy: false })
   | { kind: "TOTE"; intakeNumber: string; toteNo: null; legacy: true }
-  | { kind: "TAG"; orgSlug: null; code: string; legacy: true };
+  | { kind: "TAG"; orgSlug: null; code: string; legacy: true }
+  | { kind: "LOC"; orgSlug: null; code: string; legacy: true };
 
 export type QrRejectReason = "empty" | "unknown_format" | "bad_field";
 
@@ -200,6 +205,132 @@ export function parse(raw: string, options: QrOptions = {}): ParseResult {
     return { ok: true, value: { kind: "TAG", orgSlug: null, code, legacy: true } };
   }
   return { ok: false, reason: "unknown_format" };
+}
+
+/** Kinds with a human-readable short code. A boxing token is typed only as full QR text. */
+export type ShortKind = Exclude<QrKind, "BOX">;
+
+/**
+ * The code printed beside a label's QR for a person to read and type: `INT-0001-3` (tote),
+ * `042` (asset tag), `IF-A-01-1-F` (location), `STG-0001-2` (storage box), the pairing code.
+ * Throws `RangeError` like {@link encode}.
+ */
+export function shortCode<K extends ShortKind>(
+  kind: K,
+  fields: QrFields[K],
+  options: QrOptions = {},
+): string {
+  const parts = ENCODERS[kind](fields, options.tagDigits ?? TAG_DIGITS);
+  if (kind === "TOTE" || kind === "SBOX") return parts.join("-");
+  return kind === "PAIR" ? parts[0]! : parts[1]!;
+}
+
+export interface ManualOptions extends QrOptions {
+  /** The station's org slug: a typed tag or location then yields its full QR text. */
+  orgSlug?: string;
+  /** Kinds the station takes, preferred when a typed code could be read more than one way. */
+  accept?: readonly QrKind[];
+}
+
+export type ManualResult =
+  { ok: true; value: ParsedQr; text: string } | { ok: false; reason: QrRejectReason };
+
+const TYPED_NUMBERED = /^(INT|STG)[-\s]*(\d+)(?:[-\s]+(\d+))?$/;
+const TYPED_LOCATION = /^[A-Z0-9]+(?:-[A-Z0-9]+)+$/;
+
+/** `INT-12` / `INT-0012` → `INT-0012`, as app.next_seq numbers them (at least 4 digits). */
+function sequenceNumber(prefix: string, digits: string): string {
+  return `${prefix}-${digits.replace(/^0+(?=\d)/, "").padStart(4, "0")}`;
+}
+
+/**
+ * Reads a typed code. Accepts full QR text and the short codes printed on labels
+ * ({@link shortCode}), in any letter case, with spaces for dashes: `int-0001 3`, `42`,
+ * `if a 01 1 f`, `STG-0001-2`, `abcd-2345`. `text` is what a scan of the same label sends,
+ * so a station submits it through its scan path unchanged; a well-formed code is still not
+ * evidence the thing exists (PRD rule 6) — the server looks it up. Never throws.
+ */
+export function parseManual(raw: string, options: ManualOptions = {}): ManualResult {
+  const digits = options.tagDigits ?? TAG_DIGITS;
+  const typed = raw.trim().replace(/\s+/g, " ");
+  if (typed === "") return { ok: false, reason: "empty" };
+
+  // Full QR text: the prefix and kind are matched case-insensitively, fields as printed.
+  const full = /^FL:([A-Za-z]+)(:.*)$/i.exec(typed);
+  if (full) {
+    const text = `${QR_PREFIX}:${full[1]!.toUpperCase()}${full[2]!}`;
+    const parsed = parse(text, options);
+    return parsed.ok ? { ...parsed, text } : parsed;
+  }
+
+  const upper = typed.toUpperCase();
+  const numbered = TYPED_NUMBERED.exec(upper);
+  if (numbered) {
+    const [, prefix = "", number = "", no] = numbered;
+    const id = sequenceNumber(prefix, number);
+    if (prefix === "INT" && no === undefined) {
+      return {
+        ok: true,
+        value: { kind: "TOTE", intakeNumber: id, toteNo: null, legacy: true },
+        text: id,
+      };
+    }
+    const n = positiveInt((no ?? "").replace(/^0+(?=\d)/, ""));
+    if (n === null) return { ok: false, reason: "bad_field" };
+    if (prefix === "STG") {
+      const value = { kind: "SBOX", storageNumber: id, boxNo: n, legacy: false } as const;
+      return { ok: true, value, text: encode("SBOX", value) };
+    }
+    const value = { kind: "TOTE", intakeNumber: id, toteNo: n, legacy: false } as const;
+    return { ok: true, value, text: encode("TOTE", value) };
+  }
+  // `STG-0001-x` is a mistyped box, never a location.
+  if (/^(?:INT|STG)[-\s]*\d/.test(upper)) return { ok: false, reason: "bad_field" };
+
+  // Remaining short forms can overlap (`23456789` is a tag code and a pairing code), so the
+  // station's accepted kinds win; otherwise the first reading in this order does.
+  const readings: ManualResult[] = [];
+  const slug =
+    options.orgSlug !== undefined && ORG_SLUG.test(options.orgSlug) ? options.orgSlug : undefined;
+  const tag = normalizeTagCode(upper, digits);
+  if (tag !== null) {
+    readings.push(
+      slug === undefined
+        ? { ok: true, value: { kind: "TAG", orgSlug: null, code: tag, legacy: true }, text: tag }
+        : {
+            ok: true,
+            value: { kind: "TAG", orgSlug: slug, code: tag, legacy: false },
+            text: encode("TAG", { orgSlug: slug, code: tag }, options),
+          },
+    );
+  }
+  const location = upper.replaceAll(" ", "-");
+  if (TYPED_LOCATION.test(location)) {
+    readings.push(
+      slug === undefined
+        ? {
+            ok: true,
+            value: { kind: "LOC", orgSlug: null, code: location, legacy: true },
+            text: location,
+          }
+        : {
+            ok: true,
+            value: { kind: "LOC", orgSlug: slug, code: location, legacy: false },
+            text: encode("LOC", { orgSlug: slug, code: location }),
+          },
+    );
+  }
+  const pairing = normalizePairingCode(upper);
+  if (pairing !== null) {
+    readings.push({
+      ok: true,
+      value: { kind: "PAIR", code: pairing, legacy: false },
+      text: encode("PAIR", { code: pairing }),
+    });
+  }
+  const accepted = (r: ManualResult) =>
+    !options.accept || (r.ok && options.accept.includes(r.value.kind));
+  return readings.find(accepted) ?? readings[0] ?? { ok: false, reason: "unknown_format" };
 }
 
 /** SQL projection for transactional tag lookup. Kept beside the TS normalizer. */

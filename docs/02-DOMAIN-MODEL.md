@@ -157,7 +157,8 @@ operator_id)`. Complete requires every tote of every intake scanned.
 
 ### scan_log
 `station`, `device_id`, `operator_id`, `raw text`, `parsed jsonb`, `result enum(ok,
-rejected)`, `reason text`, `intake_id`, `vessel_id`, `location_id`, `scanned_at`.
+rejected)`, `reason text`, `intake_id`, `vessel_id`, `location_id`, `scanned_at`,
+`entry_method enum(scan, manual)` (a code typed into "Type code" is `manual`).
 Written for **every** scan.
 
 ### asset_tag  (← cs.asset.tag)
@@ -323,15 +324,17 @@ DECISION-07 covers whether tax is computed in v1 or recorded as a note.
 
 ## 13. Identifier formats (QR payloads — **parser and generator share one module**)
 
-| Thing | QR text |
-|---|---|
-| Tote tag | `FL:TOTE:<INT-0001>:<n>` |
-| Asset tag | `FL:TAG:<org_slug>:<042>` |
-| Location | `FL:LOC:<org_slug>:<IF-A-01-1-F>` |
-| Boxing token | `FL:BOX:<settlement.boxing_token>` |
-| Storage box | `FL:SBOX:<STG-0001>:<n>` |
-| Device pairing | `FL:PAIR:<code>` (one-time 8-character code, scanned at `/pair`) |
+| Thing | QR text | Short code (printed beside the QR, typeable) |
+|---|---|---|
+| Tote tag | `FL:TOTE:<INT-0001>:<n>` | `INT-0001-3` |
+| Asset tag | `FL:TAG:<org_slug>:<042>` | `042` |
+| Location | `FL:LOC:<org_slug>:<IF-A-01-1-F>` | `IF-A-01-1-F` |
+| Boxing token | `FL:BOX:<settlement.boxing_token>` | — (full QR text only) |
+| Storage box | `FL:SBOX:<STG-0001>:<n>` | `STG-0001-2` |
+| Device pairing | `FL:PAIR:<code>` (one-time 8-character code, scanned at `/pair`) | the code |
 
 `packages/rules/src/qr.ts` exports `encode(kind, …)` and `parse(raw)`; every label
 template and every scan handler imports from it. A scan handler must also accept bare
-legacy forms (`INT-0001`, `042`) and normalise asset-tag padding.
+legacy forms (`INT-0001`, `042`) and normalise asset-tag padding. `shortCode(kind, …)` is the
+human-readable code every label prints beside its QR; `parseManual(raw, options)` reads it (or
+full QR text) when a person types it.
