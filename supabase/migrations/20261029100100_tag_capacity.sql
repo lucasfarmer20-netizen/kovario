@@ -58,6 +58,27 @@ drop trigger if exists asset_tag_canonical on public.asset_tag;
 create trigger asset_tag_canonical before insert or update of code, org_id on public.asset_tag
   for each row execute function app.asset_tag_canonical();
 
+-- Tag pool admin: one range may now be a whole 4-digit pool (app.max_tag_range(), from
+-- qr.ts MAX_TAG_RANGE), not 1000 tags. Otherwise unchanged from the reconcile migration.
+create or replace function public.admin_asset_tags(p_client_action_id text,p_tags jsonb default null,p_tag_id uuid default null,p_retire_reason text default null)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare a jsonb; t public.asset_tag;
+begin
+ perform app.require_role('{owner,manager}');
+ a:=app.action_begin(p_client_action_id,'asset_tags.manage','{}');
+ if a->>'status'='done' then return a->'result'; end if;
+ if p_tags is not null then
+  if jsonb_typeof(p_tags)<>'array' or jsonb_array_length(p_tags)>app.max_tag_range() then raise exception 'Invalid range'; end if;
+  insert into public.asset_tag(org_id,code,qr) select app.org_id(),x->>'code',x->>'qr' from jsonb_array_elements(p_tags) x on conflict(org_id,code) do nothing;
+ else
+  select * into t from public.asset_tag where id=p_tag_id and org_id=app.org_id() for update;
+  if t.id is null then raise exception 'Unknown tag'; end if;
+  if t.state='in_use' then raise exception 'Tag in use'; end if;
+  update public.asset_tag set state=case when p_retire_reason is null then 'available'::public.asset_tag_state else 'retired'::public.asset_tag_state end,retired_reason=p_retire_reason where id=t.id;
+ end if;
+ perform app.action_complete(p_client_action_id,'{}'); return '{}'::jsonb;
+end $$;
+
 revoke all on function app.org_tag_digits(uuid), app.asset_tag_canonical() from public;
 grant execute on function app.org_tag_digits(uuid) to service_role;
 

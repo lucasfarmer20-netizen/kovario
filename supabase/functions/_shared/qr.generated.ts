@@ -94,6 +94,9 @@ export function normalizeTagCode(raw: string, digits: number = TAG_DIGITS): stri
   return s.replace(/^0+(?=\d)/, "").padStart(digits, "0");
 }
 
+/** Most tags one Admin → Asset tags range creates (one transaction): a whole 4-digit pool. */
+export const MAX_TAG_RANGE = 10_000;
+
 /** Largest tag number an org at `digits` can create: `10^digits − 1` (4 → 9999). */
 export function maxTagNumber(digits: number): number {
   return 10 ** digits - 1;
@@ -232,6 +235,7 @@ export const TAG_SQL_PATH = "supabase/migrations/20261029100000_tag_normalizatio
  *   app.scan_tag_code(raw, slug, digits) — the TAG code parse() reads from this org's
  *     `FL:TAG:<slug>:<n>` (any padding) or a bare code; null for anything else
  *   app.qr_tag(slug, code) — encode("TAG", …) for a canonical code
+ *   app.max_tag_range() — MAX_TAG_RANGE, the admin_asset_tags batch limit
  */
 export function renderTagCodeSql(): string {
   const tag = `${QR_PREFIX}:TAG:`;
@@ -252,7 +256,11 @@ create or replace function app.qr_tag(org_slug text, code text) returns text
 language sql immutable set search_path='' as $$
  select '${tag}'||org_slug||':'||code
 $$;
+create or replace function app.max_tag_range() returns integer
+language sql immutable set search_path='' as $$
+ select ${MAX_TAG_RANGE}
+$$;
 revoke all on function app.normalize_tag_code(text,integer),app.scan_tag_code(text,text,integer),
- app.qr_tag(text,text) from public;
+ app.qr_tag(text,text),app.max_tag_range() from public;
 `;
 }

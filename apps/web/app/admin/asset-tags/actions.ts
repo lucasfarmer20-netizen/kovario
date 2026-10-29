@@ -1,10 +1,11 @@
 "use server";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { encode, maxTagNumber, normalizeTagCode } from "rules";
+import { encode, normalizeTagCode } from "rules";
 import { assetTagSheet } from "labels/zpl";
 import { enqueuePrintJob } from "db";
 import { adminMutation, unwrap, type ActionState } from "@/lib/admin-action";
+import { tagRangeProblem } from "@/lib/asset-tags";
 import type { ManagerSession } from "@/lib/auth";
 import type { OrgSettings } from "@/lib/org-settings";
 
@@ -29,15 +30,8 @@ export async function manageTags(_: ActionState, form: FormData): Promise<Action
       const first = Number(form.get("first")),
         last = Number(form.get("last"));
       const org = await orgTags(supabase, claims.orgId);
-      const max = maxTagNumber(org.digits);
-      if (
-        !Number.isInteger(first) ||
-        !Number.isInteger(last) ||
-        first < 0 ||
-        last > max ||
-        last < first
-      )
-        throw new Error(`Enter a range from 0 to ${max}.`);
+      const problem = tagRangeProblem(first, last, org.digits);
+      if (problem) throw new Error(problem);
       return unwrap(
         await supabase.rpc("admin_asset_tags", {
           p_client_action_id: id,

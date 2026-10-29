@@ -15,5 +15,9 @@ create or replace function app.qr_tag(org_slug text, code text) returns text
 language sql immutable set search_path='' as $$
  select 'FL:TAG:'||org_slug||':'||code
 $$;
+create or replace function app.max_tag_range() returns integer
+language sql immutable set search_path='' as $$
+ select 10000
+$$;
 revoke all on function app.normalize_tag_code(text,integer),app.scan_tag_code(text,text,integer),
- app.qr_tag(text,text) from public;
+ app.qr_tag(text,text),app.max_tag_range() from public;

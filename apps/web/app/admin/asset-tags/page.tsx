@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { maxTagNumber } from "rules";
+import { MAX_TAG_RANGE, maxTagNumber } from "rules";
 import { adminPageSession } from "@/lib/auth";
 import { ActionForm } from "@/components/admin/action-form";
 import type { OrgSettings } from "@/lib/org-settings";
@@ -19,7 +19,8 @@ export default async function AssetTagsPage() {
     <div className="space-y-6">
       <h1>Asset tag pool</h1>
       <p>
-        {digits}-digit tags (0–{max}). Raise the width in Settings → Asset tag digits.
+        {digits}-digit tags (0–{max}), up to {MAX_TAG_RANGE.toLocaleString("en-US")} per range.
+        Raise the width in Settings → Asset tag digits.
       </p>
       <ActionForm action={manageTags} actionId={randomUUID()} submitLabel="Create range">
         <label>
