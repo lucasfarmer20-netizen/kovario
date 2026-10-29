@@ -2,8 +2,6 @@
 // counts and money are never computed here: they come from app.storage_box_days and
 // app.storage_snapshot (S4) through the storage_box_days view and storage_pickup_quote.
 
-import type { ParseResult } from "rules";
-
 export type BoxRow = { key: string; weight: string; description: string };
 
 export type ConfirmPayload = {
@@ -77,39 +75,4 @@ export function boxRollup(active: number, total: number): string {
 /** Whole days in storage for the queue's age badge ("12 days"). */
 export function daysLabel(days: number): string {
   return `${days} day${days === 1 ? "" : "s"}`;
-}
-
-export type PickableBox = {
-  storage_box_id: string | null;
-  box_no: number | null;
-  state: string | null;
-};
-
-/**
- * A scanned or typed storage-box code (`STG-0001-2`, issue #84) → that box added to the
- * pickup selection. The code is matched against this intake's own boxes: a box of another
- * intake, an unknown box or one already picked up is refused, never guessed.
- */
-export function pickBoxByCode(
-  intakeNumber: string,
-  boxes: PickableBox[],
-  selected: string[],
-  parsed: ParseResult,
-): { ok: boolean; selected: string[]; message: string } {
-  const refuse = (message: string) => ({ ok: false, selected, message });
-  if (!parsed.ok || parsed.value.kind !== "SBOX")
-    return refuse("Not a storage box code. Type it as printed, e.g. STG-0001-2.");
-  const { storageNumber, boxNo } = parsed.value;
-  const code = `${storageNumber}-${boxNo}`;
-  if (storageNumber !== intakeNumber) return refuse(`${code} is not on ${intakeNumber}.`);
-  const box = boxes.find((b) => b.box_no === boxNo);
-  if (!box?.storage_box_id) return refuse(`No box ${boxNo} on ${intakeNumber}.`);
-  if (box.state !== "stored") return refuse(`Box ${boxNo} is already picked up.`);
-  if (selected.includes(box.storage_box_id))
-    return { ok: true, selected, message: `Box ${boxNo} is already selected.` };
-  return {
-    ok: true,
-    selected: [...selected, box.storage_box_id],
-    message: `Box ${boxNo} selected for pickup.`,
-  };
 }

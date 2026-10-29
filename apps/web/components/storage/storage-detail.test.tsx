@@ -41,7 +41,19 @@ const TABLES: Record<string, unknown[]> = {
 
 /** A stand-in for supabase-js: table reads resolve TABLES, RPCs resolve `rpcs`. */
 function fakeClient(rpcs: Record<string, unknown>) {
-  const rpc = vi.fn(async (name: string) => ({ data: rpcs[name] ?? null, error: null }));
+  // A PostgREST builder: thenable, with setHeader (a typed code's entry-method header).
+  const headers: string[] = [];
+  const rpc = vi.fn((name: string, args?: Record<string, unknown>): unknown => {
+    const reply = rpcs[name];
+    const data = typeof reply === "function" ? (reply as (a: unknown) => unknown)(args) : reply;
+    const builder = Object.assign(Promise.resolve({ data: data ?? null, error: null }), {
+      setHeader: (header: string, value: string) => {
+        headers.push(`${name} ${header}: ${value}`);
+        return builder;
+      },
+    });
+    return builder;
+  });
   const from = (table: string) => {
     const result = { data: TABLES[table] ?? [], error: null };
     const q: Record<string, unknown> = {
@@ -57,7 +69,7 @@ function fakeClient(rpcs: Record<string, unknown>) {
     };
     return q;
   };
-  return { client: { from, rpc } as unknown as FilletryClient, rpc };
+  return { client: { from, rpc } as unknown as FilletryClient, rpc, headers };
 }
 
 const session = (client: FilletryClient): StationSession => ({
@@ -178,8 +190,21 @@ it("storage form: refuses without a customer; Confirm sends the boxes, then queu
   ]);
 });
 
-it("#84 freezer pickup Type code: a typed box code selects that box; others are refused", async () => {
-  const { client } = fakeClient({});
+/** Stand-in for public.storage_box_scan (25_storage_box_scan.test.sql pins the real one). */
+function storageBoxScan(args: unknown) {
+  const { p_storage_number: number, p_box_no: no } = args as {
+    p_storage_number?: string;
+    p_box_no?: number;
+  };
+  if (number === undefined || no === undefined)
+    return { ok: false, reason: "Not a storage box code. Type it as printed, e.g. STG-0001-2." };
+  if (number !== "STG-0007") return { ok: false, reason: `${number}-${no} is not on STG-0007.` };
+  if (no > 3) return { ok: false, reason: `No box ${no} on STG-0007.` };
+  return { ok: true, reason: `Box ${no} selected for pickup.`, box_id: `b-${no}` };
+}
+
+it("#84 freezer pickup Type code: every typed box code is checked and logged by the server", async () => {
+  const { client, rpc, headers } = fakeClient({ storage_box_scan: storageBoxScan });
   render(<StorageDetail session={session(client)} storageIntakeId="si-1" />);
   fireEvent.click(await screen.findByRole("button", { name: "Type code" }));
   const field = screen.getByLabelText(/Type the box code/);
@@ -193,11 +218,29 @@ it("#84 freezer pickup Type code: a typed box code selects that box; others are 
   );
   expect(screen.getByText("Box 2 selected for pickup.")).toBeTruthy();
   enter("STG-0008-1");
-  expect(screen.getByRole("alert").textContent).toBe("STG-0008-1 is not on STG-0007.");
+  await waitFor(() =>
+    expect(screen.getByRole("alert").textContent).toBe("STG-0008-1 is not on STG-0007."),
+  );
   enter("STG-0007-9");
-  expect(screen.getByRole("alert").textContent).toBe("No box 9 on STG-0007.");
-  enter("042");
-  expect(screen.getByRole("alert").textContent).toMatch(/Not a storage box code/);
+  await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("No box 9 on STG-0007."));
+  enter("hello");
+  await waitFor(() =>
+    expect(screen.getByRole("alert").textContent).toMatch(/Not a storage box code/),
+  );
   expect((screen.getByLabelText("Pick up Box 1") as HTMLInputElement).checked).toBe(false);
   expect((screen.getByLabelText("Pick up Box 2") as HTMLInputElement).checked).toBe(true);
+  // Accepted and rejected codes alike reach the server (validated, logged), flagged manual.
+  const calls = rpc.mock.calls.filter(([name]) => name === "storage_box_scan").map(([, a]) => a);
+  expect(calls).toEqual([
+    expect.objectContaining({
+      p_raw: "FL:SBOX:STG-0007:2",
+      p_storage_intake_id: "si-1",
+      p_storage_number: "STG-0007",
+      p_box_no: 2,
+    }),
+    expect.objectContaining({ p_raw: "FL:SBOX:STG-0008:1", p_storage_number: "STG-0008" }),
+    expect.objectContaining({ p_raw: "FL:SBOX:STG-0007:9", p_box_no: 9 }),
+    expect.objectContaining({ p_raw: "hello", p_storage_number: undefined, p_box_no: undefined }),
+  ]);
+  expect(headers).toEqual(Array(4).fill("storage_box_scan x-filletry-entry-method: manual"));
 });

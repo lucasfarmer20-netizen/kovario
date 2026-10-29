@@ -15,6 +15,7 @@ import {
   pickupReceipt,
   printLabels,
   quotePickup,
+  scanStorageBox,
   type LabelsQueued,
   type LoadedStorageIntake,
   type PickupReceipt,
@@ -25,7 +26,6 @@ import {
   STORAGE_STATE_LABELS,
   boxRollup,
   daysLabel,
-  pickBoxByCode,
   toggleBox,
 } from "./storage-state";
 
@@ -168,21 +168,30 @@ export function StorageDetail({
       <div className="station-workspace">
         <section className="station-card" aria-label="Boxes">
           <h2>Boxes</h2>
-          {/* Freezer pickups: a box code typed or scanned into this field selects that box. */}
+          {/* Freezer pickups: a box code typed into this field is checked against the storage
+              master and logged in scan_log (issue #84); an accepted box joins the selection. */}
           <ManualEntry
             open={typing}
             onOpenChange={setTyping}
             disabled={busy}
             options={{ ...manual, accept: ["SBOX"] }}
             label="Type the box code printed on its label (STG-0001-2)"
-            onSubmit={(_text, parsed) => {
-              const picked = pickBoxByCode(intake.number, boxes, selected, parsed);
-              if (picked.selected !== selected) {
-                batchActionId.current = null;
-                setSelected(picked.selected);
-              }
-              setError(picked.ok ? "" : picked.message);
-              setMessage(picked.ok ? picked.message : "");
+            onSubmit={(text, parsed) => {
+              void scanStorageBox(client, intake.id, text, parsed, "manual").then(
+                (reply) => {
+                  const boxId = reply.box_id;
+                  if (reply.ok && boxId) {
+                    batchActionId.current = null;
+                    setSelected((ids) => (ids.includes(boxId) ? ids : [...ids, boxId]));
+                  }
+                  setError(reply.ok ? "" : reply.reason);
+                  setMessage(reply.ok ? reply.reason : "");
+                },
+                () => {
+                  setMessage("");
+                  setError("Code not recorded; check the connection and enter it again.");
+                },
+              );
             }}
           />
           <table className="intake-lines">

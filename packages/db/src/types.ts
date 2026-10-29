@@ -2679,6 +2679,9 @@ isOneToOne: false
 "station_scan":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed": Json,"p_raw": string,"p_reason"?: string,"p_station": Database["public"]['Enums']["device_station"] }; Returns: Json
                            },
+"storage_box_scan":
+{ Args: { "p_box_no"?: number,"p_client_action_id": string,"p_raw": string,"p_storage_intake_id": string,"p_storage_number"?: string }; Returns: Json
+                           },
 "storage_label_data":
 { Args: { "p_storage_intake_id": string }; Returns: Json
                            },
