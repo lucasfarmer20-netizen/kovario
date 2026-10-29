@@ -2,8 +2,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { parse } from "rules";
-import { sessionForBoxingToken } from "@/components/allocate/allocate-data";
 import { useFreezerOperator } from "@/components/freezer/use-freezer-operator";
 import {
   managerElevation,
@@ -12,9 +10,11 @@ import {
 } from "@/components/intake/use-station-session";
 import { ManagerPinOverlay } from "@/src/components/station/pin-overlay";
 import { StationShell } from "@/src/components/station/station-shell";
-import { useManualOptions } from "@/src/components/station/manual-entry";
+import { useManualOptions, type EntryMethod } from "@/src/components/station/manual-entry";
+import { stationMessage } from "@/src/components/station/messages";
 import {
   boxingQueue,
+  boxingScan,
   completeRelease,
   emptiedVessels,
   loadWizard,
@@ -41,6 +41,7 @@ import {
 } from "./boxing-state";
 
 type Feedback = { tone: "ok" | "warn" | "error"; text: string } | null;
+const SCAN_UNRECORDED = "Scan not recorded; check the connection and scan again.";
 
 function Status({ feedback }: { feedback: Feedback }) {
   if (!feedback) return null;
@@ -95,15 +96,12 @@ function BoxingQueue({ client, claims, siteName }: StationSession) {
       pending={0}
       status={<Status feedback={feedback} />}
       manual={{ ...manual, accept: ["BOX"] }}
-      onScan={async (raw) => {
-        const scanned = parse(raw);
-        if (!scanned.ok || scanned.value.kind !== "BOX") {
-          setFeedback({ tone: "error", text: "Scan the boxing QR on a settlement receipt" });
-          return;
-        }
-        const id = await sessionForBoxingToken(client, scanned.value.token).catch(() => null);
-        if (id) router.push(`/boxing/${id}`);
-        else setFeedback({ tone: "error", text: "That boxing QR does not match a settlement" });
+      onScan={async (raw, _parsed, method) => {
+        // The server resolves the receipt and logs the scan (typed or scanned) in scan_log.
+        const reply = await boxingScan(client, raw, null, null, method).catch(() => null);
+        if (!reply) setFeedback({ tone: "error", text: SCAN_UNRECORDED });
+        else if (reply.ok && reply.session_id) router.push(`/boxing/${reply.session_id}`);
+        else setFeedback({ tone: "error", text: stationMessage(reply.reason) });
       }}
     >
       <section className="station-card" aria-label="Boxing queue">
@@ -221,27 +219,37 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     };
   }, [client, sessionId]);
 
-  async function onScan(raw: string) {
+  async function onScan(raw: string, method: EntryMethod) {
     if (!wizard) return;
+    // The server validates the code against the masters and this party's pick list (I11),
+    // and logs it in scan_log; ticks stay a local projection (I15).
+    const reply = await boxingScan(client, raw, sessionId, op.proof, method).catch(() => null);
+    if (!reply) {
+      setFeedback({ tone: "error", text: SCAN_UNRECORDED });
+      return;
+    }
+    if (!reply.ok) {
+      if (reply.reason === "operator_pin_required") op.expire();
+      setFeedback({ tone: "error", text: stationMessage(reply.reason) });
+      return;
+    }
+    if (reply.kind === "BOX") {
+      // Additive re-scan: re-project, keeping ticks on still-eligible records (P15).
+      await refresh(false);
+      setFeedback({ tone: "ok", text: `${wizard.number} refreshed` });
+      return;
+    }
     const outcome = scanTick(wizard, ticks, raw);
     if (outcome.kind === "ticked") {
       updateTicks(outcome.ticks);
       setFeedback({ tone: "ok", text: outcome.message });
-    } else if (outcome.kind === "rejected") {
-      setFeedback({ tone: "error", text: outcome.message });
     } else {
-      const id = await sessionForBoxingToken(client, outcome.token).catch(() => null);
-      if (id === sessionId) {
-        // Additive re-scan: re-project, keeping ticks on still-eligible records (P15).
-        await refresh(false);
-        setFeedback({ tone: "ok", text: `${wizard.number} refreshed` });
-      } else
-        setFeedback({
-          tone: "error",
-          text: id
-            ? `That receipt belongs to another party; one party per Complete. Finish ${wizard.number} first.`
-            : "That boxing QR does not match a settlement",
-        });
+      // The server saw it on the pick list but this projection is stale: re-project.
+      await refresh(false).catch(() => undefined);
+      setFeedback({
+        tone: "error",
+        text: outcome.kind === "rejected" ? `${outcome.message}; list refreshed` : "Scan again",
+      });
     }
   }
 
@@ -370,7 +378,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       paused={op.pinOpen || editing || pending !== null}
       status={<Status feedback={feedback} />}
       manual={{ ...manual, accept: ["TAG", "BOX"] }}
-      onScan={(raw) => void onScan(raw)}
+      onScan={(raw, _parsed, method) => void onScan(raw, method)}
     >
       <p className="station-hint">
         {wizard.party_name ?? "Party"} · state {wizard.state}

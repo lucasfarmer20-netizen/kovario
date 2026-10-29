@@ -1,5 +1,6 @@
 "use client";
 import { withAction, type FilletryClient, type Json } from "db";
+import { withEntryMethod, type EntryMethod } from "@/src/components/station/entry-method";
 import type { CompletePayload, Wizard } from "./boxing-state";
 
 // Station-side calls for boxing / will-call. Every mutation is one SQL function keyed by a
@@ -190,4 +191,37 @@ export async function emptiedVessels(
       emptied_at: r.emptied_at,
     };
   });
+}
+
+export type BoxingScanReply = {
+  ok: boolean;
+  reason: string;
+  kind: "BOX" | "TAG" | null;
+  session_id: string | null;
+  vessel_id: string | null;
+  tag_code: string | null;
+};
+
+/**
+ * One boxing scan or typed code, validated against the masters and written to scan_log
+ * (issue #84); a typed code carries the entry-method header. `sessionId` null is the queue.
+ */
+export async function boxingScan(
+  client: FilletryClient,
+  raw: string,
+  sessionId: string | null,
+  operatorSession: string | null,
+  method: EntryMethod,
+): Promise<BoxingScanReply> {
+  return unwrap(
+    await withEntryMethod(
+      client.rpc("boxing_scan", {
+        p_client_action_id: crypto.randomUUID(),
+        p_raw: raw,
+        p_session_id: sessionId ?? undefined,
+        p_operator_session: operatorSession ?? undefined,
+      }),
+      method,
+    ),
+  ) as unknown as BoxingScanReply;
 }
