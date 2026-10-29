@@ -12,7 +12,10 @@ import {
   QR_PREFIX,
   type QrFields,
   type QrKind,
+  PALLET_LOCATION_CODE,
+  RACK_LOCATION_CODE,
 } from "./qr.ts";
+import { generateRackLocations, isGridShaped, palletCode, rackCode } from "./locations.ts";
 
 const intakeNumber = fc.nat({ max: 99_999_999 }).map((n) => `INT-${String(n).padStart(4, "0")}`);
 const storageNumber = fc.nat({ max: 99_999_999 }).map((n) => `STG-${String(n).padStart(4, "0")}`);
@@ -275,17 +278,24 @@ describe("tagDigits option (org.settings.scanner.tag_digits)", () => {
 
 // Issue #84: typed codes for a dead scanner. Named M1… after the manual-entry invariants.
 describe("parseManual / shortCode (typed codes, issue #84)", () => {
-  const gridCode = fc
+  // Every code the location generator can print, INT / STG / numeric zones and rows included.
+  const zone = fc.oneof(
+    fc.constantFrom("INT", "STG", "IF", "1", "12345678"),
+    fc.stringMatching(/^[A-Z0-9]{1,8}$/),
+  );
+  const rackLocation = fc
     .tuple(
-      fc.stringMatching(/^[A-Z]{1,4}$/).filter((zone) => zone !== "INT" && zone !== "STG"),
-      fc.stringMatching(/^[A-Z0-9]{1,4}$/),
+      zone,
+      fc.oneof(fc.constantFrom("01", "INT", "STG"), fc.stringMatching(/^[A-Z0-9]{1,4}$/)),
       fc.integer({ min: 1, max: 99 }),
       fc.integer({ min: 1, max: 9 }),
-      fc.constantFrom("F", "R"),
+      fc.constantFrom("F", "R") as fc.Arbitrary<"F" | "R">,
     )
-    .map(([zone, row, bay, level, depth]) =>
-      [zone, row, String(bay).padStart(2, "0"), level, depth].join("-"),
-    );
+    .map(([z, row, bay, level, depth]) => rackCode(z, row, bay, level, depth));
+  const palletLocation = fc
+    .tuple(zone, fc.integer({ min: 1, max: 999 }))
+    .map(([z, n]) => palletCode(z, n));
+  const gridCode = fc.oneof(rackLocation, palletLocation);
   const shortPayloads = {
     TOTE: payloads.TOTE,
     TAG: payloads.TAG,
@@ -406,6 +416,8 @@ describe("parseManual / shortCode (typed codes, issue #84)", () => {
       "STG-0001",
       "INT-0001-0",
       "STG-0001-x",
+      "INT-0001-1-F", // not a rack shape: four segments
+      "STG-01-1-1-F", // not a rack shape: one-digit bay
       "FL:TOTE:INT-0001",
       "FL:TAG:Bad Slug:042",
     ])
@@ -427,5 +439,57 @@ describe("parseManual / shortCode (typed codes, issue #84)", () => {
     expect(() => shortCode("TOTE", { intakeNumber: "INT-1", toteNo: 1 })).toThrow(RangeError);
     expect(() => shortCode("TAG", { orgSlug: "demo", code: "4a" })).toThrow(RangeError);
     expect(() => shortCode("SBOX", { storageNumber: "STG-0001", boxNo: 0 })).toThrow(RangeError);
+  });
+});
+
+describe("parseManual locations in INT / STG zones (issue #84 review)", () => {
+  it("M12 a rack or pallet code in an INT or STG zone reads as a location, not a bad tote/box", () => {
+    const codes = [
+      ...generateRackLocations({
+        zone: "INT",
+        rows: [{ row: "1", bays: 2, levels: 2 }],
+        depths: ["F", "R"],
+      }).map((l) => l.code),
+      ...generateRackLocations({
+        zone: "STG",
+        rows: [{ row: "A", bays: 1, levels: 1 }],
+        depths: ["F"],
+      }).map((l) => l.code),
+      palletCode("INT", 1),
+      palletCode("stg", 12),
+    ];
+    expect(codes).toContain("INT-01-01-1-F");
+    for (const code of codes) {
+      const loc = { kind: "LOC", orgSlug: null, code, legacy: true };
+      expect(parseManual(code), code).toEqual({ ok: true, value: loc, text: code });
+      expect(parseManual(code.toLowerCase().replaceAll("-", " "), { accept: ["LOC"] })).toEqual({
+        ok: true,
+        value: loc,
+        text: code,
+      });
+      expect(parseManual(code, { orgSlug: "demo", accept: ["TAG", "LOC"] })).toMatchObject({
+        ok: true,
+        text: encode("LOC", { orgSlug: "demo", code }),
+      });
+    }
+  });
+
+  it("M13 qr.ts's location shapes match the generator's (qr.ts cannot import locations.ts)", () => {
+    fc.assert(
+      fc.property(
+        fc.stringMatching(/^[A-Z0-9]{1,8}$/),
+        fc.stringMatching(/^[A-Z0-9]{1,4}$/),
+        fc.integer({ min: 1, max: 99 }),
+        fc.integer({ min: 1, max: 9 }),
+        fc.constantFrom("F", "R") as fc.Arbitrary<"F" | "R">,
+        fc.integer({ min: 1, max: 9999 }),
+        (z, row, bay, level, depth, n) => {
+          const rack = rackCode(z, row, bay, level, depth);
+          expect(RACK_LOCATION_CODE.test(rack) && isGridShaped(rack)).toBe(true);
+          const pallet = palletCode(z, n);
+          expect(PALLET_LOCATION_CODE.test(pallet) && !isGridShaped(pallet)).toBe(true);
+        },
+      ),
+    );
   });
 });

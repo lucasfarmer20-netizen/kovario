@@ -235,6 +235,13 @@ export type ManualResult =
 
 const TYPED_NUMBERED = /^(INT|STG)[-\s]*(\d+)(?:[-\s]+(\d+))?$/;
 const TYPED_LOCATION = /^[A-Z0-9]+(?:-[A-Z0-9]+)+$/;
+/**
+ * The location master's code shapes (public.location_code_shape, from rules/locations.ts
+ * renderLocationShapeSql): rack `ZONE-ROW-BB-L-F|R` and pallet `ZONE-PALLET-NN`. Mirrored
+ * here because qr.ts stays import-free (functions-qr.ts); qr.test.ts pins them to locations.ts.
+ */
+export const RACK_LOCATION_CODE = /^[A-Z0-9]{1,8}-[A-Z0-9]{1,4}-\d{2}-[1-9]-[FR]$/;
+export const PALLET_LOCATION_CODE = /^[A-Z0-9]{1,8}-PALLET-\d{2,}$/;
 
 /** `INT-12` / `INT-0012` → `INT-0012`, as app.next_seq numbers them (at least 4 digits). */
 function sequenceNumber(prefix: string, digits: string): string {
@@ -282,8 +289,15 @@ export function parseManual(raw: string, options: ManualOptions = {}): ManualRes
     const value = { kind: "TOTE", intakeNumber: id, toteNo: n, legacy: false } as const;
     return { ok: true, value, text: encode("TOTE", value) };
   }
-  // `STG-0001-x` is a mistyped box, never a location.
-  if (/^(?:INT|STG)[-\s]*\d/.test(upper)) return { ok: false, reason: "bad_field" };
+  // `STG-0001-x` is a mistyped box; but a zone may be named INT or STG, so a real rack or
+  // pallet code (`INT-01-01-1-F`, `STG-PALLET-02`) still reads as a location below.
+  const location = upper.replaceAll(" ", "-");
+  if (
+    /^(?:INT|STG)[-\s]*\d/.test(upper) &&
+    !RACK_LOCATION_CODE.test(location) &&
+    !PALLET_LOCATION_CODE.test(location)
+  )
+    return { ok: false, reason: "bad_field" };
 
   // Remaining short forms can overlap (`23456789` is a tag code and a pairing code), so the
   // station's accepted kinds win; otherwise the first reading in this order does.
@@ -302,7 +316,6 @@ export function parseManual(raw: string, options: ManualOptions = {}): ManualRes
           },
     );
   }
-  const location = upper.replaceAll(" ", "-");
   if (TYPED_LOCATION.test(location)) {
     readings.push(
       slug === undefined
