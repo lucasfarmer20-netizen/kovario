@@ -3,7 +3,7 @@ import type { RackRowSpec } from "rules";
 /** PostgREST's row cap per request (`supabase/config.toml` `max_rows`). */
 export const PAGE_SIZE = 1000;
 
-type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
+export type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
 /**
  * Every row of a query, one `.range(from, to)` page at a time. The query must have a

@@ -1,20 +1,31 @@
 import { randomUUID } from "node:crypto";
+import Link from "next/link";
 import { MAX_TAG_RANGE, maxTagNumber } from "rules";
+import { tagListPage } from "@/lib/asset-tags";
 import { adminPageSession } from "@/lib/auth";
 import { ActionForm } from "@/components/admin/action-form";
 import type { OrgSettings } from "@/lib/org-settings";
 import { manageTags, printTags } from "./actions";
-export default async function AssetTagsPage() {
+export default async function AssetTagsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const session = await adminPageSession();
   if (!session) return null;
-  const [tags, printers, org] = await Promise.all([
-    session.supabase.from("asset_tag").select("*").order("code"),
-    session.supabase.from("printer").select("id,name").eq("kind", "label_zpl"),
-    session.supabase.from("org").select("settings").maybeSingle(),
+  const { supabase } = session;
+  const [count, printers, org] = await Promise.all([
+    supabase.from("asset_tag").select("id", { count: "exact", head: true }),
+    supabase.from("printer").select("id,name").eq("kind", "label_zpl"),
+    supabase.from("org").select("settings").maybeSingle(),
   ]);
   const digits = (org.data?.settings as OrgSettings | undefined)?.scanner.tag_digits;
   if (!digits) return <p role="alert">Unable to load the organisation</p>;
   const max = maxTagNumber(digits);
+  // The pool can exceed the PostgREST row cap: list it a page at a time.
+  const total = count.count ?? 0;
+  const list = tagListPage((await searchParams).page, total);
+  const tags = await supabase.from("asset_tag").select("*").order("code").range(list.from, list.to);
   return (
     <div className="space-y-6">
       <h1>Asset tag pool</h1>
@@ -41,7 +52,16 @@ export default async function AssetTagsPage() {
           ))}
         </select>
       </ActionForm>
-      {tags.error && <p role="alert">Unable to load tags</p>}
+      {(count.error || tags.error) && <p role="alert">Unable to load tags</p>}
+      {total > 0 && (
+        <nav aria-label="Tag pages" className="flex gap-4">
+          <span>
+            Tags {list.from + 1}–{Math.min(list.to + 1, total)} of {total}
+          </span>
+          {list.page > 1 && <Link href={`?page=${list.page - 1}`}>Previous</Link>}
+          {list.page < list.pages && <Link href={`?page=${list.page + 1}`}>Next</Link>}
+        </nav>
+      )}
       <ul>
         {tags.data?.map((t) => (
           <li key={t.id} className="border-b py-3">

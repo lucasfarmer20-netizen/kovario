@@ -2,10 +2,9 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { encode, normalizeTagCode } from "rules";
-import { assetTagSheet } from "labels/zpl";
 import { enqueuePrintJob } from "db";
 import { adminMutation, unwrap, type ActionState } from "@/lib/admin-action";
-import { tagRangeProblem } from "@/lib/asset-tags";
+import { activeTagSheet, tagRangeProblem } from "@/lib/asset-tags";
 import type { ManagerSession } from "@/lib/auth";
 import type { OrgSettings } from "@/lib/org-settings";
 
@@ -55,19 +54,22 @@ export async function printTags(_: ActionState, form: FormData): Promise<ActionS
     form,
     async ({ supabase, claims }, id) => {
       const org = await orgTags(supabase, claims.orgId);
-      const tags = unwrap(
-        await supabase.from("asset_tag").select("code").neq("state", "retired").order("code"),
+      const payload = await activeTagSheet(
+        (from, to) =>
+          supabase
+            .from("asset_tag")
+            .select("code")
+            .neq("state", "retired")
+            .order("code")
+            .range(from, to),
+        org.slug,
+        org.digits,
       );
-      if (!tags?.length) throw new Error("Create tags first.");
       return enqueuePrintJob(supabase, id, {
         printerId: String(form.get("printer_id")),
         kind: "asset_tag_sheet",
         payloadType: "zpl",
-        payload: assetTagSheet({
-          orgSlug: org.slug,
-          codes: tags.map((t) => t.code),
-          tagDigits: org.digits,
-        }),
+        payload,
       });
     },
     "Tag sheet queued.",
