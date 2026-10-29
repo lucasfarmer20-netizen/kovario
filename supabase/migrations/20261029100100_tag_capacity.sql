@@ -42,11 +42,16 @@ $$;
 -- A tag's code is canonical at its org's width: 0042 in a 4-digit org, never 042.
 -- Security definer: it only reads the org's width, and must hold for every writer
 -- (admin functions, the service role) without granting them the app.* helpers.
+-- The width is read under FOR KEY SHARE on the org row, which conflicts only with the raise's
+-- FOR UPDATE (admin_update_org): a write racing a raise either waits for it and validates
+-- against the new width, or commits first and is re-padded by it. Lock order: org, then tags.
 create or replace function app.asset_tag_canonical() returns trigger
 language plpgsql security definer set search_path='' as $$
 declare
-  v_digits integer := app.org_tag_digits(new.org_id);
+  v_digits integer;
 begin
+  select coalesce((settings #>> '{scanner,tag_digits}')::int, 3) into v_digits
+  from public.org where id = new.org_id for key share;
   if new.code is distinct from app.normalize_tag_code(new.code, v_digits) then
     raise exception 'Tag code % does not fit this org''s % digit tags', new.code, v_digits
       using errcode = '23514';
@@ -83,7 +88,8 @@ revoke all on function app.org_tag_digits(uuid), app.asset_tag_canonical() from 
 grant execute on function app.org_tag_digits(uuid) to service_role;
 
 -- Org settings: tag_digits is raise-only --------------------------------------------------
--- Lock order: the org row, then its tags. Scan paths lock tags but never the org row.
+-- Lock order: the org row (FOR UPDATE), then its tags. Tag writes key-share the org row first
+-- (app.asset_tag_canonical), so they serialise with a raise; scan paths never lock the org row.
 create or replace function public.admin_update_org(
   p_client_action_id text, p_name text, p_timezone text, p_settings jsonb
 )
