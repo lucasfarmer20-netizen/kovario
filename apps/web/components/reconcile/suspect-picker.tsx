@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { Check, MoveRight, Search, Undo2, X } from "lucide-react";
 import type { FilletryClient } from "db";
 import {
   formatVariance,
@@ -14,7 +15,8 @@ import {
   type SuggestedMove,
 } from "rules";
 import { BAND_LABEL, lineBand } from "@/components/variance/now-in-blast";
-import { DisabledReason } from "@/src/components/station/next-step";
+import { StationButton } from "@/src/components/station/station-button";
+import { SectionTitle, StationCard, StationNotice } from "@/src/components/station/station-ui";
 
 /** One member of public.variance_suspect_group (#88). */
 export type SuspectRow = {
@@ -204,165 +206,222 @@ export function SuspectPicker({
   };
   const row = (r: SuspectRow, label?: string) => (
     <li key={r.intake_id} className={`station-band station-band-${lineBand(r.band)}`}>
-      {label && <strong>{label} </strong>}
-      {suspectLine(r)}
+      <span className="station-band-text">
+        {label && <strong>{label} </strong>}
+        {suspectLine(r)}
+      </span>
       {r.status === "in_blast" && (
-        <button type="button" disabled={disabled} onClick={() => startPullBack(r.intake_id)}>
+        <StationButton
+          tone="secondary"
+          icon={<Undo2 />}
+          disabled={disabled}
+          onClick={() => startPullBack(r.intake_id)}
+        >
           Pull back {r.intake_number}
-        </button>
+        </StationButton>
       )}
     </li>
   );
   if (!center)
     return (
-      <section className="station-card" aria-label="Suspect picker">
-        <h3>SUSPECTS</h3>
-        <p role={error ? "alert" : undefined}>
-          {error ? "Suspects unavailable; check connection." : "Loading suspects…"}
-        </p>
-        <button type="button" onClick={onClose}>
+      <StationCard className="station-suspects" aria-label="Suspect picker">
+        <div className="station-card-head">
+          <div>
+            <span className="station-card-eyebrow">Find the fish</span>
+            <h3>SUSPECTS</h3>
+          </div>
+        </div>
+        {error ? (
+          <StationNotice tone="danger" role="alert">
+            Suspects unavailable; check connection.
+          </StationNotice>
+        ) : (
+          <p className="station-hint">Loading suspects…</p>
+        )}
+        <StationButton tone="ghost" icon={<X />} onClick={onClose}>
           Close suspects
-        </button>
-      </section>
+        </StationButton>
+      </StationCard>
     );
   return (
-    <section className="station-card" aria-label="Suspect picker">
-      <h3>
-        SUSPECTS · {center.intake_number} {formatVariance(center.variance_pct)} (limit ±
-        {center.limit_pct}%){center.hold_id ? " · HELD" : ""}
-      </h3>
-      {error && <p role="alert">Suspects unavailable; check connection.</p>}
+    <StationCard className="station-suspects" aria-label="Suspect picker">
+      <div className="station-card-head">
+        <div>
+          <span className="station-card-eyebrow">
+            <Search aria-hidden="true" className="inline-block size-5 align-[-3px]" /> Find the fish
+          </span>
+          <h3>
+            SUSPECTS · {center.intake_number} {formatVariance(center.variance_pct)} (limit ±
+            {center.limit_pct}%){center.hold_id ? " · HELD" : ""}
+          </h3>
+        </div>
+        <StationButton tone="ghost" icon={<X />} onClick={onClose}>
+          Close suspects
+        </StationButton>
+      </div>
+      {error && (
+        <StationNotice tone="danger" role="alert">
+          Suspects unavailable; check connection.
+        </StationNotice>
+      )}
       <ul aria-label="Flagged order">{row(center, center.hold_id ? "Flagged:" : "Tapped:")}</ul>
-      <h4>Most likely first</h4>
+      <SectionTitle>Most likely first</SectionTitle>
       <ol aria-label="Suspects">{ranked.map((s) => row(byId.get(s.intakeId)!))}</ol>
       {rows
         .filter((r) => r.position !== 0 && !ranked.some((s) => s.intakeId === r.intake_id))
         .map((r) => (
-          <p key={r.intake_id}>{suspectLine(r)}</p>
+          <p key={r.intake_id} className="station-meta">
+            {suspectLine(r)}
+          </p>
         ))}
-      <h4>Suggested moves</h4>
-      {waiting.length > 0 ? (
-        <p>
-          Suggestions appear once every order in the group is reconciled. Waiting on:{" "}
-          {waiting.map((w) => `${w.intake_number} (${SUSPECT_STATUS_LABELS[w.status]})`).join(", ")}
-        </p>
-      ) : moves.length === 0 ? (
-        <p>No basket move brings the group closer; check the baskets or get a manager sign-off.</p>
-      ) : (
-        <ul aria-label="Suggested moves">
-          {moves.map((m) => {
-            const moving = bins.find((b) => b.id === m.vesselId);
-            const text = `Move ${moving ? movingLabel(moving) : "basket"} ${number(m.fromIntakeId)} → ${number(m.toIntakeId)} (off by ${m.beforeLb} lb → ${m.afterLb} lb)`;
-            return (
-              <li key={m.vesselId}>
-                {text}
-                {m.pullBack.length > 0 ? (
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => startPullBack(m.pullBack[0]!)}
-                  >
-                    Pull back {number(m.pullBack[0]!)} first
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onMove(m.vesselId, m.toIntakeId, center.intake_id)}
-                  >
-                    Move this basket
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <h4>Move a basket</h4>
-      {atReconcile.length < 2 ? (
-        <p>Moving a basket needs two orders at reconcile; pull one back from blast first.</p>
-      ) : (
-        <>
-          {atReconcile.map((r) => (
-            <fieldset key={r.intake_id}>
-              <legend>{r.intake_number} baskets</legend>
-              {bins
-                .filter((b) => b.intake_id === r.intake_id)
-                .map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    disabled={disabled}
-                    aria-pressed={selectedBin === b.id}
-                    onClick={() => setSelectedBin(selectedBin === b.id ? null : b.id)}
-                  >
-                    {binLabel(b)}
-                  </button>
-                ))}
-            </fieldset>
-          ))}
-          {bin &&
-            atReconcile
-              .filter((r) => r.intake_id !== bin.intake_id)
-              .map((r) => (
-                <button
-                  key={r.intake_id}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => {
-                    onMove(bin.id, r.intake_id, center.intake_id);
-                    setSelectedBin(null);
-                  }}
-                >
-                  Move {movingLabel(bin)} to {r.intake_number}
-                </button>
-              ))}
-        </>
-      )}
+      <div className="station-section">
+        <SectionTitle>Suggested moves</SectionTitle>
+        {waiting.length > 0 ? (
+          <p className="station-hint">
+            Suggestions appear once every order in the group is reconciled. Waiting on:{" "}
+            {waiting
+              .map((w) => `${w.intake_number} (${SUSPECT_STATUS_LABELS[w.status]})`)
+              .join(", ")}
+          </p>
+        ) : moves.length === 0 ? (
+          <p className="station-hint">
+            No basket move brings the group closer; check the baskets or get a manager sign-off.
+          </p>
+        ) : (
+          <ul aria-label="Suggested moves">
+            {moves.map((m) => {
+              const moving = bins.find((b) => b.id === m.vesselId);
+              const text = `Move ${moving ? movingLabel(moving) : "basket"} ${number(m.fromIntakeId)} → ${number(m.toIntakeId)} (off by ${m.beforeLb} lb → ${m.afterLb} lb)`;
+              return (
+                <li key={m.vesselId} className="station-band station-band-unknown">
+                  <span className="station-band-text">{text}</span>
+                  {m.pullBack.length > 0 ? (
+                    <StationButton
+                      icon={<Undo2 />}
+                      disabled={disabled}
+                      onClick={() => startPullBack(m.pullBack[0]!)}
+                    >
+                      Pull back {number(m.pullBack[0]!)} first
+                    </StationButton>
+                  ) : (
+                    <StationButton
+                      tone="primary"
+                      icon={<MoveRight />}
+                      disabled={disabled}
+                      onClick={() => onMove(m.vesselId, m.toIntakeId, center.intake_id)}
+                    >
+                      Move this basket
+                    </StationButton>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+      <div className="station-section">
+        <SectionTitle>Move a basket</SectionTitle>
+        {atReconcile.length < 2 ? (
+          <p className="station-hint">
+            Moving a basket needs two orders at reconcile; pull one back from blast first.
+          </p>
+        ) : (
+          <>
+            {atReconcile.map((r) => (
+              <fieldset key={r.intake_id} className="station-pills">
+                <legend>{r.intake_number} baskets</legend>
+                {bins
+                  .filter((b) => b.intake_id === r.intake_id)
+                  .map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      disabled={disabled}
+                      aria-pressed={selectedBin === b.id}
+                      onClick={() => setSelectedBin(selectedBin === b.id ? null : b.id)}
+                    >
+                      {binLabel(b)}
+                    </button>
+                  ))}
+              </fieldset>
+            ))}
+            {bin && (
+              <div className="station-actions">
+                {atReconcile
+                  .filter((r) => r.intake_id !== bin.intake_id)
+                  .map((r) => (
+                    <StationButton
+                      key={r.intake_id}
+                      tone="primary"
+                      icon={<MoveRight />}
+                      disabled={disabled}
+                      onClick={() => {
+                        onMove(bin.id, r.intake_id, center.intake_id);
+                        setSelectedBin(null);
+                      }}
+                    >
+                      Move {movingLabel(bin)} to {r.intake_number}
+                    </StationButton>
+                  ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
       {pullBackRow && (
-        <fieldset aria-label="Pull back from blast">
+        <fieldset aria-label="Pull back from blast" className="station-group">
           <legend>Pull {pullBackRow.intake_number} back from blast to reconcile</legend>
           {editingReason ? (
-            <>
-              <label>
+            <div className="station-inline-form">
+              <label className="station-field">
                 Pull back reason (required)
                 <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} />
               </label>
-              <button type="button" onClick={() => onEditReason(false)}>
-                Done
-              </button>
-            </>
+              <div className="station-actions">
+                <StationButton tone="primary" icon={<Check />} onClick={() => onEditReason(false)}>
+                  Done
+                </StationButton>
+              </div>
+            </div>
           ) : (
-            <>
-              {reason.trim() && <p>Reason: {reason}</p>}
-              <button type="button" disabled={disabled} onClick={() => onEditReason(true)}>
+            <div className="station-note">
+              {reason.trim() ? (
+                <p>Reason: {reason}</p>
+              ) : (
+                <p className="station-meta">No reason yet</p>
+              )}
+              <StationButton tone="ghost" disabled={disabled} onClick={() => onEditReason(true)}>
                 {reason.trim() ? "Edit reason" : "Add reason"}
-              </button>
-            </>
+              </StationButton>
+            </div>
           )}
-          <button
-            type="button"
-            disabled={disabled || editingReason || problem !== null}
-            onClick={() => onPullBack(pullBackRow.intake_id, reason)}
-          >
-            Confirm pull back
-          </button>
-          <DisabledReason reason={!reason.trim() && "Add a reason first"} />
-          <button
-            type="button"
-            onClick={() => {
-              onEditReason(false);
-              setPullBackFor(null);
-            }}
-          >
-            Cancel pull back
-          </button>
-          {reason.trim() && problem && <p role="alert">{problem}</p>}
+          <div className="station-actions">
+            <StationButton
+              tone="primary"
+              icon={<Undo2 />}
+              disabled={disabled || editingReason || problem !== null}
+              why={!reason.trim() && "Add a reason first"}
+              onClick={() => onPullBack(pullBackRow.intake_id, reason)}
+            >
+              Confirm pull back
+            </StationButton>
+            <StationButton
+              tone="ghost"
+              onClick={() => {
+                onEditReason(false);
+                setPullBackFor(null);
+              }}
+            >
+              Cancel pull back
+            </StationButton>
+          </div>
+          {reason.trim() && problem && (
+            <StationNotice tone="danger" role="alert" className="mt-3">
+              {problem}
+            </StationNotice>
+          )}
         </fieldset>
       )}
-      <button type="button" onClick={onClose}>
-        Close suspects
-      </button>
-    </section>
+    </StationCard>
   );
 }
