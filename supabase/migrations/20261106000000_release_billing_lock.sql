@@ -9,9 +9,12 @@
 --
 -- Lock order (AGENTS rule 3), every path that locks a session row:
 --   action_log (key-shares the org row) → [the paid hook: the cart row] → the org's allocation
---   billing lock → sessions (sorted ids) → box plans / settlements → [a save: each pooled intake's
---   reconcile lock (sorted ids)] → vessels (sorted ids) → tag → intakes (sorted ids) → [a save:
---   the other priced sessions sharing an intake (reprice, sorted ids)].
+--   billing lock → sessions (sorted ids) → then, per path:
+--     a release: its box plans → vessels (sorted ids) → tag → intakes (sorted ids);
+--     a save: each pooled intake's reconcile lock (sorted ids) → the intakes' key-share
+--       (allocation_intake FK) → its own settlements / box plans → the other priced sessions
+--       sharing an intake (reprice, sorted ids);
+--     the paid hook: settlements (sorted ids) → charges.
 -- The reprice is the one session lock taken after an intake (a key-share); it closes no cycle,
 -- because every other holder of a session row also holds the billing lock. Move bin, pull back
 -- and reconcile (variance lock → reconcile locks → vessels → intakes) lock no session and take no
