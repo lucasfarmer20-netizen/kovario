@@ -196,6 +196,17 @@ frozen at send after it, `actual_frozen`), `rollstock_open` (each
 intake's first accepted rollstock scan), `variance_hold_member` (each hold's group in rollstock
 order, position −1…2, `blocked`), `now_in_blast`, `report_variance_holds`.
 
+### intake_history  (v1.1, #88)
+Append-only (D3) history of manager corrections on an intake: `intake_id`, `kind
+enum(vessel_moved_out, vessel_moved_in, pulled_back)`, `at`, `actor_id` (caller's member, null
+for a station device), `manager_id` (approving manager), `client_action_id`. A bin move writes
+one row on **each** intake (`vessel_id`, `from_intake_id`, `to_intake_id`, `weight_lb`,
+`tag_code`); a pull back from blast writes `from_state`, `to_state` and the `reason`.
+`vessel_id`, `actor_id` and `manager_id` are plain ids (the history outlives a removed vessel).
+Functions: `variance_suspect_group(intake)` (the picker's group: an active hold's, or centred
+on the intake; each member's variance, species, size and status), `variance_move_vessel`,
+`intake_pull_back` (`04-BUSINESS-RULES.md §6b`).
+
 ### scale_reading
 `scale_id`, `weight_lb`, `stable bool`, `read_at`. The reconcile screen shows the latest
 stable reading for its device's scale and lets the operator accept it into a vessel.

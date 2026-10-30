@@ -60,6 +60,7 @@ function setup(weight = 0, extra: Record<string, unknown> = {}, appRole = "staff
         return q;
       },
       order: () => q,
+      in: () => q,
       then: (resolve: (v: unknown) => unknown) =>
         Promise.resolve({ data: tables[name], error: null }).then(resolve),
     };
@@ -382,4 +383,113 @@ it("#87 reconcile lists the 'now in blast' lines", async () => {
   expect(
     await screen.findByText("INT-2120 is in the blast · variance +14% · near limit"),
   ).toBeTruthy();
+});
+const suspect = (
+  id: string,
+  number: string,
+  position: number,
+  status: string,
+  state: string,
+  actual: number,
+  variance: number,
+) => ({
+  center_intake_id: "i1",
+  hold_id: "h1",
+  intake_id: id,
+  position,
+  intake_number: number,
+  state,
+  status,
+  waiting: false,
+  expected_lb: 20,
+  actual_lb: actual,
+  variance_pct: variance,
+  limit_pct: 15,
+  band: Math.abs(variance) > 15 ? "over" : "within",
+  species: ["salmon_reds"],
+});
+const suspectGroup = [
+  suspect("i4", "INT-0004", -1, "in_blast", "blast_freezer", 20, 0),
+  suspect("i1", "INT-0001", 0, "reconciled", "reconcile", 28, 40),
+  suspect("i2", "INT-0002", 1, "reconciled", "reconcile", 14, -30),
+];
+function withSuspects(rpc: ReturnType<typeof setup>) {
+  rpc.mockImplementation((async (name: string) =>
+    name === "variance_suspect_group"
+      ? { data: suspectGroup, error: null }
+      : { data: { ok: true, reason: "Moved", intake_id: "i1" }, error: null }) as never);
+  return rpc;
+}
+it("#88 tapping a 'now in blast' line opens the suspect picker on that intake", async () => {
+  const rpc = withSuspects(
+    setup(20, {
+      now_in_blast: [
+        {
+          intake_id: "i4",
+          intake_number: "INT-0004",
+          variance_pct: 0,
+          band: "within",
+          limit_pct: 15,
+          rollstock_opened_at: "2026-07-20T08:00:00+00:00",
+          rollstock_scan_id: "s1",
+        },
+      ],
+    }),
+  );
+  render(<ReconcileStation />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /INT-0004 is in the blast · variance 0%/ }),
+  );
+  const picker = await screen.findByRole("region", { name: "Suspect picker" });
+  expect(rpc).toHaveBeenCalledWith("variance_suspect_group", { p_intake_id: "i4" });
+  expect(picker.textContent).toContain("SUSPECTS · INT-0001 +40% (limit ±15%) · HELD");
+  fireEvent.click(within(picker).getByRole("button", { name: "Close suspects" }));
+  expect(screen.queryByRole("region", { name: "Suspect picker" })).toBeNull();
+});
+it("#88 a staff bin move from the hold's picker needs a manager PIN, then calls the single SQL function", async () => {
+  const rpc = withSuspects(setup(28, held));
+  render(<ReconcileStation />);
+  const panel = await screen.findByRole("region", { name: "Variance hold" });
+  fireEvent.click(within(panel).getByRole("button", { name: "Find the fish (suspects)" }));
+  const picker = await screen.findByRole("region", { name: "Suspect picker" });
+  expect(rpc).toHaveBeenCalledWith("variance_suspect_group", { p_intake_id: "i1" });
+  fireEvent.click(await within(picker).findByRole("button", { name: "042 · 28 lb" }));
+  fireEvent.click(within(picker).getByRole("button", { name: "Move 042 · 28 lb to INT-0002" }));
+  fireEvent.change(await screen.findByLabelText("Manager PIN PIN"), { target: { value: "1234" } });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await waitFor(() =>
+    expect(rpc).toHaveBeenCalledWith("variance_move_vessel", {
+      p_client_action_id: expect.any(String),
+      p_vessel_id: "v1",
+      p_to_intake_id: "i2",
+      p_center_intake_id: "i1",
+      p_elevation_token: "elevation-token",
+    }),
+  );
+});
+it("#88 typing a pull-back reason pauses the scanner; a manager account pulls back without a PIN", async () => {
+  const rpc = withSuspects(setup(28, held, "manager"));
+  render(<ReconcileStation />);
+  const panel = await screen.findByRole("region", { name: "Variance hold" });
+  fireEvent.click(within(panel).getByRole("button", { name: "Find the fish (suspects)" }));
+  const picker = await screen.findByRole("region", { name: "Suspect picker" });
+  const scanner = screen.getByLabelText("Station scanner") as HTMLInputElement;
+  fireEvent.click(await within(picker).findByRole("button", { name: "Pull back INT-0004" }));
+  fireEvent.click(within(picker).getByRole("button", { name: "Add reason" }));
+  const reason = within(picker).getByLabelText(/Pull back reason/) as HTMLInputElement;
+  await waitFor(() => expect(document.activeElement).toBe(reason));
+  expect(scanner.disabled).toBe(true);
+  fireEvent.change(reason, { target: { value: "Fish from INT-0001" } });
+  fireEvent.click(within(picker).getByRole("button", { name: "Done" }));
+  await waitFor(() => expect(scanner.disabled).toBe(false));
+  fireEvent.click(within(picker).getByRole("button", { name: "Confirm pull back" }));
+  await waitFor(() =>
+    expect(rpc).toHaveBeenCalledWith("intake_pull_back", {
+      p_client_action_id: expect.any(String),
+      p_intake_id: "i4",
+      p_reason: "Fish from INT-0001",
+      p_elevation_token: undefined,
+    }),
+  );
+  expect(screen.queryByLabelText("Manager PIN PIN")).toBeNull();
 });

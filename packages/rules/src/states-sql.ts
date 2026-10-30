@@ -5,8 +5,11 @@
 // always equals TRANSITIONS after it runs.
 import { ENTITIES, TRANSITIONS, type Entity, type Transition } from "./states.ts";
 
+// Moved to a new migration whenever the table changes (an applied migration never runs again);
+// the statement upserts and prunes, so the latest copy alone makes the table equal TRANSITIONS.
+// 20261026100100_state_transitions.sql (WP-04) is the first copy; #88 added the pull back.
 export const STATE_TRANSITIONS_SQL_PATH =
-  "supabase/migrations/20261026100100_state_transitions.sql";
+  "supabase/migrations/20261031000100_state_transitions.sql";
 
 function literal(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;

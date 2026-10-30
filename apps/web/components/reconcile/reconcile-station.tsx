@@ -23,12 +23,16 @@ import {
   useVarianceHolds,
 } from "@/components/variance/use-variance-holds";
 import { VarianceHoldPanel } from "./variance-hold-panel";
+import { SuspectPicker, useSuspectGroup } from "./suspect-picker";
 import { useOperatorIdle } from "@/src/components/station/use-operator-idle";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
 import { useManualOptions, withEntryMethod } from "@/src/components/station/manual-entry";
 import type { ScanRequest, ScanReply } from "@/src/components/station/scan-queue";
 type SignOff = { holdId: string; reason: VarianceSignoffReason; note: string };
+/** A manager action: run directly by a manager account, or with a manager PIN elevation token. */
+type ManagerAction = (token?: string) => Promise<{ ok: boolean; reason?: string }>;
+type RpcReply = PromiseLike<{ data: unknown; error: { message: string } | null }>;
 type Intake = Database["public"]["Tables"]["intake"]["Row"] & {
   intake_line: { species_code: string; est_yield_lb: number | null }[];
 };
@@ -88,8 +92,13 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
   const idle = useOperatorIdle(claims.appRole === "station" && operator !== null, expire);
   const holds = useVarianceHolds(client, claims.orgId, scope);
   const blastLines = useNowInBlast(client, claims.orgId, scope);
-  // A non-manager's sign-off waits here for the manager PIN.
-  const [signOffPending, setSignOffPending] = useState<SignOff | null>(null);
+  // A non-manager's sign-off, bin move or pull back waits here for the manager PIN.
+  const [managerPending, setManagerPending] = useState<ManagerAction | null>(null);
+  // The suspect picker (#88), centred on a held intake or a tapped "now in blast" line. Typing a
+  // pull-back reason pauses the scanner like the sign-off note.
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const picker = useSuspectGroup(client, pickerFor);
   const remember = useCallback(
     (id: string | null) => {
       localStorage.setItem(scope, id ?? "");
@@ -321,11 +330,73 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       setBusy(false);
     }
   };
-  const requestSignOff = (holdId: string, reason: VarianceSignoffReason, note: string) => {
-    const request = { holdId, reason, note };
-    if (claims.appRole === "owner" || claims.appRole === "manager") void signOff(request);
-    else setSignOffPending(request);
+  const asManager = (action: ManagerAction) => {
+    if (claims.appRole === "owner" || claims.appRole === "manager") void action();
+    else setManagerPending(() => action);
   };
+  const requestSignOff = (holdId: string, reason: VarianceSignoffReason, note: string) =>
+    asManager((token) => signOff({ holdId, reason, note }, token));
+  // Same key for a retried move or pull back after a lost response, as for the sign-off.
+  const managedRetry = useRef<{ signature: string; id: string } | null>(null);
+  const runManaged = async (
+    signature: string,
+    call: (clientActionId: string, token?: string) => RpcReply,
+    token?: string,
+  ): Promise<{ ok: boolean; reason?: string }> => {
+    setBusy(true);
+    if (managedRetry.current?.signature !== signature)
+      managedRetry.current = { signature, id: crypto.randomUUID() };
+    try {
+      const { data, error } = await call(managedRetry.current.id, token);
+      if (error) throw new Error(error.message);
+      managedRetry.current = null;
+      setMessage((data as { reason?: string } | null)?.reason ?? "Done");
+      await Promise.all([refresh(), holds.refresh(), blastLines.refresh(), picker.refresh()]);
+      return { ok: true };
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : "Action unavailable; retry";
+      setMessage(reason);
+      return { ok: false, reason };
+    } finally {
+      setBusy(false);
+    }
+  };
+  const moveBin = (vesselId: string, toIntakeId: string, centerIntakeId: string) =>
+    asManager((token) =>
+      runManaged(
+        JSON.stringify(["move", vesselId, toIntakeId, centerIntakeId]),
+        (id, t) =>
+          client.rpc("variance_move_vessel", {
+            p_client_action_id: id,
+            p_vessel_id: vesselId,
+            p_to_intake_id: toIntakeId,
+            p_center_intake_id: centerIntakeId,
+            p_elevation_token: t,
+          }),
+        token,
+      ),
+    );
+  const pullBack = (intakeId: string, reason: string) => {
+    setReasonOpen(false);
+    asManager((token) =>
+      runManaged(
+        JSON.stringify(["pull_back", intakeId, reason]),
+        (id, t) =>
+          client.rpc("intake_pull_back", {
+            p_client_action_id: id,
+            p_intake_id: intakeId,
+            p_reason: reason,
+            p_elevation_token: t,
+          }),
+        token,
+      ),
+    );
+  };
+  // Keep the picker's group current as the floor changes (holds, intakes, blast lines).
+  const refreshPicker = picker.refresh;
+  useEffect(() => {
+    void refreshPicker();
+  }, [refreshPicker, intakes, holds.members, blastLines.lines]);
   const blocked = blockedIntakes(holds.members);
   const group = openId ? holdGroupFor(holds.members, openId) : null;
   const noteEditing = noteOpen && group !== null;
@@ -342,14 +413,17 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
         assetTagId: v.asset_tag_id,
       })),
     ).length > 0;
-  const disabled = busy || pending > 0 || pinOpen || signOffPending !== null;
+  const reasonEditing = reasonOpen && pickerFor !== null;
+  const disabled = busy || pending > 0 || pinOpen || managerPending !== null;
   return (
     <StationShell
       name="Reconcile"
       site={siteName}
       operator={operator}
       pending={pending}
-      paused={pinOpen || busy || manualOpen || noteEditing || signOffPending !== null}
+      paused={
+        pinOpen || busy || manualOpen || noteEditing || reasonEditing || managerPending !== null
+      }
       status={
         <>
           <ScanFeedback feedback={feedback} />
@@ -358,7 +432,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       }
       manual={{ ...manual, accept: ["TOTE", "TAG"] }}
       onScan={(raw, _parsed, method) => {
-        if (!manualOpen && !noteEditing && allowed())
+        if (!manualOpen && !noteEditing && !reasonEditing && allowed())
           void scan({
             raw,
             station: "reconcile",
@@ -477,9 +551,31 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
             editingNote={noteEditing}
             onEditNote={setNoteOpen}
             onSignOff={(reason, note) => requestSignOff(group[0]!.hold_id!, reason, note)}
+            onFindSuspects={() => setPickerFor(open.id)}
           />
         )}
-        <NowInBlastList lines={blastLines.lines} error={blastLines.error} />
+        {pickerFor && (
+          <SuspectPicker
+            key={pickerFor}
+            rows={picker.rows}
+            bins={picker.bins}
+            error={picker.error}
+            disabled={disabled}
+            editingReason={reasonEditing}
+            onEditReason={setReasonOpen}
+            onMove={moveBin}
+            onPullBack={pullBack}
+            onClose={() => {
+              setReasonOpen(false);
+              setPickerFor(null);
+            }}
+          />
+        )}
+        <NowInBlastList
+          lines={blastLines.lines}
+          error={blastLines.error}
+          onSelect={(line) => setPickerFor(line.intake_id)}
+        />
       </div>
       {pinOpen && (
         <OperatorPinOverlay
@@ -501,13 +597,13 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
           }}
         />
       )}
-      {signOffPending && (
+      {managerPending && (
         <ManagerPinOverlay
-          onClose={() => setSignOffPending(null)}
+          onClose={() => setManagerPending(null)}
           verify={async (pin) => {
             const elevation = await managerElevation(client, pin);
             if ("reason" in elevation) return { ok: false, reason: elevation.reason };
-            return signOff(signOffPending, elevation.token);
+            return managerPending(elevation.token);
           }}
         />
       )}

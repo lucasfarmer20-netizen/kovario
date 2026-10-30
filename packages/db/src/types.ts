@@ -639,6 +639,116 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"intake_history": {
+                  Row: {
+                    "actor_id": string | null,"at": string,"client_action_id": string,"created_at": string,"from_intake_id": string | null,"from_state": Database["public"]['Enums']["intake_state"] | null,"id": string,"intake_id": string,"kind": Database["public"]['Enums']["intake_history_kind"],"manager_id": string | null,"org_id": string,"reason": string | null,"tag_code": string | null,"to_intake_id": string | null,"to_state": Database["public"]['Enums']["intake_state"] | null,"vessel_id": string | null,"weight_lb": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_id"?: string | null,"at"?: string,"client_action_id": string,"created_at"?: string,"from_intake_id"?: string | null,"from_state"?: Database["public"]['Enums']["intake_state"] | null,"id"?: string,"intake_id": string,"kind": Database["public"]['Enums']["intake_history_kind"],"manager_id"?: string | null,"org_id": string,"reason"?: string | null,"tag_code"?: string | null,"to_intake_id"?: string | null,"to_state"?: Database["public"]['Enums']["intake_state"] | null,"vessel_id"?: string | null,"weight_lb"?: number | null
+                  }
+                  Update: {
+                    "actor_id"?: string | null,"at"?: string,"client_action_id"?: string,"created_at"?: string,"from_intake_id"?: string | null,"from_state"?: Database["public"]['Enums']["intake_state"] | null,"id"?: string,"intake_id"?: string,"kind"?: Database["public"]['Enums']["intake_history_kind"],"manager_id"?: string | null,"org_id"?: string,"reason"?: string | null,"tag_code"?: string | null,"to_intake_id"?: string | null,"to_state"?: Database["public"]['Enums']["intake_state"] | null,"vessel_id"?: string | null,"weight_lb"?: number | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_history_from_intake_id_fkey"
+      columns: ["from_intake_id"]
+isOneToOne: false
+      referencedRelation: "intake"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_history_from_intake_id_fkey"
+      columns: ["from_intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_history_from_intake_id_fkey"
+      columns: ["from_intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_history_from_intake_id_fkey"
+      columns: ["from_intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_history_from_intake_id_fkey"
+      columns: ["from_intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_history_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_history_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_history_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_history_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_history_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_history_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_history_to_intake_id_fkey"
+      columns: ["to_intake_id"]
+isOneToOne: false
+      referencedRelation: "intake"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_history_to_intake_id_fkey"
+      columns: ["to_intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_history_to_intake_id_fkey"
+      columns: ["to_intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_history_to_intake_id_fkey"
+      columns: ["to_intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_history_to_intake_id_fkey"
+      columns: ["to_intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    }
+                  ]
                 },"intake_line": {
                   Row: {
                     "condition_code": string,"created_at": string,"est_yield_lb": number | null,"fillets_pct": number | null,"id": string,"intake_id": string,"lb": number,"method_code": string,"notes": string | null,"org_id": string,"ribbing": boolean | null,"skin_off": boolean,"sort": number,"species_code": string,"updated_at": string,"yield_factor": number | null
@@ -2954,6 +3064,9 @@ isOneToOne: false
 "intake_price_context":
 { Args: { "p_customer_id"?: string,"p_intake_id"?: string }; Returns: Json
                            },
+"intake_pull_back":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_intake_id": string,"p_reason": string }; Returns: Json
+                           },
 "locate_scan":
 { Args: { "p_client_action_id": string,"p_operator_session"?: string,"p_parsed"?: Json,"p_pending_vessel_id"?: string,"p_pending_vessel_raw"?: string,"p_raw": string }; Returns: Json
                            },
@@ -3163,10 +3276,18 @@ isOneToOne: false
                            },
 "variance_hold_signoff":
 { Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_hold_id": string,"p_note"?: string,"p_reason": string }; Returns: Json
+                           },
+"variance_move_vessel":
+{ Args: { "p_center_intake_id": string,"p_client_action_id": string,"p_elevation_token"?: string,"p_to_intake_id": string,"p_vessel_id": string }; Returns: Json
+                           },
+"variance_suspect_group":
+{ Args: { "p_intake_id": string }; Returns: {
+              "actual_lb": number,"band": string,"blocked": boolean,"center_intake_id": string,"expected_lb": number,"hold_id": string,"intake_id": string,"intake_number": string,"limit_pct": number,"position": number,"species": (string)[],"state": Database["public"]['Enums']["intake_state"],"status": string,"unweighed": number,"variance_pct": number,"vessels": number,"waiting": boolean
+            }[]
                            }
           }
           Enums: {
-            "allocation_session_fulfillment_status": "none"|"pending"|"partial"|"released","allocation_session_split_method": "weight"|"even","allocation_session_state": "draft"|"priced"|"done"|"cancelled","asset_tag_state": "available"|"in_use"|"retired","box_plan_fulfillment_state": "planned"|"packed"|"shipped"|"picked_up","box_plan_method": "air"|"ship"|"willcall","charge_kind": "processing"|"ribbing"|"storage"|"box_fee"|"freight"|"retail"|"adjustment","charge_source_type": "intake"|"storage_batch"|"settlement"|"manual","charge_state": "open"|"settled"|"voided"|"comped","device_station": "intake"|"storage"|"wave"|"rollstock"|"reconcile"|"blast"|"locate"|"allocate"|"boxing"|"register"|"shipping","intake_state": "draft"|"holding"|"processing"|"rollstock"|"reconcile"|"blast_freezer"|"stored"|"done"|"cancelled","location_depth": "F"|"R","location_kind": "rack"|"pallet","org_member_role": "owner"|"manager"|"staff"|"cashier","payment_entry_mode": "chip"|"contactless"|"swipe"|"manual"|"keyed","payment_event_kind": "sale_requested"|"sale_result"|"status_check"|"abort"|"reverse_requested"|"reverse_result"|"refund_requested"|"refund_result"|"error"|"paid_hook"|"manual_resolve","payment_state": "pending"|"approved"|"declined"|"cancelled"|"indeterminate"|"voided"|"refunded"|"error","payment_tender": "card"|"cash"|"check"|"external"|"comp","payment_terminal_provider": "manual"|"dejavoo_spin"|"stripe_terminal","print_job_kind": "tote_tag"|"receipt"|"storage_label"|"box_label"|"pick_list"|"location_tag"|"shipping_label"|"asset_tag_sheet","print_job_payload_type": "zpl"|"pdf_url","print_job_state": "queued"|"printing"|"done"|"failed","printer_kind": "label_zpl"|"receipt_pdf","processing_method_kind": "service"|"virtual","register_order_kind": "sale"|"refund","register_order_state": "open"|"paid"|"void","release_audit_event_kind": "moved"|"finalized"|"restored","scale_protocol": "toledo_8217"|"manual","scan_entry_method": "scan"|"manual","scan_log_result": "ok"|"rejected","settlement_state": "draft"|"paid","shipment_state": "draft"|"held"|"label_bought"|"shipped"|"cancelled","species_group": "salmon"|"whitefish"|"other"|"byproduct","storage_box_state": "stored"|"released","storage_intake_state": "draft"|"stored"|"partial"|"released"|"cancelled","storage_pickup_batch_state": "pending"|"released"|"void","variance_hold_clear_kind": "auto"|"signoff","variance_hold_state": "active"|"cleared","variance_signoff_reason": "estimate_wrong"|"mixed_species"|"spoilage"|"trim_heavy"|"other","vessel_lifecycle_state": "occupied"|"emptied"|"void","wave_state": "draft"|"verifying"|"done"|"cancelled"
+            "allocation_session_fulfillment_status": "none"|"pending"|"partial"|"released","allocation_session_split_method": "weight"|"even","allocation_session_state": "draft"|"priced"|"done"|"cancelled","asset_tag_state": "available"|"in_use"|"retired","box_plan_fulfillment_state": "planned"|"packed"|"shipped"|"picked_up","box_plan_method": "air"|"ship"|"willcall","charge_kind": "processing"|"ribbing"|"storage"|"box_fee"|"freight"|"retail"|"adjustment","charge_source_type": "intake"|"storage_batch"|"settlement"|"manual","charge_state": "open"|"settled"|"voided"|"comped","device_station": "intake"|"storage"|"wave"|"rollstock"|"reconcile"|"blast"|"locate"|"allocate"|"boxing"|"register"|"shipping","intake_history_kind": "vessel_moved_out"|"vessel_moved_in"|"pulled_back","intake_state": "draft"|"holding"|"processing"|"rollstock"|"reconcile"|"blast_freezer"|"stored"|"done"|"cancelled","location_depth": "F"|"R","location_kind": "rack"|"pallet","org_member_role": "owner"|"manager"|"staff"|"cashier","payment_entry_mode": "chip"|"contactless"|"swipe"|"manual"|"keyed","payment_event_kind": "sale_requested"|"sale_result"|"status_check"|"abort"|"reverse_requested"|"reverse_result"|"refund_requested"|"refund_result"|"error"|"paid_hook"|"manual_resolve","payment_state": "pending"|"approved"|"declined"|"cancelled"|"indeterminate"|"voided"|"refunded"|"error","payment_tender": "card"|"cash"|"check"|"external"|"comp","payment_terminal_provider": "manual"|"dejavoo_spin"|"stripe_terminal","print_job_kind": "tote_tag"|"receipt"|"storage_label"|"box_label"|"pick_list"|"location_tag"|"shipping_label"|"asset_tag_sheet","print_job_payload_type": "zpl"|"pdf_url","print_job_state": "queued"|"printing"|"done"|"failed","printer_kind": "label_zpl"|"receipt_pdf","processing_method_kind": "service"|"virtual","register_order_kind": "sale"|"refund","register_order_state": "open"|"paid"|"void","release_audit_event_kind": "moved"|"finalized"|"restored","scale_protocol": "toledo_8217"|"manual","scan_entry_method": "scan"|"manual","scan_log_result": "ok"|"rejected","settlement_state": "draft"|"paid","shipment_state": "draft"|"held"|"label_bought"|"shipped"|"cancelled","species_group": "salmon"|"whitefish"|"other"|"byproduct","storage_box_state": "stored"|"released","storage_intake_state": "draft"|"stored"|"partial"|"released"|"cancelled","storage_pickup_batch_state": "pending"|"released"|"void","variance_hold_clear_kind": "auto"|"signoff","variance_hold_state": "active"|"cleared","variance_signoff_reason": "estimate_wrong"|"mixed_species"|"spoilage"|"trim_heavy"|"other","vessel_lifecycle_state": "occupied"|"emptied"|"void","wave_state": "draft"|"verifying"|"done"|"cancelled"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -3286,7 +3407,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "allocation_session_fulfillment_status": ["none", "pending", "partial", "released"],"allocation_session_split_method": ["weight", "even"],"allocation_session_state": ["draft", "priced", "done", "cancelled"],"asset_tag_state": ["available", "in_use", "retired"],"box_plan_fulfillment_state": ["planned", "packed", "shipped", "picked_up"],"box_plan_method": ["air", "ship", "willcall"],"charge_kind": ["processing", "ribbing", "storage", "box_fee", "freight", "retail", "adjustment"],"charge_source_type": ["intake", "storage_batch", "settlement", "manual"],"charge_state": ["open", "settled", "voided", "comped"],"device_station": ["intake", "storage", "wave", "rollstock", "reconcile", "blast", "locate", "allocate", "boxing", "register", "shipping"],"intake_state": ["draft", "holding", "processing", "rollstock", "reconcile", "blast_freezer", "stored", "done", "cancelled"],"location_depth": ["F", "R"],"location_kind": ["rack", "pallet"],"org_member_role": ["owner", "manager", "staff", "cashier"],"payment_entry_mode": ["chip", "contactless", "swipe", "manual", "keyed"],"payment_event_kind": ["sale_requested", "sale_result", "status_check", "abort", "reverse_requested", "reverse_result", "refund_requested", "refund_result", "error", "paid_hook", "manual_resolve"],"payment_state": ["pending", "approved", "declined", "cancelled", "indeterminate", "voided", "refunded", "error"],"payment_tender": ["card", "cash", "check", "external", "comp"],"payment_terminal_provider": ["manual", "dejavoo_spin", "stripe_terminal"],"print_job_kind": ["tote_tag", "receipt", "storage_label", "box_label", "pick_list", "location_tag", "shipping_label", "asset_tag_sheet"],"print_job_payload_type": ["zpl", "pdf_url"],"print_job_state": ["queued", "printing", "done", "failed"],"printer_kind": ["label_zpl", "receipt_pdf"],"processing_method_kind": ["service", "virtual"],"register_order_kind": ["sale", "refund"],"register_order_state": ["open", "paid", "void"],"release_audit_event_kind": ["moved", "finalized", "restored"],"scale_protocol": ["toledo_8217", "manual"],"scan_entry_method": ["scan", "manual"],"scan_log_result": ["ok", "rejected"],"settlement_state": ["draft", "paid"],"shipment_state": ["draft", "held", "label_bought", "shipped", "cancelled"],"species_group": ["salmon", "whitefish", "other", "byproduct"],"storage_box_state": ["stored", "released"],"storage_intake_state": ["draft", "stored", "partial", "released", "cancelled"],"storage_pickup_batch_state": ["pending", "released", "void"],"variance_hold_clear_kind": ["auto", "signoff"],"variance_hold_state": ["active", "cleared"],"variance_signoff_reason": ["estimate_wrong", "mixed_species", "spoilage", "trim_heavy", "other"],"vessel_lifecycle_state": ["occupied", "emptied", "void"],"wave_state": ["draft", "verifying", "done", "cancelled"]
+            "allocation_session_fulfillment_status": ["none", "pending", "partial", "released"],"allocation_session_split_method": ["weight", "even"],"allocation_session_state": ["draft", "priced", "done", "cancelled"],"asset_tag_state": ["available", "in_use", "retired"],"box_plan_fulfillment_state": ["planned", "packed", "shipped", "picked_up"],"box_plan_method": ["air", "ship", "willcall"],"charge_kind": ["processing", "ribbing", "storage", "box_fee", "freight", "retail", "adjustment"],"charge_source_type": ["intake", "storage_batch", "settlement", "manual"],"charge_state": ["open", "settled", "voided", "comped"],"device_station": ["intake", "storage", "wave", "rollstock", "reconcile", "blast", "locate", "allocate", "boxing", "register", "shipping"],"intake_history_kind": ["vessel_moved_out", "vessel_moved_in", "pulled_back"],"intake_state": ["draft", "holding", "processing", "rollstock", "reconcile", "blast_freezer", "stored", "done", "cancelled"],"location_depth": ["F", "R"],"location_kind": ["rack", "pallet"],"org_member_role": ["owner", "manager", "staff", "cashier"],"payment_entry_mode": ["chip", "contactless", "swipe", "manual", "keyed"],"payment_event_kind": ["sale_requested", "sale_result", "status_check", "abort", "reverse_requested", "reverse_result", "refund_requested", "refund_result", "error", "paid_hook", "manual_resolve"],"payment_state": ["pending", "approved", "declined", "cancelled", "indeterminate", "voided", "refunded", "error"],"payment_tender": ["card", "cash", "check", "external", "comp"],"payment_terminal_provider": ["manual", "dejavoo_spin", "stripe_terminal"],"print_job_kind": ["tote_tag", "receipt", "storage_label", "box_label", "pick_list", "location_tag", "shipping_label", "asset_tag_sheet"],"print_job_payload_type": ["zpl", "pdf_url"],"print_job_state": ["queued", "printing", "done", "failed"],"printer_kind": ["label_zpl", "receipt_pdf"],"processing_method_kind": ["service", "virtual"],"register_order_kind": ["sale", "refund"],"register_order_state": ["open", "paid", "void"],"release_audit_event_kind": ["moved", "finalized", "restored"],"scale_protocol": ["toledo_8217", "manual"],"scan_entry_method": ["scan", "manual"],"scan_log_result": ["ok", "rejected"],"settlement_state": ["draft", "paid"],"shipment_state": ["draft", "held", "label_bought", "shipped", "cancelled"],"species_group": ["salmon", "whitefish", "other", "byproduct"],"storage_box_state": ["stored", "released"],"storage_intake_state": ["draft", "stored", "partial", "released", "cancelled"],"storage_pickup_batch_state": ["pending", "released", "void"],"variance_hold_clear_kind": ["auto", "signoff"],"variance_hold_state": ["active", "cleared"],"variance_signoff_reason": ["estimate_wrong", "mixed_species", "spoilage", "trim_heavy", "other"],"vessel_lifecycle_state": ["occupied", "emptied", "void"],"wave_state": ["draft", "verifying", "done", "cancelled"]
           }
         }
 } as const
