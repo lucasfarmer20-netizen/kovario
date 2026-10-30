@@ -12,7 +12,7 @@ export function pairingQrText(code: string): string {
 /**
  * What a scanner or a person entered on /pair, as a canonical pairing code, or `null`.
  * Accepts a scanned `FL:PAIR:<code>` payload or a typed code (`abcd-2345`), read by
- * rules/qr.ts parseManual like every station's "Type code". Any other QR (a tote tag, an
+ * rules/qr.ts parseManual like every station's "Enter manually". Any other QR (a tote tag, an
  * asset tag…) is not a pairing code; an all-digit code is a pairing code here, not a tag.
  */
 export function readPairingInput(raw: string): string | null {

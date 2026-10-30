@@ -12,7 +12,7 @@ export const LBS_LEFT_NEGATIVE = "Lbs Left cannot be negative";
 /** Weights are stored as numeric(10,2): a finer remainder would be split, then rounded. */
 export const LBS_LEFT_TOO_PRECISE = "Lbs Left takes at most 2 decimal places";
 export const LBS_LEFT_ON_UNTICKED =
-  "Lbs Left on an unticked line; tick the tote or clear the value";
+  "Lbs Left on an unticked line; tick the basket or clear the value";
 export const LBS_LEFT_NOT_LESS_THAN_MEASURE =
   "Lbs Left must be less than the basket's current weight; leave it blank or 0 for a full pull";
 

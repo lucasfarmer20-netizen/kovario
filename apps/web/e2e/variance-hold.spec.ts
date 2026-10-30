@@ -33,17 +33,17 @@ test("variance hold: an over-limit send is refused, a manager signs off, then it
     await scan(page, qr.tote(number, 1));
     await expect(open.getByRole("heading", { name: number })).toBeVisible();
     await open.getByRole("button", { name: "Finish queue" }).click();
-    await expect(open.getByText("Scan a numbered tote to open an intake.")).toBeVisible();
+    await expect(open.getByText("Scan a tote to open an order.")).toBeVisible();
   });
 
   await test.step("reconcile: 20 lb (+33.3%) → Send to Blast is refused and held", async () => {
     await page.goto("/reconcile");
     await scan(page, qr.tote(number, 1));
-    await expect(page.getByRole("heading", { name: number, level: 2 })).toBeVisible();
-    await page.getByRole("button", { name: "Add exchange vessel (no tag)" }).click();
-    const vessel = page.getByRole("button", { name: /^Exchange · / });
+    await expect(page.getByRole("heading", { name: `Order ${number}`, level: 2 })).toBeVisible();
+    await page.getByRole("button", { name: "Add exchange basket" }).click();
+    const vessel = page.getByRole("button", { name: /^Exchange basket · / });
     await vessel.click();
-    await page.getByRole("button", { name: "Manual entry" }).click();
+    await page.getByRole("button", { name: "Enter weight manually" }).click();
     await page.getByLabel("Manual weight (lb)").fill("20");
     await page.getByRole("button", { name: "Save manual weight" }).click();
     await expect(vessel).toContainText("20 lb");
@@ -55,7 +55,7 @@ test("variance hold: an over-limit send is refused, a manager signs off, then it
       ),
     ).toBeVisible();
     // Still open at reconcile, held, with its hold group listed.
-    await expect(page.getByRole("heading", { name: number, level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: `Order ${number}`, level: 2 })).toBeVisible();
     await expect(page.getByRole("button", { name: new RegExp(`^${number} HELD$`) })).toBeVisible();
     const hold = page.getByRole("region", { name: "Variance hold" });
     await expect(hold).toContainText(`VARIANCE HOLD · ${number} +33.3% (limit ±15%)`);
@@ -85,9 +85,7 @@ test("variance hold: an over-limit send is refused, a manager signs off, then it
     await expect(page.getByText("Hold signed off")).toBeVisible();
     await expect(hold).toHaveCount(0);
     await page.getByRole("button", { name: "Send to Blast Freezer" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Scan a tote or choose an intake" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No order open" })).toBeVisible();
   });
 
   await test.step("blast: the 'now in blast' line shows it over the limit", async () => {

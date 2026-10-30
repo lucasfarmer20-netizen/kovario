@@ -223,7 +223,7 @@ export function binMovable(state: IntakeState): boolean {
 /** `%s` is the intake number (SQL: format()). */
 export const BIN_IN_BLAST = "%s is in the blast freezer; pull it back to reconcile first";
 export const BIN_NOT_AT_RECONCILE = "%s is not at reconcile";
-export const BIN_POOLED = "%s is in a counter allocation; its bins cannot move";
+export const BIN_POOLED = "%s is in a counter allocation; its baskets cannot move";
 
 /**
  * Null when bins can move into or out of the intake, else the message: it must be at reconcile,
@@ -253,7 +253,7 @@ export const PULL_BACK_TO: IntakeState = "reconcile";
 export const PULL_BACK_REASON_MAX = 500;
 export const PULL_BACK_NEEDS_REASON = "Pull back needs a reason";
 export const PULL_BACK_REASON_TOO_LONG = `Reason must be at most ${PULL_BACK_REASON_MAX} characters`;
-export const PULL_BACK_NOT_IN_BLAST = "Only an intake in the blast freezer can be pulled back";
+export const PULL_BACK_NOT_IN_BLAST = "Only an order in the blast freezer can be pulled back";
 /**
  * Unicode White_Space: a reason made only of these is blank. Listed (not `\s`, which differs
  * between JS and Postgres, and Postgres has no `\p{}`) so the SQL form uses the same set.
@@ -274,8 +274,8 @@ export function codePoints(text: string | null): number {
   return [...(text ?? "")].length;
 }
 export const PULL_BACK_RELEASED =
-  "Fish from this intake has already been released; it cannot be pulled back";
-export const PULL_BACK_POOLED = "This intake is in a counter allocation; it cannot be pulled back";
+  "Fish from this order has already been released; it cannot be pulled back";
+export const PULL_BACK_POOLED = "This order is in a counter allocation; it cannot be pulled back";
 
 /**
  * What the database knows besides the state: how many of the intake's vessels are not

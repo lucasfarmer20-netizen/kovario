@@ -65,22 +65,22 @@ create temp table blast as select public.blast_vessel('wp13-blast','FL:TAG:freez
 select is((select r->>'ok' from blast),'true','WP13 blast scan accepted');
 select isnt((select blast_in_at from public.vessel where id='a1300000-0000-4000-8000-000000000041'),null,'WP13 blast scan stamps blast_in_at');
 select is(public.blast_vessel('wp13-blast','FL:TAG:freezer-a:041'),(select r from blast),'WP13 blast replay returns stored result');
-select is(public.blast_vessel('wp13-blast-again','41')->>'reason','Already in blast: 041 · INT-0001','WP13 bare padded tag accepted; repeat scan keeps first time-in');
-select is(public.blast_vessel('wp13-blast-recon','043')->>'reason','Intake INT-0002 has not been sent to blast','WP13 blast refuses vessel still at reconcile');
-select is(public.blast_vessel('wp13-blast-unknown','999')->>'reason','Unknown tag','WP13 unknown tag rejected at blast');
+select is(public.blast_vessel('wp13-blast-again','41')->>'reason','Basket 041 already in blast · INT-0001','WP13 bare padded tag accepted; repeat scan keeps first time-in');
+select is(public.blast_vessel('wp13-blast-recon','043')->>'reason','Order INT-0002 has not been sent to blast. Scan a different basket.','WP13 blast refuses vessel still at reconcile');
+select is(public.blast_vessel('wp13-blast-unknown','999')->>'reason','Basket not found. Scan a different basket.','WP13 unknown tag rejected at blast');
 
 -- Locate: rejections -------------------------------------------------------------------
 select is(public.place_vessel('042','FL:LOC:freezer-a:IF-A-02-2-R','wp13-place-archived')->>'reason','location IF-A-02-2-R is archived and cannot be bound','WP13 archived location rejected');
 select is(public.place_vessel('042','FL:LOC:freezer-a:IF-Z-01-1-F','wp13-place-unknown')->>'reason','Unknown location','WP13 unknown location rejected');
 select is(public.place_vessel('042','FL:LOC:freezer-b:IF-A-01-1-F','wp13-place-other-org-qr')->>'reason','Unknown location','WP13 another org''s location QR rejected');
-select is(public.place_vessel('043','IF-A-01-1-F','wp13-place-recon')->>'reason','Intake INT-0002 has not been sent to blast','WP13 locate refuses intake not sent to blast');
+select is(public.place_vessel('043','IF-A-01-1-F','wp13-place-recon')->>'reason','Order INT-0002 has not been sent to blast. Scan a different basket.','WP13 locate refuses intake not sent to blast');
 select is((select count(*)::int from public.location_placement),0,'WP13 rejected placements write no history');
 select is((select count(*)::int from public.scan_log where station='locate' and result='rejected'),4,'WP13 rejected locate scans audited');
 select is((select state::text from public.intake where number='INT-0001'),'blast_freezer','WP13 rejection leaves intake in blast');
 
 -- Locate: placement --------------------------------------------------------------------
 create temp table placed as select public.place_vessel('FL:TAG:freezer-a:041','FL:LOC:freezer-a:IF-A-01-1-F','wp13-place-1') r;
-select is((select r->>'reason' from placed),'Placed 041 → IF-A-01-1-F','WP13 place_vessel accepted');
+select is((select r->>'reason' from placed),'Basket 041 placed at IF-A-01-1-F','WP13 place_vessel accepted');
 select is((select count(*)::int from public.location_placement),1,'WP13 place appends location_placement');
 select is((select l.code from public.vessel v join public.location l on l.id=v.location_id where v.id='a1300000-0000-4000-8000-000000000041'),'IF-A-01-1-F','WP13 vessel.location_id mirrors placement');
 select is((select state::text from public.intake where number='INT-0001'),'stored','WP13 first placement moves intake to stored');
@@ -89,23 +89,23 @@ select ok((select stored_at is not null and blast_out_at is not null from public
 select is((select count(*)::int from public.domain_event where kind='intake_stored'),1,'WP13 intake_stored event emitted');
 select is(public.place_vessel('FL:TAG:freezer-a:041','FL:LOC:freezer-a:IF-A-01-1-F','wp13-place-1'),(select r from placed),'WP13 place replay returns stored result');
 select is((select count(*)::int from public.location_placement),1,'WP13 place replay never duplicates history');
-select is(public.blast_vessel('wp13-blast-after','041')->>'reason','Vessel 041 already left blast','WP13 located vessel cannot re-enter blast');
+select is(public.blast_vessel('wp13-blast-after','041')->>'reason','Basket 041 already left blast','WP13 located vessel cannot re-enter blast');
 -- Two baskets on one position, capacity notwithstanding (DECISION-14).
 reset role;
 update public.location set capacity=1 where code='IF-A-01-1-F';
 set local role authenticated;
 select is(public.place_vessel('042','IF-A-01-1-F','wp13-place-2')->>'ok','true','WP13 no capacity gating');
 select is((select count(*)::int from public.domain_event where kind='intake_stored'),1,'WP13 intake moves to stored only once');
-select is(public.place_vessel('042','if-pallet-01','wp13-relocate')->>'reason','Placed 042 → IF-PALLET-01','WP13 relocate by bare code appends history');
+select is(public.place_vessel('042','if-pallet-01','wp13-relocate')->>'reason','Basket 042 placed at IF-PALLET-01','WP13 relocate by bare code appends history');
 select is((select array_agg(l.code order by p.placed_at, p.created_at) from public.location_placement p join public.location l on l.id=p.location_id where p.vessel_id='a1300000-0000-4000-8000-000000000042'),
  '{IF-A-01-1-F,IF-PALLET-01}'::text[],'WP13 placement history is append-only per vessel');
-select is(public.place_vessel('042','IF-PALLET-01','wp13-same-spot')->>'reason','042 already at IF-PALLET-01','WP13 rescan at current location writes no duplicate');
+select is(public.place_vessel('042','IF-PALLET-01','wp13-same-spot')->>'reason','Basket 042 already at IF-PALLET-01','WP13 rescan at current location writes no duplicate');
 select is(public.admin_locations('wp13-archive-occupied','archive',p_location_id=>(select id from public.location where code='IF-PALLET-01'))->>'occupied_vessels','1','WP13 archive reports occupied vessels left in place');
 select is((select l.code from public.vessel v join public.location l on l.id=v.location_id where v.id='a1300000-0000-4000-8000-000000000042'),'IF-PALLET-01','WP13 archiving never strands a placed vessel');
 select is(public.admin_locations('wp13-unarchive','unarchive',p_location_id=>(select id from public.location where code='IF-PALLET-01'))->>'is_active','true','WP13 unarchive location');
 
 -- Locate: two-step loop ----------------------------------------------------------------
-select is(public.locate_scan('wp13-loop-noves','FL:LOC:freezer-a:IF-A-01-2-F')->>'reason','Scan a vessel tag first','WP13 loop needs a vessel before a location');
+select is(public.locate_scan('wp13-loop-noves','FL:LOC:freezer-a:IF-A-01-2-F')->>'reason','Scan basket first','WP13 loop needs a vessel before a location');
 create temp table step1 as select public.locate_scan('wp13-loop-1','FL:TAG:freezer-a:041') r;
 select is((select r->>'pending_vessel_raw' from step1),'FL:TAG:freezer-a:041','WP13 loop step 1 holds the vessel');
 select is((select r->>'pending_vessel_id' from step1),'a1300000-0000-4000-8000-000000000041','WP13 loop step 1 returns the selected vessel identity');
@@ -114,8 +114,8 @@ select is(public.locate_scan('wp13-loop-archived','FL:LOC:freezer-a:IF-A-02-2-R'
 create temp table step2 as select public.locate_scan('wp13-loop-2','FL:LOC:freezer-a:IF-A-01-2-F','FL:TAG:freezer-a:041',p_pending_vessel_id=>'a1300000-0000-4000-8000-000000000041') r;
 select ok((select (r->>'placed')::boolean and r->'pending_vessel_raw'='null'::jsonb from step2),'WP13 loop step 2 places and resets');
 create temp table noid as select public.locate_scan('wp13-loop-noid','FL:LOC:freezer-a:IF-A-01-2-F','FL:TAG:freezer-a:042') r;
-select ok((select r->>'reason'='Vessel selection expired; scan the tag again' and (r->>'reset')::boolean and r->'pending_vessel_raw'='null'::jsonb from noid),'WP13 loop refuses a pending tag without its selected vessel');
-select is(public.locate_scan('wp13-loop-bad','NOT-A-THING')->>'reason','Unknown tag','WP13 loop rejects unknown scan');
+select ok((select r->>'reason'='The basket selection expired. Scan the basket again.' and (r->>'reset')::boolean and r->'pending_vessel_raw'='null'::jsonb from noid),'WP13 loop refuses a pending tag without its selected vessel');
+select is(public.locate_scan('wp13-loop-bad','NOT-A-THING')->>'reason','Basket not found. Scan a different basket.','WP13 loop rejects unknown scan');
 
 -- Walk order (boxing pick list) --------------------------------------------------------
 reset role;
@@ -148,7 +148,7 @@ grant select on placements_before to authenticated;
 set local role authenticated;
 create temp table stale2 as select public.locate_scan('wp13-stale-2','FL:LOC:freezer-a:IF-A-01-1-F',
  (select r->>'pending_vessel_raw' from stale1),p_pending_vessel_id=>(select (r->>'pending_vessel_id')::uuid from stale1)) r;
-select is((select r->>'reason' from stale2),'Selected vessel changed since its tag was scanned; scan the tag again','WP13 release/rebind between scans rejects the stale selection');
+select is((select r->>'reason' from stale2),'The selected basket changed since it was scanned. Scan the basket again.','WP13 release/rebind between scans rejects the stale selection');
 select ok((select (r->>'reset')::boolean and r->'pending_vessel_raw'='null'::jsonb and r->'pending_vessel_id'='null'::jsonb from stale2),'WP13 stale selection resets the loop');
 select is((select location_id from public.vessel where id='a1300000-0000-4000-8000-000000000044'),null,'WP13 stale selection never places the tag''s new holder');
 select is((select count(*)::int from public.location_placement),(select n from placements_before),'WP13 stale selection writes no placement');
@@ -159,7 +159,7 @@ reset role;
 reset role;
 select set_config('request.jwt.claims','{"sub":"a1300000-0000-4000-8000-0000000000a1","role":"authenticated","org_id":"b1300000-0000-4000-8000-00000000000b","app_role":"manager"}',true);
 set local role authenticated;
-select is(public.place_vessel('FL:TAG:freezer-a:041','FL:LOC:freezer-a:IF-A-01-1-F','wp13-cross')->>'reason','Unknown tag','WP13 cross tenant placement refused');
+select is(public.place_vessel('FL:TAG:freezer-a:041','FL:LOC:freezer-a:IF-A-01-1-F','wp13-cross')->>'reason','Basket not found. Scan a different basket.','WP13 cross tenant placement refused');
 select is_empty('select * from public.location','WP13 cross tenant locations hidden');
 reset role;
 select set_config('request.jwt.claims','{"sub":"a1300000-0000-4000-8000-0000000000a1","role":"authenticated","org_id":"a1300000-0000-4000-8000-00000000000a","app_role":"station"}',true);

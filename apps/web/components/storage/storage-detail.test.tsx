@@ -197,26 +197,28 @@ function storageBoxScan(args: unknown) {
     p_box_no?: number;
   };
   if (number === undefined || no === undefined)
-    return { ok: false, reason: "Not a storage box code. Type it as printed, e.g. STG-0001-2." };
+    return { ok: false, reason: "Not a box code. Enter it as printed, e.g. STG-0001-2." };
   if (number !== "STG-0007") return { ok: false, reason: `${number}-${no} is not on STG-0007.` };
   if (no > 3) return { ok: false, reason: `No box ${no} on STG-0007.` };
   return { ok: true, reason: `Box ${no} selected for pickup.`, box_id: `b-${no}` };
 }
 
-it("#84 freezer pickup Type code: every typed box code is checked and logged by the server", async () => {
+it("#84 freezer pickup Enter manually: every typed box code is checked and logged by the server", async () => {
   const { client, rpc, headers } = fakeClient({ storage_box_scan: storageBoxScan });
   render(<StorageDetail session={session(client)} storageIntakeId="si-1" />);
-  fireEvent.click(await screen.findByRole("button", { name: "Type code" }));
-  const field = screen.getByLabelText(/Type the box code/);
+  fireEvent.click(await screen.findByRole("button", { name: "Enter manually" }));
+  expect(screen.getByTestId("next-step").textContent).toBe("Tick each box going home");
+  const field = screen.getByLabelText("Box (STG-0001-2)");
   const enter = (value: string) => {
     fireEvent.change(field, { target: { value } });
-    fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Enter" }));
   };
   enter("stg-0007 2");
   await waitFor(() =>
     expect((screen.getByLabelText("Pick up Box 2") as HTMLInputElement).checked).toBe(true),
   );
   expect(screen.getByText("Box 2 selected for pickup.")).toBeTruthy();
+  expect(screen.getByTestId("next-step").textContent).toBe("Tap Create Pickup Batch");
   enter("STG-0008-1");
   await waitFor(() =>
     expect(screen.getByRole("alert").textContent).toBe("STG-0008-1 is not on STG-0007."),
@@ -224,9 +226,7 @@ it("#84 freezer pickup Type code: every typed box code is checked and logged by 
   enter("STG-0007-9");
   await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("No box 9 on STG-0007."));
   enter("hello");
-  await waitFor(() =>
-    expect(screen.getByRole("alert").textContent).toMatch(/Not a storage box code/),
-  );
+  await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/Not a box code/));
   expect((screen.getByLabelText("Pick up Box 1") as HTMLInputElement).checked).toBe(false);
   expect((screen.getByLabelText("Pick up Box 2") as HTMLInputElement).checked).toBe(true);
   // Accepted and rejected codes alike reach the server (validated, logged), flagged manual.

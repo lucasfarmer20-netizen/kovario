@@ -1,4 +1,4 @@
-/** How a code reached a station: a hardware scan or typed into "Type code" (issue #84). */
+/** How a code reached a station: a hardware scan or typed into "Enter manually" (issues #84, #98). */
 export type EntryMethod = "scan" | "manual";
 
 /** PostgREST request header read by the scan_log trigger (app.scan_log_entry_method). */

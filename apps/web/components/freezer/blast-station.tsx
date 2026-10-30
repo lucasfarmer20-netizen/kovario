@@ -131,6 +131,11 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
         operator_session: op.proof,
       });
   };
+  // Only exchange baskets waiting: they are tapped in, not scanned (docs/11-FLOOR-WORDING.md).
+  const next =
+    waiting.length > 0 && waiting.every((v) => !v.asset_tag)
+      ? "Tap Blast in for an exchange basket"
+      : "Scan a basket going into the blast";
   return (
     <StationShell
       name="Blast"
@@ -138,6 +143,8 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
       operator={op.operator}
       pending={pending}
       paused={op.pinOpen}
+      next={next}
+      manualLabel="Basket number"
       status={
         <>
           <ScanFeedback feedback={feedback} />
@@ -159,11 +166,12 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
       {waiting.length > 0 && (
         <section className="station-card" aria-label="Waiting for blast-in">
           <h2>RELEASED, WAITING FOR BLAST-IN ({waiting.length})</h2>
-          <p>Scan a tagged vessel. Tap Blast in for an exchange basket (no tag).</p>
+          <p>Scan each basket. Tap Blast in for an exchange basket.</p>
           <ul>
             {waiting.map((v) => (
               <li key={v.id} className="text-2xl">
-                {v.asset_tag?.code ?? "Exchange"} · {v.intake?.number} · {v.weight_lb} lb
+                {v.asset_tag ? `Basket ${v.asset_tag.code}` : "Exchange basket"} ·{" "}
+                {v.intake?.number} · {v.weight_lb} lb
                 {!v.asset_tag && (
                   <>
                     {" "}
@@ -183,12 +191,12 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
       )}
       <section className="station-card" aria-label="In blast">
         <h2>IN BLAST ({vessels.length})</h2>
-        <p>Scan a vessel tag as it goes into the blast freezer.</p>
+        <p>Scan each basket as it goes into the blast freezer.</p>
         <ul>
           {vessels.map((v) => (
             <li key={v.id} className="text-2xl">
-              {v.asset_tag?.code ?? "Exchange"} · {v.intake?.number} · {v.weight_lb} lb ·{" "}
-              {timeIn(v.blast_in_at, now)}
+              {v.asset_tag ? `Basket ${v.asset_tag.code}` : "Exchange basket"} · {v.intake?.number}{" "}
+              · {v.weight_lb} lb · {timeIn(v.blast_in_at, now)}
             </li>
           ))}
         </ul>

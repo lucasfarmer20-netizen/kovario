@@ -173,6 +173,13 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
   const cancel = async () => {
     await navigator.locks.request(`scan-delivery:${scope}`, () => remember(null));
   };
+  const basket = pendingVessel
+    ? pendingVessel.tag
+      ? `Basket ${pendingVessel.tag}`
+      : pendingVessel.raw === ""
+        ? "Exchange basket"
+        : "Basket"
+    : null;
   return (
     <StationShell
       name="Locate"
@@ -180,6 +187,16 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
       operator={op.operator}
       pending={pending}
       paused={op.pinOpen}
+      next={
+        basket
+          ? `Scan location for ${basket[0]!.toLowerCase()}${basket.slice(1)}`
+          : exchange.length > 0
+            ? "Scan basket or tap an exchange basket"
+            : "Scan basket"
+      }
+      steps={["Scan basket", "Scan location"]}
+      step={pendingVessel ? 1 : 0}
+      manualLabel={pendingVessel ? "Location (IF-A-01-1-F)" : "Basket number"}
       status={<ScanFeedback feedback={feedback} />}
       manual={{ ...manual, accept: ["TAG", "LOC"] }}
       onScan={(raw, _parsed, method) => {
@@ -197,30 +214,28 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
         {pendingVessel ? (
           <>
             <h2>STEP 2 — SCAN LOCATION</h2>
-            <h3 className="text-5xl">
-              {pendingVessel.tag ?? (pendingVessel.raw === "" ? "Exchange basket" : "Vessel")}
-            </h3>
+            <h3 className="text-5xl">{basket}</h3>
             <p className="text-3xl">{pendingVessel.intake}</p>
             {pendingVessel.species && <p>{pendingVessel.species}</p>}
             <button disabled={pending > 0} onClick={() => void cancel()}>
-              Scan a different vessel
+              Scan a different basket
             </button>
           </>
         ) : (
           <>
-            <h2>STEP 1 — SCAN VESSEL TAG</h2>
-            <p>Scan the basket&apos;s tag, then the shelf or pallet location.</p>
+            <h2>STEP 1 — SCAN BASKET</h2>
+            <p>Scan the basket, then its shelf or pallet location.</p>
           </>
         )}
       </section>
       {!pendingVessel && exchange.length > 0 && (
         <section className="station-card" aria-label="Exchange baskets">
-          <h2>EXCHANGE BASKETS — NO TAG ({exchange.length})</h2>
+          <h2>EXCHANGE BASKETS ({exchange.length})</h2>
           <p>Tap the basket you are holding, then scan its location.</p>
           <ul>
             {exchange.map((v) => (
               <li key={v.id} className="text-2xl">
-                Exchange · {v.intake?.number} · {v.weight_lb} lb ·{" "}
+                Exchange basket · {v.intake?.number} · {v.weight_lb} lb ·{" "}
                 {v.blast_in_at ? `in blast ${timeIn(v.blast_in_at, now)}` : "not blasted in"}{" "}
                 <button
                   type="button"

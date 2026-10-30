@@ -145,6 +145,8 @@ function LiveStation({ client, claims, station, site }: Context) {
       operator={operator}
       pending={pending}
       paused={pinOpen || managerOpen}
+      next="Scan a tote"
+      manualLabel="Tote number (INT-0002-1)"
       status={<ScanFeedback feedback={feedback} />}
       onScan={(raw, _parsed, method) => {
         if (isDevice && (!operator || checkIdle())) {
@@ -169,7 +171,7 @@ function LiveStation({ client, claims, station, site }: Context) {
             then press Enter.
           </p>
           <p>
-            Only totes in this plant’s intake master are accepted. Unknown labels are recorded as
+            Only totes from this plant’s orders are accepted. Unknown labels are recorded as
             rejected scans.
           </p>
           <div className="station-actions">

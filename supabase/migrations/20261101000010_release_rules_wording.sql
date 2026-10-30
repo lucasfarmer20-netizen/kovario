@@ -1,0 +1,88 @@
+-- GENERATED from packages/rules/src/release-sql.ts — do not edit by hand.
+-- Regenerate with `pnpm --filter rules gen:sql`; a rules test fails when this is stale.
+--   app.release_line_issue    — I5 / I16(a) input fault on one vessel line (release.ts);
+--   app.vessel_release_action — I4 / I5 tick → none | full_pull | split (release.ts);
+--   app.shipment_buy_gate     — I13 / I13b / I14 buy and reprint gate (release.ts).
+
+-- Null when the line is valid. Blank Lbs Left reads as 0; at most 2 decimals (weights are
+-- numeric(10,2)); an unticked line's nonzero remainder is rejected, never inferred; a
+-- split must be below the current measure.
+create or replace function app.release_line_issue(p_ticked boolean, p_lbs_left numeric, p_measure numeric)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when p_lbs_left is not null and p_lbs_left::text in ('NaN', 'Infinity', '-Infinity') then 'Lbs Left must be a number'
+    when coalesce(p_lbs_left, 0) < 0 then 'Lbs Left cannot be negative'
+    when p_lbs_left * 100 <> trunc(p_lbs_left * 100) then 'Lbs Left takes at most 2 decimal places'
+    when not p_ticked then case when coalesce(p_lbs_left, 0) = 0 then null else 'Lbs Left on an unticked line; tick the basket or clear the value' end
+    when coalesce(p_lbs_left, 0) = 0 or p_lbs_left < p_measure then null
+    else 'Lbs Left must be less than the basket''s current weight; leave it blank or 0 for a full pull'
+  end
+$$;
+
+-- The tote tick is the sole action selector. Raises on a line release_line_issue rejects.
+create or replace function app.vessel_release_action(p_ticked boolean, p_lbs_left numeric, p_measure numeric)
+returns text
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_issue text := app.release_line_issue(p_ticked, p_lbs_left, p_measure);
+begin
+  if v_issue is not null then
+    raise exception '%', v_issue using errcode = '22023';
+  end if;
+  if not p_ticked then return 'none'; end if;
+  return case when coalesce(p_lbs_left, 0) = 0 then 'full_pull' else 'split' end;
+end;
+$$;
+
+-- {held, blockers, can_buy, can_reprint}. Held = ship date past today + window (info, not
+-- an error); blockers are reported alongside it (I13b). Manager force overrides the date
+-- hold only — every blocker, a missing ship date included, survives it (I14). A bought
+-- label can always be reprinted.
+create or replace function app.shipment_buy_gate(
+  p_ship_date date, p_today date, p_buy_window_days int, p_force_buy_held boolean,
+  p_service text, p_blockers text[], p_label_bought boolean
+)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_blockers text[];
+  v_held boolean;
+begin
+  if p_today is null or p_buy_window_days is null or p_buy_window_days < 0 then
+    raise exception 'buy gate needs today and a buy window of 0 days or more' using errcode = '22023';
+  end if;
+  select coalesce(array_agg(b order by n), '{}') into v_blockers
+  from (select b, min(n) as n from unnest(coalesce(p_blockers, '{}')) with ordinality as x (b, n)
+        group by b) d;
+  if p_ship_date is null and not 'missing_ship_date' = any (v_blockers) then
+    v_blockers := v_blockers || 'missing_ship_date'::text;
+  end if;
+  if coalesce(btrim(p_service), '') = '' and not 'no_service' = any (v_blockers) then
+    v_blockers := v_blockers || 'no_service'::text;
+  end if;
+  if coalesce(p_label_bought, false) then
+    return jsonb_build_object('held', false, 'blockers', '[]'::jsonb, 'can_buy', false, 'can_reprint', true);
+  end if;
+  v_held := p_ship_date is not null and not coalesce(p_force_buy_held, false)
+            and p_ship_date > p_today + p_buy_window_days;
+  return jsonb_build_object('held', v_held, 'blockers', to_jsonb(v_blockers),
+    'can_buy', not v_held and cardinality(v_blockers) = 0, 'can_reprint', false);
+end;
+$$;
+
+revoke all on function app.release_line_issue(boolean, numeric, numeric),
+  app.vessel_release_action(boolean, numeric, numeric),
+  app.shipment_buy_gate(date, date, int, boolean, text, text[], boolean) from public;
+grant execute on function app.release_line_issue(boolean, numeric, numeric),
+  app.vessel_release_action(boolean, numeric, numeric),
+  app.shipment_buy_gate(date, date, int, boolean, text, text[], boolean) to service_role;

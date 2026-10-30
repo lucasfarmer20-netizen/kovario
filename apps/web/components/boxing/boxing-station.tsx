@@ -39,9 +39,11 @@ import {
   type Ticks,
   type Wizard,
 } from "./boxing-state";
+import { DisabledReason } from "@/src/components/station/next-step";
 
 type Feedback = { tone: "ok" | "warn" | "error"; text: string } | null;
 const SCAN_UNRECORDED = "Scan not recorded; check the connection and scan again.";
+const BOXING_STEPS = ["Open order", "Tick boxes and baskets", "Complete"] as const;
 
 function Status({ feedback }: { feedback: Feedback }) {
   if (!feedback) return null;
@@ -94,6 +96,10 @@ function BoxingQueue({ client, claims, siteName }: StationSession) {
       site={siteName}
       operator={null}
       pending={0}
+      next="Scan the boxing QR or tap an order"
+      steps={BOXING_STEPS}
+      step={0}
+      manualLabel="Boxing code (on the receipt)"
       status={<Status feedback={feedback} />}
       manual={{ ...manual, accept: ["BOX"] }}
       onScan={async (raw, _parsed, method) => {
@@ -307,7 +313,10 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     // Scans started from here on belong to the form Complete is about to replace.
     formEpoch.current++;
     if (nothingTicked(payload)) {
-      setFeedback({ tone: "warn", text: "Nothing ticked: tick boxes or totes before Complete." });
+      setFeedback({
+        tone: "warn",
+        text: "Nothing ticked. Tick each box and basket being handed over, then Complete.",
+      });
       return;
     }
     setBusy(true);
@@ -412,6 +421,12 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     wizard.boxes.some((b) => b.settlement_id === a.settlement_id),
   );
   const toteTicked = Object.values(ticks.vessels).some((l) => l.ticked);
+  const nothingLeft = wizard.boxes.length === 0 && wizard.vessels.length === 0;
+  const next = nothingLeft
+    ? "All handed over. Tap Queue for the next order"
+    : ticks.boxes.length === 0 && !toteTicked
+      ? "Tick each box and basket"
+      : "Complete";
   const issues = new Map(lineIssues(wizard, ticks).map((i) => [i.vesselId, i.message]));
 
   return (
@@ -421,6 +436,10 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       operator={op.operator}
       pending={validating + (busy ? 1 : 0)}
       paused={op.pinOpen || editing || pending !== null}
+      next={next}
+      steps={BOXING_STEPS}
+      step={next === "Tick each box and basket" ? 1 : 2}
+      manualLabel="Basket number"
       status={<Status feedback={feedback} />}
       manual={{ ...manual, accept: ["TAG", "BOX"] }}
       onScan={(raw, _parsed, method) => void onScan(raw, method)}
@@ -463,7 +482,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
           ))}
           {ticks.boxes.length > 0 && !toteTicked && !wizard.moved_before && (
             <p className="station-hint" role="status">
-              No fish has moved for this party yet: tick the totes you are handing over.
+              No fish has moved for this party yet: tick the baskets you are handing over.
             </p>
           )}
         </section>
@@ -567,7 +586,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
         </div>
         {i8Blocked === "tote_left" && (
           <p className="station-hint" role="status">
-            Tick the totes you are handing over: this party still has baskets in the freezer (see
+            Tick the baskets you are handing over: this party still has baskets in the freezer (see
             the pick list).
           </p>
         )}
@@ -575,8 +594,8 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
         {i8Blocked === "override" && (
           <div aria-label="I8 override">
             <p className="station-hint">
-              No tote is left to tick for this party: another party or a tag release took the last
-              basket. A manager can finalise the ticked boxes with a reason.
+              No basket is left to tick for this party: another party or a Release by tag took the
+              last one. A manager can finalise the ticked boxes with a reason.
             </p>
             <label>
               Override reason
@@ -589,6 +608,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
             >
               Manager override
             </button>
+            <DisabledReason reason={!i8Reason.trim() && "Enter a reason first"} />
           </div>
         )}
         {reply && !reply.noop && (
@@ -619,10 +639,10 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       <details className="station-card">
         <summary>Manager tools</summary>
         <h3>Release by tag</h3>
-        <p className="station-hint">For a tote that was not ticked at Complete. Totes only.</p>
+        <p className="station-hint">For a basket that was not ticked at Complete. Baskets only.</p>
         <div className="intake-fields">
           <label>
-            Tag
+            Basket to release
             <input
               value={tagForm.tag}
               onChange={(e) => setTagForm({ ...tagForm, tag: e.target.value })}
@@ -666,6 +686,12 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
           >
             Release by tag
           </button>
+          <DisabledReason
+            reason={
+              (!tagForm.tag.trim() || !tagForm.reason.trim()) &&
+              "Enter the basket and a reason first"
+            }
+          />
         </div>
         <h3>Restore a released basket</h3>
         {emptied.length === 0 ? (
@@ -683,7 +709,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
             <ul className="station-queue">
               {emptied.map((v) => (
                 <li key={v.id}>
-                  {v.tag_code ? `Tag ${v.tag_code}` : "Basket"} ({v.intake_number}) ·{" "}
+                  {v.tag_code ? `Basket ${v.tag_code}` : "Untagged basket"} ({v.intake_number}) ·{" "}
                   {v.weight_lb ?? "?"} lb
                   <button
                     type="button"

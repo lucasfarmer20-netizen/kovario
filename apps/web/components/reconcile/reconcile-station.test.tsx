@@ -2,7 +2,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ScanReply, ScanRequest } from "@/src/components/station/scan-queue";
-import { ReconcileStation } from "./reconcile-station";
+import { ReconcileStation, reconcileNextStep } from "./reconcile-station";
 const mocks = vi.hoisted(() => ({
   session: null as unknown,
   send: null as null | ((r: ScanRequest) => Promise<ScanReply>),
@@ -92,7 +92,7 @@ it("WP12 selected vessel saves positive manual weight with operator proof and ac
   const rpc = setup();
   render(<ReconcileStation />);
   fireEvent.click(await screen.findByRole("button", { name: /042/ }));
-  fireEvent.click(screen.getByRole("button", { name: "Manual entry" }));
+  fireEvent.click(screen.getByRole("button", { name: "Enter weight manually" }));
   fireEvent.change(screen.getByLabelText("Manual weight (lb)"), { target: { value: "12.5" } });
   fireEvent.click(screen.getByRole("button", { name: "Save manual weight" }));
   await waitFor(() =>
@@ -135,13 +135,13 @@ it("WP12 complete vessel enables Send to Blast; pending scans block edits", asyn
     (screen.getByRole("button", { name: "Send to Blast Freezer" }) as HTMLButtonElement).disabled,
   ).toBe(true);
 });
-it("WP12 tag without an open intake is audited with Scan a tote first", async () => {
+it("WP12 tag without an open intake is audited with Scan a tote or tap an order first", async () => {
   const rpc = setup();
   localStorage.clear();
   render(<ReconcileStation />);
   await screen.findByRole("button", { name: "INT-0001" });
   rpc.mockResolvedValueOnce({
-    data: { ok: false, reason: "Scan a tote first", intake_id: "", vessel_id: "" },
+    data: { ok: false, reason: "Scan a tote or tap an order first", intake_id: "", vessel_id: "" },
     error: null,
   });
   const reply = await mocks.send!({
@@ -150,10 +150,14 @@ it("WP12 tag without an open intake is audited with Scan a tote first", async ()
     client_action_id: "wp12-no-intake",
     operator_session: null,
   });
-  expect(reply.reason).toBe("Scan a tote first");
+  expect(reply.reason).toBe("Scan a tote or tap an order first");
   expect(rpc).toHaveBeenCalledWith(
     "station_scan",
-    expect.objectContaining({ p_reason: "Scan a tote first", p_raw: "42", p_station: "reconcile" }),
+    expect.objectContaining({
+      p_reason: "Scan a tote or tap an order first",
+      p_raw: "42",
+      p_station: "reconcile",
+    }),
   );
   expect(rpc).not.toHaveBeenCalledWith("reconcile_action", expect.anything());
 });
@@ -173,7 +177,12 @@ it("WP12 unsupported scans produce an audited floor-friendly rejection", async (
   render(<ReconcileStation />);
   await screen.findByRole("button", { name: /042/ });
   rpc.mockResolvedValueOnce({
-    data: { ok: false, reason: "Not a tag or tote", intake_id: "", vessel_id: "" },
+    data: {
+      ok: false,
+      reason: "Not a basket or a tote. Scan a basket or a tote.",
+      intake_id: "",
+      vessel_id: "",
+    },
     error: null,
   });
   const reply = await mocks.send!({
@@ -182,21 +191,21 @@ it("WP12 unsupported scans produce an audited floor-friendly rejection", async (
     client_action_id: "wp12-wrong-kind",
     operator_session: null,
   });
-  expect(reply.reason).toBe("Not a tag or tote");
+  expect(reply.reason).toBe("Not a basket or a tote. Scan a basket or a tote.");
   expect(rpc).toHaveBeenCalledWith(
     "station_scan",
-    expect.objectContaining({ p_reason: "Not a tag or tote" }),
+    expect.objectContaining({ p_reason: "Not a basket or a tote. Scan a basket or a tote." }),
   );
   expect(rpc).not.toHaveBeenCalledWith("reconcile_action", expect.anything());
 });
 
-it("#84 Type code: a typed tag code binds through the scan path, flagged manual", async () => {
+it("#84 Enter manually: a typed tag code binds through the scan path, flagged manual", async () => {
   const rpc = setup();
   render(<ReconcileStation />);
   await screen.findByText("salmon_reds: 20 lb");
-  fireEvent.click(screen.getByRole("button", { name: "Type code" }));
-  fireEvent.change(screen.getByLabelText(/Type the code/), { target: { value: "42" } });
-  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Enter manually" }));
+  fireEvent.change(screen.getByLabelText("Basket number"), { target: { value: "42" } });
+  fireEvent.click(screen.getByRole("button", { name: "Enter" }));
   await waitFor(() =>
     expect(mocks.scan).toHaveBeenCalledWith(
       expect.objectContaining({ raw: "042", station: "reconcile", entry_method: "manual" }),
@@ -225,7 +234,7 @@ it("#84 Type code: a typed tag code binds through the scan path, flagged manual"
   );
   expect(bind.setHeader).toHaveBeenCalledWith("x-filletry-entry-method", "manual");
   // A malformed typed code is audited by station_scan, also flagged manual.
-  const audit = builder({ ok: false, reason: "Not a tag or tote" });
+  const audit = builder({ ok: false, reason: "Not a basket or a tote. Scan a basket or a tote." });
   rpc.mockImplementationOnce(() => audit as never);
   await mocks.send!({
     raw: "hello",
@@ -236,7 +245,10 @@ it("#84 Type code: a typed tag code binds through the scan path, flagged manual"
   });
   expect(rpc).toHaveBeenLastCalledWith(
     "station_scan",
-    expect.objectContaining({ p_raw: "hello", p_reason: "Not a tag or tote" }),
+    expect.objectContaining({
+      p_raw: "hello",
+      p_reason: "Not a basket or a tote. Scan a basket or a tote.",
+    }),
   );
   expect(audit.setHeader).toHaveBeenCalledWith("x-filletry-entry-method", "manual");
 });
@@ -245,7 +257,7 @@ it("#84 manual weight uses a visible decimal field and is flagged on the vessel 
   setup(12.5);
   render(<ReconcileStation />);
   fireEvent.click(await screen.findByRole("button", { name: /042/ }));
-  fireEvent.click(screen.getByRole("button", { name: "Manual entry" }));
+  fireEvent.click(screen.getByRole("button", { name: "Enter weight manually" }));
   const field = screen.getByLabelText("Manual weight (lb)");
   expect(field.getAttribute("inputmode")).toBe("decimal");
   expect(screen.getByText("MANUAL WEIGHT")).toBeTruthy();
@@ -453,8 +465,10 @@ it("#88 a staff bin move from the hold's picker needs a manager PIN, then calls 
   fireEvent.click(within(panel).getByRole("button", { name: "Find the fish (suspects)" }));
   const picker = await screen.findByRole("region", { name: "Suspect picker" });
   expect(rpc).toHaveBeenCalledWith("variance_suspect_group", { p_intake_id: "i1" });
-  fireEvent.click(await within(picker).findByRole("button", { name: "042 · 28 lb" }));
-  fireEvent.click(within(picker).getByRole("button", { name: "Move 042 · 28 lb to INT-0002" }));
+  fireEvent.click(await within(picker).findByRole("button", { name: "Basket 042 · 28 lb" }));
+  fireEvent.click(
+    within(picker).getByRole("button", { name: "Move basket 042 · 28 lb to INT-0002" }),
+  );
   fireEvent.change(await screen.findByLabelText("Manager PIN PIN"), { target: { value: "1234" } });
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   await waitFor(() =>
@@ -492,4 +506,98 @@ it("#88 typing a pull-back reason pauses the scanner; a manager account pulls ba
     }),
   );
   expect(screen.queryByLabelText("Manager PIN PIN")).toBeNull();
+});
+
+const next = () => screen.getByTestId("next-step").textContent;
+it("#98 next step: no order open → Scan a tote or tap an order", async () => {
+  setup();
+  localStorage.setItem("org:staff:reconcile", "");
+  render(<ReconcileStation />);
+  await screen.findByRole("heading", { name: "No order open" });
+  expect(next()).toBe("Scan a tote or tap an order");
+  expect(screen.getByText("1 Add baskets").getAttribute("aria-current")).toBe("step");
+});
+it("#98 next step: an open order with no baskets → Scan basket; Send says why it is disabled", async () => {
+  setup(0, { vessel: [] });
+  render(<ReconcileStation />);
+  await screen.findByRole("heading", { name: "Order INT-0001" });
+  expect(next()).toBe("Scan basket");
+  expect(screen.getByText("Add a basket first")).toBeTruthy();
+});
+it("#98 next step: an unweighed basket asks for the tap, then Weigh basket 042", async () => {
+  setup();
+  render(<ReconcileStation />);
+  await screen.findByRole("button", { name: /Basket 042/ });
+  expect(next()).toBe("Tap basket 042, then weigh it");
+  expect(screen.getByText("2 Weigh").getAttribute("aria-current")).toBe("step");
+  expect(screen.getAllByText("Tap a basket first").length).toBeGreaterThan(0);
+  expect(screen.getByText("Weigh every basket first")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /Basket 042/ }));
+  expect(next()).toBe("Weigh basket 042");
+});
+it("#98 with several unweighed baskets the prompt never names a basket the weight buttons won't write", async () => {
+  const vessel = [
+    { id: "v1", intake_id: "i1", asset_tag_id: "t1", asset_tag: { code: "042" }, weight_lb: 0 },
+    { id: "v2", intake_id: "i1", asset_tag_id: "t2", asset_tag: { code: "043" }, weight_lb: 0 },
+  ].map((v) => ({ ...v, manual: false, is_exchange: false }));
+  const rpc = setup(0, { vessel });
+  rpc.mockImplementation((async (
+    _name: string,
+    args: { p_vessel_id?: string; p_weight?: number },
+  ) => {
+    const row = vessel.find((v) => v.id === args.p_vessel_id);
+    if (row && args.p_weight) row.weight_lb = args.p_weight;
+    return {
+      data: { ok: true, reason: "Weighed", intake_id: "i1", vessel_id: row?.id },
+      error: null,
+    };
+  }) as never);
+  render(<ReconcileStation />);
+  fireEvent.click(await screen.findByRole("button", { name: /Basket 042/ }));
+  expect(next()).toBe("Weigh basket 042");
+  const weigh = async (lb: string) => {
+    fireEvent.click(screen.getByRole("button", { name: "Enter weight manually" }));
+    fireEvent.change(screen.getByLabelText("Manual weight (lb)"), { target: { value: lb } });
+    fireEvent.click(screen.getByRole("button", { name: "Save manual weight" }));
+  };
+  await weigh("9");
+  // 042 is weighed and still selected: the line asks for the tap on 043, not "Weigh basket 043".
+  await waitFor(() => expect(next()).toBe("Tap basket 043, then weigh it"));
+  expect(
+    screen.getByRole("button", { name: /Basket 042 · 9 lb/ }).getAttribute("aria-pressed"),
+  ).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: /Basket 043/ }));
+  expect(next()).toBe("Weigh basket 043");
+  await weigh("11");
+  await waitFor(() => expect(next()).toBe("Send to Blast"));
+  const calls = rpc.mock.calls as unknown as Array<
+    [string, { p_operation?: string; p_vessel_id?: string }]
+  >;
+  const weighed = calls.filter(([, a]) => a.p_operation === "manual").map(([, a]) => a.p_vessel_id);
+  expect(weighed).toEqual(["v1", "v2"]);
+});
+it("#98 next step: every basket weighed within the limit → Send to Blast", async () => {
+  setup(20);
+  render(<ReconcileStation />);
+  await screen.findByRole("button", { name: /Basket 042 · 20 lb/ });
+  expect(next()).toBe("Send to Blast");
+  expect(screen.getByText("3 Send to Blast").getAttribute("aria-current")).toBe("step");
+  expect(screen.queryByText("Weigh every basket first")).toBeNull();
+});
+it("#98 next step over the limit asks to check weights, with a true minus sign", () => {
+  const rows = [{ id: "v1", weight_lb: 16.4, is_exchange: false, asset_tag: { code: "005" } }];
+  expect(
+    reconcileNextStep({ open: true, rows, selected: null, variance: -18, over: true, held: false })
+      .next,
+  ).toBe("Over the limit (−18%). Check weights before sending.");
+  expect(
+    reconcileNextStep({
+      open: true,
+      rows: [...rows, { id: "v2", weight_lb: 0, is_exchange: true, asset_tag: null }],
+      selected: null,
+      variance: -18,
+      over: true,
+      held: false,
+    }).next,
+  ).toBe("Tap exchange basket, then weigh it");
 });

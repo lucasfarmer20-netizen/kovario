@@ -28,10 +28,10 @@ export default async function AssetTagsPage({
   const tags = await supabase.from("asset_tag").select("*").order("code").range(list.from, list.to);
   return (
     <div className="space-y-6">
-      <h1>Asset tag pool</h1>
+      <h1>Basket tags</h1>
       <p>
         {digits}-digit tags (0–{max}), up to {MAX_TAG_RANGE.toLocaleString("en-US")} per range.
-        Raise the width in Settings → Asset tag digits.
+        Raise the width in Settings → Basket tag digits.
       </p>
       <ActionForm action={manageTags} actionId={randomUUID()} submitLabel="Create range">
         <label>

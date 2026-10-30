@@ -106,7 +106,7 @@ select ok((select state='active' and intake_id=pg_temp.intake('INT-0003') and li
   and id=((select r from flag)->>'variance_hold_id')::uuid from public.variance_hold),'V1 the intake is flagged with its variance, the limit and who');
 select ok(exists(select 1 from public.domain_event where kind='variance_hold_flagged' and subject_id=pg_temp.intake('INT-0003')),'V1 flag recorded as a domain event');
 select is(pg_temp.send('INT-0003','v87-send-0003'),(select r from flag),'V1 replaying the refused send returns the stored result');
-select is(pg_temp.send('INT-0003','v87-send-0003-again')->>'reason','Variance hold: INT-0003 is +40% (limit ±15%). Fix the bins or get a manager sign-off','V1 sending again is still refused');
+select is(pg_temp.send('INT-0003','v87-send-0003-again')->>'reason','Variance hold: INT-0003 is +40% (limit ±15%). Fix the baskets or get a manager sign-off','V1 sending again is still refused');
 select is((select count(*)::int from public.variance_hold),1,'V1 one hold per flagged intake (replay and retry flag nothing new)');
 
 -- V2: the hold group follows rollstock order across the wave boundary ---------------------------

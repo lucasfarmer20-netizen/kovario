@@ -101,8 +101,9 @@ const request = (raw: string, id: string): ScanRequest => ({
 it("WP13 blast queue lists occupied vessels in blast with time-in", async () => {
   const { calls } = setup();
   render(<BlastStation />);
-  expect(await screen.findByText(/041 · INT-0001 · 20 lb · 2h 0[45]m/)).toBeTruthy();
+  expect(await screen.findByText(/Basket 041 · INT-0001 · 20 lb · 2h 0[45]m/)).toBeTruthy();
   expect(screen.getByText("IN BLAST (1)")).toBeTruthy();
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan a basket going into the blast");
   expect(calls).toContainEqual(["lifecycle_state", "occupied"]);
   expect(calls).toContainEqual(["is stored_at", null]);
 });
@@ -147,11 +148,11 @@ it("#87 blast shows a 'now in blast' line per intake, in rollstock order, colour
 });
 
 it("WP13 blast scan posts the raw tag with its idempotency key", async () => {
-  const { rpc } = setup([{ ok: true, reason: "In blast: 041 · INT-0001" }]);
+  const { rpc } = setup([{ ok: true, reason: "Basket 041 in blast · INT-0001" }]);
   render(<BlastStation />);
   await screen.findByText("IN BLAST (1)");
   const reply = await mocks.send!({ ...request("FL:TAG:demo:041", "blast-1"), station: "blast" });
-  expect(reply.reason).toBe("In blast: 041 · INT-0001");
+  expect(reply.reason).toBe("Basket 041 in blast · INT-0001");
   expect(rpc).toHaveBeenCalledWith("blast_vessel", {
     p_client_action_id: "blast-1",
     p_raw: "FL:TAG:demo:041",
@@ -163,7 +164,7 @@ it("WP13 locate two-step loop: tag → shows vessel, location → placed and res
   const { rpc } = setup([
     {
       ok: true,
-      reason: "041 · INT-0001 — scan a location",
+      reason: "Basket 041 · INT-0001. Scan a location.",
       tag_code: "041",
       intake_number: "INT-0001",
       species: "Reds",
@@ -171,12 +172,21 @@ it("WP13 locate two-step loop: tag → shows vessel, location → placed and res
       pending_vessel_raw: "FL:TAG:demo:041",
       pending_vessel_id: "vessel-a",
     },
-    { ok: true, reason: "Placed 041 → IF-A-01-1-F", placed: true, pending_vessel_raw: null },
+    {
+      ok: true,
+      reason: "Basket 041 placed at IF-A-01-1-F",
+      placed: true,
+      pending_vessel_raw: null,
+    },
   ]);
   render(<LocateStation />);
-  expect(screen.getByText("STEP 1 — SCAN VESSEL TAG")).toBeTruthy();
+  expect(screen.getByText("STEP 1 — SCAN BASKET")).toBeTruthy();
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan basket");
+  expect(screen.getByText("1 Scan basket").getAttribute("aria-current")).toBe("step");
   await mocks.send!(request("FL:TAG:demo:041", "loc-1"));
   expect(await screen.findByText("STEP 2 — SCAN LOCATION")).toBeTruthy();
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan location for basket 041");
+  expect(screen.getByText("2 Scan location").getAttribute("aria-current")).toBe("step");
   expect(screen.getByText("INT-0001")).toBeTruthy();
   expect(screen.getByText("Reds")).toBeTruthy();
   await mocks.send!(request("FL:LOC:demo:IF-A-01-1-F", "loc-2"));
@@ -189,7 +199,7 @@ it("WP13 locate two-step loop: tag → shows vessel, location → placed and res
       p_pending_vessel_id: "vessel-a",
     }),
   ]);
-  expect(await screen.findByText("STEP 1 — SCAN VESSEL TAG")).toBeTruthy();
+  expect(await screen.findByText("STEP 1 — SCAN BASKET")).toBeTruthy();
   expect(localStorage.getItem("org:staff:locate")).toBe("null");
 });
 
@@ -210,7 +220,7 @@ it("WP13 locate resets when the tag was released and rebound between scans", () 
   expect(
     nextPending(current, {
       ok: false,
-      reason: "Selected vessel changed since its tag was scanned; scan the tag again",
+      reason: "The selected basket changed since it was scanned. Scan the basket again.",
       placed: false,
       reset: true,
       pending_vessel_raw: null,
@@ -226,7 +236,7 @@ it("WP13 locate drops a stored pending tag that has no vessel identity", () => {
   );
   setup();
   render(<LocateStation />);
-  expect(screen.getByText("STEP 1 — SCAN VESSEL TAG")).toBeTruthy();
+  expect(screen.getByText("STEP 1 — SCAN BASKET")).toBeTruthy();
 });
 
 it("WP13 locate can drop the pending vessel", async () => {
@@ -236,8 +246,8 @@ it("WP13 locate can drop the pending vessel", async () => {
     JSON.stringify({ id: "vessel-a", raw: "041", tag: "041", intake: "INT-0001", species: null }),
   );
   render(<LocateStation />);
-  fireEvent.click(await screen.findByRole("button", { name: "Scan a different vessel" }));
-  await waitFor(() => expect(screen.getByText("STEP 1 — SCAN VESSEL TAG")).toBeTruthy());
+  fireEvent.click(await screen.findByRole("button", { name: "Scan a different basket" }));
+  await waitFor(() => expect(screen.getByText("STEP 1 — SCAN BASKET")).toBeTruthy());
 });
 
 it("WP13 malformed freezer reply is refused", () => {
@@ -253,19 +263,19 @@ function typedRpc(data: unknown) {
   return builder;
 }
 
-it("#84 blast Type code: a typed tag takes blast_vessel, flagged manual", async () => {
+it("#84 blast Enter manually: a typed tag takes blast_vessel, flagged manual", async () => {
   const { rpc } = setup();
   render(<BlastStation />);
   await screen.findByText("IN BLAST (1)");
-  fireEvent.click(screen.getByRole("button", { name: "Type code" }));
-  fireEvent.change(screen.getByLabelText(/Type the code/), { target: { value: "41" } });
-  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Enter manually" }));
+  fireEvent.change(screen.getByLabelText("Basket number"), { target: { value: "41" } });
+  fireEvent.click(screen.getByRole("button", { name: "Enter" }));
   await waitFor(() =>
     expect(mocks.scan).toHaveBeenCalledWith(
       expect.objectContaining({ raw: "041", station: "blast", entry_method: "manual" }),
     ),
   );
-  const call = typedRpc({ ok: false, reason: "Unknown tag" });
+  const call = typedRpc({ ok: false, reason: "Basket not found. Scan a different basket." });
   rpc.mockImplementationOnce(() => call as never);
   const reply = await mocks.send!({
     raw: "999",
@@ -274,7 +284,7 @@ it("#84 blast Type code: a typed tag takes blast_vessel, flagged manual", async 
     operator_session: null,
     entry_method: "manual",
   });
-  expect(reply).toMatchObject({ ok: false, reason: "Unknown tag" });
+  expect(reply).toMatchObject({ ok: false, reason: "Basket not found. Scan a different basket." });
   expect(rpc).toHaveBeenLastCalledWith(
     "blast_vessel",
     expect.objectContaining({ p_raw: "999", p_client_action_id: "typed-1" }),
@@ -282,13 +292,13 @@ it("#84 blast Type code: a typed tag takes blast_vessel, flagged manual", async 
   expect(call.setHeader).toHaveBeenCalledWith("x-filletry-entry-method", "manual");
 });
 
-it("#84 locate Type code: typed tag then typed location; a phantom location is rejected", async () => {
+it("#84 locate Enter manually: typed tag then typed location; a phantom location is rejected", async () => {
   const { rpc } = setup();
   render(<LocateStation />);
-  fireEvent.click(await screen.findByRole("button", { name: "Type code" }));
-  const field = screen.getByLabelText(/Type the code/);
+  fireEvent.click(await screen.findByRole("button", { name: "Enter manually" }));
+  const field = screen.getByLabelText("Basket number");
   fireEvent.change(field, { target: { value: "if a 01 1 f" } });
-  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Enter" }));
   await waitFor(() =>
     expect(mocks.scan).toHaveBeenCalledWith(
       expect.objectContaining({ raw: "IF-A-01-1-F", station: "locate", entry_method: "manual" }),
@@ -296,7 +306,7 @@ it("#84 locate Type code: typed tag then typed location; a phantom location is r
   );
   const tag = typedRpc({
     ok: true,
-    reason: "Vessel 041",
+    reason: "Basket 041",
     pending_vessel_raw: "041",
     pending_vessel_id: "v1",
     tag_code: "041",
@@ -320,7 +330,7 @@ it("#84 locate Type code: typed tag then typed location; a phantom location is r
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60000).toISOString();
 
 it("#86 blast lists released-not-blasted vessels, oldest release first; exchange gets Blast in", async () => {
-  const { rpc, calls } = setup([{ ok: true, reason: "In blast: Exchange basket · INT-0001" }], {
+  const { rpc, calls } = setup([{ ok: true, reason: "Exchange basket in blast · INT-0001" }], {
     waiting: [
       {
         id: "vt",
@@ -340,11 +350,12 @@ it("#86 blast lists released-not-blasted vessels, oldest release first; exchange
   expect(await screen.findByText("RELEASED, WAITING FOR BLAST-IN (2)")).toBeTruthy();
   const rows = screen.getByRole("region", { name: "Waiting for blast-in" }).querySelectorAll("li");
   expect([...rows].map((r) => r.textContent)).toEqual([
-    "Exchange · INT-0001 · 10 lb Blast in",
-    "042 · INT-0002 · 12 lb",
+    "Exchange basket · INT-0001 · 10 lb Blast in",
+    "Basket 042 · INT-0002 · 12 lb",
   ]);
   expect(calls).toContainEqual(["is blast_in_at", null]);
   expect(calls).toContainEqual(["in intake.state", ["blast_freezer", "stored"]]);
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan a basket going into the blast");
   // Only the exchange basket has a button: tagged vessels are scanned as before.
   const button = screen.getByRole("button", { name: "Blast in exchange basket INT-0001" });
   expect(screen.getAllByRole("button", { name: /^Blast in/ })).toHaveLength(1);
@@ -359,7 +370,7 @@ it("#86 blast lists released-not-blasted vessels, oldest release first; exchange
     client_action_id: "tap-1",
     operator_session: null,
   });
-  expect(reply.reason).toBe("In blast: Exchange basket · INT-0001");
+  expect(reply.reason).toBe("Exchange basket in blast · INT-0001");
   expect(rpc).toHaveBeenCalledWith("blast_vessel_by_id", {
     p_client_action_id: "tap-1",
     p_vessel_id: "vx",
@@ -378,6 +389,8 @@ it("#86 blast shows 'empty' only when nothing is in blast and nothing is waiting
   expect(await screen.findByText("RELEASED, WAITING FOR BLAST-IN (1)")).toBeTruthy();
   expect(screen.getByText("IN BLAST (0)")).toBeTruthy();
   expect(screen.queryByText("Blast freezer empty")).toBeNull();
+  // Only an exchange basket waiting: the next step is the tap, not a scan (#98).
+  expect(screen.getByTestId("next-step").textContent).toBe("Tap Blast in for an exchange basket");
   cleanup();
   setup([], { inBlast: [], waiting: [] });
   render(<BlastStation />);
@@ -390,7 +403,7 @@ it("#86 locate: exchange basket selected by tap, then the location scan places i
     [
       {
         ok: true,
-        reason: "Exchange basket · INT-0001 — scan a location",
+        reason: "Exchange basket · INT-0001. Scan a location.",
         vessel_id: "vx",
         tag_code: null,
         is_exchange: true,
@@ -401,7 +414,7 @@ it("#86 locate: exchange basket selected by tap, then the location scan places i
         pending_vessel_raw: null,
         pending_vessel_id: "vx",
       },
-      { ok: true, reason: "Placed Exchange basket → IF-A-01-1-F", placed: true, reset: true },
+      { ok: true, reason: "Exchange basket placed at IF-A-01-1-F", placed: true, reset: true },
     ],
     {
       exchange: [
@@ -410,8 +423,9 @@ it("#86 locate: exchange basket selected by tap, then the location scan places i
     },
   );
   render(<LocateStation />);
-  expect(await screen.findByText("EXCHANGE BASKETS — NO TAG (1)")).toBeTruthy();
-  expect(screen.getByText(/Exchange · INT-0001 · 10 lb · in blast 2h 0[45]m/)).toBeTruthy();
+  expect(await screen.findByText("EXCHANGE BASKETS (1)")).toBeTruthy();
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan basket or tap an exchange basket");
+  expect(screen.getByText(/Exchange basket · INT-0001 · 10 lb · in blast 2h 0[45]m/)).toBeTruthy();
   expect(calls).toContainEqual(["is asset_tag_id", null]);
   expect(calls).toContainEqual(["is location_id", null]);
   fireEvent.click(screen.getByRole("button", { name: "Select exchange basket INT-0001" }));
@@ -427,6 +441,7 @@ it("#86 locate: exchange basket selected by tap, then the location scan places i
   expect(await screen.findByText("STEP 2 — SCAN LOCATION")).toBeTruthy();
   expect(screen.getByText("Exchange basket")).toBeTruthy();
   expect(screen.getByText("INT-0001")).toBeTruthy();
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan location for exchange basket");
   // The location is scanned (or typed) as for a tagged vessel; the pending basket is its id.
   await mocks.send!(request("FL:LOC:demo:IF-A-01-1-F", "loc-1"));
   expect(rpc).toHaveBeenLastCalledWith(
@@ -437,14 +452,14 @@ it("#86 locate: exchange basket selected by tap, then the location scan places i
       p_pending_vessel_id: "vx",
     }),
   );
-  expect(await screen.findByText("STEP 1 — SCAN VESSEL TAG")).toBeTruthy();
+  expect(await screen.findByText("STEP 1 — SCAN BASKET")).toBeTruthy();
 });
 
 it("#86 locate holds a tapped exchange basket by id with no tag text", () => {
   expect(
     nextPending(null, {
       ok: true,
-      reason: "Exchange basket · INT-0001 — scan a location",
+      reason: "Exchange basket · INT-0001. Scan a location.",
       tag_code: null,
       intake_number: "INT-0001",
       pending_vessel_raw: null,

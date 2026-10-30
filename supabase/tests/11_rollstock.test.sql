@@ -49,7 +49,7 @@ insert into public.tote_tag(org_id,intake_id,tote_no,of_count,qr) values
 set local role authenticated;
 create temp table verifying as select (public.create_wave(array['a0000000-0000-4000-8000-000000000013'::uuid],'rs-wave-create')->>'wave_id')::uuid id;
 select public.advance_wave((select id from verifying),'rs-wave-start');
-select is(public.rollstock_scan_advance('FL:TOTE:INT-0003:1',null,'rs-verifying-001')->>'reason','Remove intake from verifying wave before bypass','WP11 verifying wave refuses holding bypass');
+select is(public.rollstock_scan_advance('FL:TOTE:INT-0003:1',null,'rs-verifying-001')->>'reason','This order is in a wave being checked. Remove it from the wave first.','WP11 verifying wave refuses holding bypass');
 select public.cancel_wave((select id from verifying),'rs-wave-cancel');
 select is(public.rollstock_scan_advance('FL:TOTE:INT-0003:1',null,'rs-bypass-003')->>'ok','true','WP11 bypass allowed after removal from verifying wave');
 reset role;

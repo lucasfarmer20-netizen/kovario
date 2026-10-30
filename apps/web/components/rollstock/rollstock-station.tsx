@@ -9,6 +9,7 @@ import {
   type StationSession,
 } from "@/components/intake/use-station-session";
 import { StationShell } from "@/src/components/station/station-shell";
+import { DisabledReason } from "@/src/components/station/next-step";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
 import { OperatorPinOverlay, ManagerPinOverlay } from "@/src/components/station/pin-overlay";
 import { useOperatorIdle } from "@/src/components/station/use-operator-idle";
@@ -186,6 +187,8 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
       operator={operator}
       pending={pending}
       paused={pinOpen || managerOpen || busy}
+      next={open ? "Scan the next tote" : "Scan a tote"}
+      manualLabel="Tote number (INT-0002-1)"
       status={
         <>
           <ScanFeedback feedback={feedback} />
@@ -211,7 +214,7 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
             <>
               <h3 className="text-5xl">{open.number}</h3>
               <p className="text-3xl">
-                Totes {counts[open.id] ?? 0}/{open.tote_count}
+                Order {open.number} · tote {counts[open.id] ?? 0} of {open.tote_count}
               </p>
               <p>{[...new Set(open.intake_line.map((line) => line.species_code))].join(", ")}</p>
               <p>
@@ -224,7 +227,7 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
               <p>{open.processing_notes}</p>
             </>
           ) : (
-            <p>Scan a numbered tote to open an intake.</p>
+            <p>Scan a tote to open an order.</p>
           )}
           <button
             className="opacity-70"
@@ -233,9 +236,10 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
           >
             Finish queue
           </button>
+          <DisabledReason reason={!open && "Scan a tote first"} />
           {openId && !open && (
             <button disabled={pending > 0 || busy} onClick={() => void selectOpen(null)}>
-              Clear stale open intake
+              Clear stale open order
             </button>
           )}
           {open && (counts[open.id] ?? 0) < open.tote_count && (
@@ -255,6 +259,7 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
               >
                 Approve incomplete totes and finish
               </button>
+              <DisabledReason reason={overrideReason.trim().length < 3 && "Enter a reason first"} />
             </details>
           )}
         </section>
@@ -265,7 +270,7 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
             .map((i) => (
               <p key={i.id}>
                 {i.number} · {i.tote_count} totes ·{" "}
-                {hoursInCooler(new Date(i.intake_at), new Date())}h since intake ·{" "}
+                {hoursInCooler(new Date(i.intake_at), new Date())}h since drop-off ·{" "}
                 {i.state === "holding" ? "Cooler bypass" : "Processing"}
               </p>
             ))}

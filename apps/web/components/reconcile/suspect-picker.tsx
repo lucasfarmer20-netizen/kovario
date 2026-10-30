@@ -15,6 +15,7 @@ import {
   type SuggestedMove,
 } from "rules";
 import { BAND_LABEL, lineBand } from "@/components/variance/now-in-blast";
+import { DisabledReason } from "@/src/components/station/next-step";
 
 /** One member of public.variance_suspect_group (#88). */
 export type SuspectRow = {
@@ -75,8 +76,20 @@ export function suspectLine(row: SuspectRow): string {
   ].join(" · ");
 }
 
+/** "Basket 0042 · 20 lb" / "Exchange basket · 30 lb" (docs/11-FLOOR-WORDING.md). */
 export function binLabel(bin: SuspectBinRow): string {
-  return `${bin.is_exchange ? "Exchange" : (bin.asset_tag?.code ?? "Untagged")} · ${Number(bin.weight_lb)} lb`;
+  const name = bin.is_exchange
+    ? "Exchange basket"
+    : bin.asset_tag
+      ? `Basket ${bin.asset_tag.code}`
+      : "Untagged basket";
+  return `${name} · ${Number(bin.weight_lb)} lb`;
+}
+
+/** binLabel mid-sentence: "Move basket 0042 · 20 lb …". */
+function movingLabel(bin: SuspectBinRow): string {
+  const label = binLabel(bin);
+  return label[0]!.toLowerCase() + label.slice(1);
 }
 
 /** The picker's group for `intakeId` and its members' bins; reloads on `refresh`. */
@@ -209,7 +222,7 @@ export function SuspectPicker({
         {center.limit_pct}%){center.hold_id ? " · HELD" : ""}
       </h3>
       {error && <p role="alert">Suspects unavailable; check connection.</p>}
-      <ul aria-label="Flagged intake">{row(center, center.hold_id ? "Flagged:" : "Tapped:")}</ul>
+      <ul aria-label="Flagged order">{row(center, center.hold_id ? "Flagged:" : "Tapped:")}</ul>
       <h4>Most likely first</h4>
       <ol aria-label="Suspects">{ranked.map((s) => row(byId.get(s.intakeId)!))}</ol>
       {rows
@@ -220,16 +233,16 @@ export function SuspectPicker({
       <h4>Suggested moves</h4>
       {waiting.length > 0 ? (
         <p>
-          Suggestions appear once every intake in the group is reconciled. Waiting on:{" "}
+          Suggestions appear once every order in the group is reconciled. Waiting on:{" "}
           {waiting.map((w) => `${w.intake_number} (${SUSPECT_STATUS_LABELS[w.status]})`).join(", ")}
         </p>
       ) : moves.length === 0 ? (
-        <p>No bin move brings the group closer; check the bins or get a manager sign-off.</p>
+        <p>No basket move brings the group closer; check the baskets or get a manager sign-off.</p>
       ) : (
         <ul aria-label="Suggested moves">
           {moves.map((m) => {
             const moving = bins.find((b) => b.id === m.vesselId);
-            const text = `Move ${moving ? binLabel(moving) : "bin"} ${number(m.fromIntakeId)} → ${number(m.toIntakeId)} (off by ${m.beforeLb} lb → ${m.afterLb} lb)`;
+            const text = `Move ${moving ? movingLabel(moving) : "basket"} ${number(m.fromIntakeId)} → ${number(m.toIntakeId)} (off by ${m.beforeLb} lb → ${m.afterLb} lb)`;
             return (
               <li key={m.vesselId}>
                 {text}
@@ -247,7 +260,7 @@ export function SuspectPicker({
                     disabled={disabled}
                     onClick={() => onMove(m.vesselId, m.toIntakeId, center.intake_id)}
                   >
-                    Move this bin
+                    Move this basket
                   </button>
                 )}
               </li>
@@ -255,14 +268,14 @@ export function SuspectPicker({
           })}
         </ul>
       )}
-      <h4>Move a bin</h4>
+      <h4>Move a basket</h4>
       {atReconcile.length < 2 ? (
-        <p>Moving a bin needs two intakes at reconcile; pull one back from blast first.</p>
+        <p>Moving a basket needs two orders at reconcile; pull one back from blast first.</p>
       ) : (
         <>
           {atReconcile.map((r) => (
             <fieldset key={r.intake_id}>
-              <legend>{r.intake_number} bins</legend>
+              <legend>{r.intake_number} baskets</legend>
               {bins
                 .filter((b) => b.intake_id === r.intake_id)
                 .map((b) => (
@@ -291,7 +304,7 @@ export function SuspectPicker({
                     setSelectedBin(null);
                   }}
                 >
-                  Move {binLabel(bin)} to {r.intake_number}
+                  Move {movingLabel(bin)} to {r.intake_number}
                 </button>
               ))}
         </>
@@ -329,6 +342,7 @@ export function SuspectPicker({
           >
             Confirm pull back
           </button>
+          <DisabledReason reason={!reason.trim() && "Add a reason first"} />
           <button
             type="button"
             onClick={() => {

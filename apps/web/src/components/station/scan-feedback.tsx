@@ -50,9 +50,7 @@ export function ScanFeedback({ feedback }: { feedback: (ScanReply & { event: num
       aria-live="polite"
       className={`station-feedback ${visible && feedback ? (feedback.ok ? "station-ok" : "station-rejected") : ""}`}
     >
-      {visible && feedback
-        ? `${feedback.ok ? "✓" : "✕"} ${stationMessage(feedback.reason)}`
-        : "Ready to scan"}
+      {visible && feedback ? `${feedback.ok ? "✓" : "✕"} ${stationMessage(feedback.reason)}` : ""}
     </div>
   );
 }

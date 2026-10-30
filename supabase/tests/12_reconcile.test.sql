@@ -35,9 +35,9 @@ select is((select state::text from public.asset_tag where code='042'),'in_use','
 select is((select lifecycle_state::text from public.vessel),'occupied','WP12 scanned vessel is occupied');
 select is(public.bind_tag('wp12-rc-bind','042','a0000000-0000-4000-8000-000000000011'),(select r from binding),'WP12 bind action replay returns same vessel');
 select is((select count(*)::int from public.vessel),1,'WP12 replay never duplicates vessel');
-select is(public.bind_tag('wp12-rc-conflict','042','a0000000-0000-4000-8000-000000000012')->>'reason','Tag 042 in use by INT-0001','WP12 in-use tag rejected naming holder');
-select is(public.bind_tag('wp12-padding-42','42','a0000000-0000-4000-8000-000000000012')->>'reason','Tag 042 in use by INT-0001','WP12 direct RPC padding variants resolve to same holder');
-select is(public.bind_tag('wp12-rc-unknown','999','a0000000-0000-4000-8000-000000000011')->>'reason','Unknown tag','WP12 unknown tag rejected');
+select is(public.bind_tag('wp12-rc-conflict','042','a0000000-0000-4000-8000-000000000012')->>'reason','Basket 042 is already on INT-0001. Scan a different basket.','WP12 in-use tag rejected naming holder');
+select is(public.bind_tag('wp12-padding-42','42','a0000000-0000-4000-8000-000000000012')->>'reason','Basket 042 is already on INT-0001. Scan a different basket.','WP12 direct RPC padding variants resolve to same holder');
+select is(public.bind_tag('wp12-rc-unknown','999','a0000000-0000-4000-8000-000000000011')->>'reason','Basket not found. Scan a different basket.','WP12 unknown tag rejected');
 select is(public.send_to_blast('wp12-rc-zero','a0000000-0000-4000-8000-000000000011')->>'ok','false','WP12 send gate rejects zero weight');
 select public.reconcile_action('wp12-rc-manual','a0000000-0000-4000-8000-000000000011','manual',p_vessel_id=>(select (r->>'vessel_id')::uuid from binding),p_weight=>12);
 select ok((select manual and weight_lb=12 from public.vessel),'WP12 manual entry flagged');
@@ -45,7 +45,7 @@ select public.reconcile_action('wp12-rc-remove','a0000000-0000-4000-8000-0000000
 select is((select state::text from public.asset_tag where code='042'),'available','WP12 remove before send frees tag');
 select is((select count(*)::int from public.vessel),0,'WP12 remove deletes unsent row');
 select public.admin_asset_tags('wp12-rc-retire',p_tag_id=>(select id from public.asset_tag where code='042'),p_retire_reason=>'Damaged');
-select is(public.bind_tag('wp12-rc-retired','042','a0000000-0000-4000-8000-000000000011')->>'reason','Tag retired','WP12 retired tags rejected');
+select is(public.bind_tag('wp12-rc-retired','042','a0000000-0000-4000-8000-000000000011')->>'reason','This basket is retired. Scan a different basket.','WP12 retired tags rejected');
 select public.admin_asset_tags('wp12-rc-reactivate',p_tag_id=>(select id from public.asset_tag where code='042'));
 select is((select state::text from public.asset_tag where code='042'),'available','WP12 reactivate tag');
 create temp table exchange as select public.reconcile_action('wp12-rc-exchange','a0000000-0000-4000-8000-000000000011','exchange') r;

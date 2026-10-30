@@ -20,7 +20,7 @@ vi.mock("@/components/intake/use-station-session", () => ({
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 // The shell's scanner is exercised in its own tests; here a plain input stands in for it,
-// beside the real "Type code" field (issue #84).
+// beside the real "Enter manually" field (issues #84, #98).
 vi.mock("@/src/components/station/station-shell", async () => {
   const { useState } = await import("react");
   const { ManualEntry } = await import("@/src/components/station/manual-entry");
@@ -28,17 +28,22 @@ vi.mock("@/src/components/station/station-shell", async () => {
     StationShell: function MockShell({
       onScan,
       manual,
+      manualLabel,
+      next,
       status,
       children,
     }: {
       onScan: (raw: string, parsed: unknown, method: "scan" | "manual") => void;
       manual?: ManualOptions;
+      manualLabel?: string;
+      next: string;
       status: ReactNode;
       children: ReactNode;
     }) {
       const [typing, setTyping] = useState(false);
       return (
         <main>
+          <p data-testid="next-step">{next}</p>
           {status}
           <input
             aria-label="Station scanner"
@@ -50,6 +55,7 @@ vi.mock("@/src/components/station/station-shell", async () => {
             open={typing}
             onOpenChange={setTyping}
             options={manual}
+            label={manualLabel}
             onSubmit={(text, parsed) => onScan(text, parsed, "manual")}
           />
           {children}
@@ -159,7 +165,7 @@ function boxingScanReply(wizard: Wizard, args: Record<string, unknown>) {
   const vessel = wizard.vessels.find((v) => v.tag_code !== null && v.tag_code === code);
   return vessel
     ? { ...reply, ok: true, kind: "TAG", vessel_id: vessel.vessel_id, tag_code: code }
-    : { ...reply, reason: `Tag ${code ?? raw} is not on ${wizard.number}'s pick list` };
+    : { ...reply, reason: `Basket ${code ?? raw} is not on ${wizard.number}'s pick list` };
 }
 
 function setup(
@@ -227,7 +233,7 @@ function setup(
 it("WP15 boxing shows planned boxes, the walk-order pick list and the notes panel", async () => {
   setup();
   expect(await screen.findByText(/BOX-0001 · will-call/)).toBeTruthy();
-  expect(screen.getByText("Tag 042 (INT-0001)")).toBeTruthy();
+  expect(screen.getByText("Basket 042 (INT-0001)")).toBeTruthy();
   expect(screen.getByText("Exchange basket (INT-0001)")).toBeTruthy(); // P4: untagged, still listed
   expect(screen.getByText("DIRTY")).toBeTruthy();
   expect(screen.getByText("RIBBING")).toBeTruthy();
@@ -237,11 +243,11 @@ it("WP15 boxing shows planned boxes, the walk-order pick list and the notes pane
 it("WP15 Complete sends box ticks and tote ticks as independent facts (I1)", async () => {
   const { rpc } = setup();
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
-  fireEvent.click(screen.getByLabelText("Tick Tag 042 (INT-0001)"));
-  fireEvent.change(screen.getByLabelText("Lbs left Tag 042 (INT-0001)"), {
+  fireEvent.click(screen.getByLabelText("Tick Basket 042 (INT-0001)"));
+  fireEvent.change(screen.getByLabelText("Lbs left Basket 042 (INT-0001)"), {
     target: { value: "10" },
   });
-  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   await waitFor(() =>
     expect(rpc).toHaveBeenCalledWith(
       "release_party",
@@ -260,7 +266,7 @@ it("#86 an exchange basket (no tag to scan) is confirmed by tap and released on 
   const tick = screen.getByLabelText("Tick Exchange basket (INT-0001)") as HTMLInputElement;
   fireEvent.click(tick);
   expect(tick.checked).toBe(true);
-  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   await waitFor(() =>
     expect(rpc).toHaveBeenCalledWith(
       "release_party",
@@ -281,10 +287,10 @@ it("WP15 I7 Complete with nothing ticked warns and never calls the server", asyn
 
 it("WP15 P19 an unticked remainder blocks Complete (I5)", async () => {
   const { rpc } = setup();
-  fireEvent.change(await screen.findByLabelText("Lbs left Tag 042 (INT-0001)"), {
+  fireEvent.change(await screen.findByLabelText("Lbs left Basket 042 (INT-0001)"), {
     target: { value: "5" },
   });
-  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   expect(await screen.findByText(/Lbs Left on an unticked line/)).toBeTruthy();
   expect(rpc).not.toHaveBeenCalledWith("release_party", expect.anything());
 });
@@ -300,7 +306,7 @@ it("WP15 a server no-op keeps the form and shows its message (I7/D0)", async () 
     closed_intakes: [],
   });
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
-  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   expect(await screen.findByText(/Nothing left to release/)).toBeTruthy();
   expect(screen.getByText(/Already handled elsewhere \(dropped\): BOX-0001/)).toBeTruthy();
   expect(rpc.mock.calls.filter(([n]) => n === "boxing_wizard").length).toBe(2); // re-projected
@@ -311,7 +317,7 @@ it("WP15 scanning a tag ticks its tote; another party's boxing QR is refused (I1
   const scanner = await screen.findByLabelText("Station scanner");
   fireEvent.keyDown(scanner, { key: "Enter", target: { value: "FL:TAG:rel-a:042" } });
   await waitFor(() =>
-    expect((screen.getByLabelText("Tick Tag 042 (INT-0001)") as HTMLInputElement).checked).toBe(
+    expect((screen.getByLabelText("Tick Basket 042 (INT-0001)") as HTMLInputElement).checked).toBe(
       true,
     ),
   );
@@ -319,20 +325,20 @@ it("WP15 scanning a tag ticks its tote; another party's boxing QR is refused (I1
   expect(await screen.findByText(/belongs to another party; one party per Complete/)).toBeTruthy();
 });
 
-it("#84 Type code: a typed tag ticks its tote; a tag off the pick list is refused", async () => {
+it("#84 Enter manually: a typed tag ticks its tote; a tag off the pick list is refused", async () => {
   const { rpc } = setup();
-  fireEvent.click(await screen.findByRole("button", { name: "Type code" }));
-  const field = screen.getByLabelText(/Type the code/);
+  fireEvent.click(await screen.findByRole("button", { name: "Enter manually" }));
+  const field = screen.getByLabelText("Basket number");
   fireEvent.change(field, { target: { value: "42" } });
-  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Enter" }));
   await waitFor(() =>
-    expect((screen.getByLabelText("Tick Tag 042 (INT-0001)") as HTMLInputElement).checked).toBe(
+    expect((screen.getByLabelText("Tick Basket 042 (INT-0001)") as HTMLInputElement).checked).toBe(
       true,
     ),
   );
   fireEvent.change(field, { target: { value: "0999" } });
-  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
-  expect(await screen.findByText("Tag 999 is not on ALC-0001's pick list")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Enter" }));
+  expect(await screen.findByText("Basket 999 is not on ALC-0001's pick list")).toBeTruthy();
   // Both went through the server scan path (validated, logged in scan_log), flagged manual.
   for (const raw of ["042", "999"])
     expect(rpc).toHaveBeenCalledWith(
@@ -362,17 +368,17 @@ it("#84 boxing queue: a typed boxing QR opens its party through boxing_scan; a t
   const { rpc } = setup();
   cleanup();
   render(<BoxingQueueStation />);
-  fireEvent.click(await screen.findByRole("button", { name: "Type code" }));
-  const field = screen.getByLabelText(/Type the code/);
+  fireEvent.click(await screen.findByRole("button", { name: "Enter manually" }));
+  const field = screen.getByLabelText("Boxing code (on the receipt)");
   fireEvent.change(field, { target: { value: "fl:box:partytoken" } });
-  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Enter" }));
   await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/boxing/s1"));
   expect(rpc).toHaveBeenCalledWith(
     "boxing_scan",
     expect.objectContaining({ p_raw: "FL:BOX:partytoken", p_session_id: undefined }),
   );
   fireEvent.change(field, { target: { value: "042" } });
-  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Enter" }));
   expect(await screen.findByText("Scan the boxing QR on a settlement receipt")).toBeTruthy();
   expect(mocks.headers).toHaveLength(2);
 });
@@ -380,19 +386,19 @@ it("#84 boxing queue: a typed boxing QR opens its party through boxing_scan; a t
 // The SQL HINT is the contract the screen branches on (15_release.test.sql pins both codes).
 const I8_NO_TOTE = {
   message:
-    "no fish has moved for ALC-0001 yet: tick the totes being handed over before finalising boxes, or ask a manager to override (I8)",
+    "no fish has moved for ALC-0001 yet: tick the baskets being handed over before finalising boxes, or ask a manager to override (I8)",
   hint: "i8_override_available",
 };
 const I8_TOTE_LEFT = {
   message:
-    "no fish has moved for ALC-0001 yet: tick the totes being handed over before finalising boxes (I8)",
+    "no fish has moved for ALC-0001 yet: tick the baskets being handed over before finalising boxes (I8)",
   hint: "i8_tote_left",
 };
 
 it("WP15 I8 refusal with no tote left offers a manager override that resends with the reason (DECISION-23)", async () => {
   const { rpc } = setup(undefined, "manager", [I8_NO_TOTE], { ...WIZARD, vessels: [] });
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
-  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   expect(await screen.findByText(/ask a manager to override/)).toBeTruthy();
   fireEvent.change(screen.getByLabelText("Override reason"), {
     target: { value: "last basket left with ALC-0002" },
@@ -413,7 +419,7 @@ it("WP15 I8 refusal with no tote left offers a manager override that resends wit
 it("WP15 I8 refusal with totes left points at the pick list, never the override", async () => {
   setup(undefined, "manager", [I8_TOTE_LEFT]);
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
-  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   expect(await screen.findByText(/still has baskets in the freezer/)).toBeTruthy();
   expect(screen.queryByText("Manager override")).toBeNull();
 });
@@ -422,7 +428,7 @@ it("WP15 changing a tick hides a stale I8 override", async () => {
   setup(undefined, "manager", [I8_NO_TOTE], { ...WIZARD, vessels: [] });
   const box = await screen.findByLabelText(/BOX-0001/);
   fireEvent.click(box);
-  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   expect(await screen.findByText("Manager override")).toBeTruthy();
   fireEvent.click(box);
   expect(screen.queryByText("Manager override")).toBeNull();
@@ -432,7 +438,7 @@ it("WP15 the I8 panel follows the server, not a stale pick list", async () => {
   // The wizard still lists a basket, but the server (under lock) found none left.
   const { rpc } = setup(undefined, "manager", [I8_NO_TOTE]);
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
-  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   expect(await screen.findByText("Manager override")).toBeTruthy();
   expect(screen.queryByText(/still has baskets in the freezer/)).toBeNull();
   expect(rpc).toHaveBeenCalledTimes(2); // wizard + the refused Complete
@@ -441,7 +447,7 @@ it("WP15 the I8 panel follows the server, not a stale pick list", async () => {
 it("WP15 an empty pick list never shows the override when the server found a tote", async () => {
   setup(undefined, "manager", [I8_TOTE_LEFT], { ...WIZARD, vessels: [] });
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
-  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   expect(await screen.findByText(/still has baskets in the freezer/)).toBeTruthy();
   expect(screen.queryByText("Manager override")).toBeNull();
 });
@@ -450,7 +456,7 @@ it("WP15 the I8 panel keys on the SQL hint, never on the English message", async
   // Same wording as the no-tote refusal, but no hint: no override is offered.
   setup(undefined, "manager", [{ message: I8_NO_TOTE.message }], { ...WIZARD, vessels: [] });
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
-  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   expect(await screen.findByText(/ask a manager to override/)).toBeTruthy(); // the error is shown
   expect(screen.queryByText("Manager override")).toBeNull();
   expect(screen.queryByText(/still has baskets in the freezer/)).toBeNull();
@@ -461,12 +467,12 @@ it("WP15 a refused override (a tote reappeared) points at the freezer", async ()
     I8_NO_TOTE,
     {
       message:
-        "ALC-0001 still has a tote to tick (Tag 042 (INT-0001)); the I8 override applies only when none is left (DECISION-23)",
+        "ALC-0001 still has a basket to tick (Basket 042 (INT-0001)); the I8 override applies only when none is left (DECISION-23)",
       hint: "i8_tote_left",
     },
   ]);
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
-  fireEvent.click(screen.getByText("Complete"));
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   fireEvent.change(await screen.findByLabelText("Override reason"), {
     target: { value: "other party took it" },
   });
@@ -485,8 +491,8 @@ it("WP15 a tote-left refusal re-projects so the stale pick list shows the tote",
       : { data: null, error: I8_TOTE_LEFT },
   );
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
-  fireEvent.click(screen.getByText("Complete"));
-  expect(await screen.findByText("Tag 042 (INT-0001)")).toBeTruthy(); // the tote now shows
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+  expect(await screen.findByText("Basket 042 (INT-0001)")).toBeTruthy(); // the tote now shows
   expect(screen.getByText(/still has baskets in the freezer/)).toBeTruthy(); // pointer kept
   expect((screen.getByLabelText(/BOX-0001/) as HTMLInputElement).checked).toBe(true); // I15
 });
@@ -525,33 +531,33 @@ it("#84 overlapping scans both tick, whatever order their replies land in; Compl
   const complete = screen.getByRole("button", { name: "Complete" }) as HTMLButtonElement;
   expect(complete.disabled).toBe(true); // never Complete over a scan still being checked
   await scans.release("043");
-  await waitFor(() => expect(ticked("Tag 043 (INT-0001)")).toBe(true));
+  await waitFor(() => expect(ticked("Basket 043 (INT-0001)")).toBe(true));
   await scans.release("042");
-  await waitFor(() => expect(ticked("Tag 042 (INT-0001)")).toBe(true));
-  expect(ticked("Tag 043 (INT-0001)")).toBe(true); // the first reply was not overwritten
+  await waitFor(() => expect(ticked("Basket 042 (INT-0001)")).toBe(true));
+  expect(ticked("Basket 043 (INT-0001)")).toBe(true); // the first reply was not overwritten
   await waitFor(() => expect(complete.disabled).toBe(false));
 });
 
 it("#84 an Lbs-left edit made while a scan is validated survives the reply (no silent full pull)", async () => {
   setup(undefined, "staff", [], TWO_TAGS);
   const scanner = await screen.findByLabelText("Station scanner");
-  fireEvent.click(screen.getByLabelText("Tick Tag 042 (INT-0001)"));
+  fireEvent.click(screen.getByLabelText("Tick Basket 042 (INT-0001)"));
   const scans = holdScans();
   fireEvent.keyDown(scanner, { key: "Enter", target: { value: "043" } });
   await waitFor(() => expect(scans.held.size).toBe(1));
-  const left = screen.getByLabelText("Lbs left Tag 042 (INT-0001)") as HTMLInputElement;
+  const left = screen.getByLabelText("Lbs left Basket 042 (INT-0001)") as HTMLInputElement;
   fireEvent.change(left, { target: { value: "5" } });
   await scans.release("043");
-  await waitFor(() => expect(ticked("Tag 043 (INT-0001)")).toBe(true));
+  await waitFor(() => expect(ticked("Basket 043 (INT-0001)")).toBe(true));
   expect(left.value).toBe("5");
-  expect(ticked("Tag 042 (INT-0001)")).toBe(true);
+  expect(ticked("Basket 042 (INT-0001)")).toBe(true);
 });
 
 it("#84 a scan reply landing after Complete reset the form is dropped, not ticked", async () => {
   const { rpc } = setup(undefined, "staff", [], TWO_TAGS);
   const scanner = await screen.findByLabelText("Station scanner");
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
-  fireEvent.click(screen.getByLabelText("Tick Tag 043 (INT-0001)"));
+  fireEvent.click(screen.getByLabelText("Tick Basket 043 (INT-0001)"));
   const scans = holdScans();
   fireEvent.click(screen.getByRole("button", { name: "Complete" }));
   // Scanned while Complete is running: validated, but it belongs to the old form.
@@ -559,6 +565,21 @@ it("#84 a scan reply landing after Complete reset the form is dropped, not ticke
   expect(await screen.findByText(/Released:/)).toBeTruthy();
   await scans.release("042");
   expect(await screen.findByText("That scan arrived after Complete; scan it again.")).toBeTruthy();
-  expect(ticked("Tag 042 (INT-0001)")).toBe(false);
+  expect(ticked("Basket 042 (INT-0001)")).toBe(false);
   expect(rpc).toHaveBeenCalledWith("boxing_scan", expect.objectContaining({ p_raw: "042" }));
+});
+
+it("#98 the next step walks boxing: tick each box and basket → Complete", async () => {
+  setup();
+  await screen.findByText("Basket 042 (INT-0001)");
+  const next = () => screen.getByTestId("next-step").textContent;
+  expect(next()).toBe("Tick each box and basket");
+  fireEvent.click(screen.getByLabelText("Tick Basket 042 (INT-0001)"));
+  expect(next()).toBe("Complete");
+});
+it("#98 the boxing queue asks for the boxing QR or an order", async () => {
+  setup();
+  cleanup();
+  render(<BoxingQueueStation />);
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan the boxing QR or tap an order");
 });

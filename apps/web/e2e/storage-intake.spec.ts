@@ -21,7 +21,7 @@ test("storage intake: intake → pickup batch → register payment → release",
     await page.getByRole("button", { name: "Confirm & Print 2 Labels" }).click();
     await page.waitForURL(/\/storage\/[0-9a-f-]{36}\?saved=/);
     storageUrl = new URL(page.url()).pathname;
-    const header = page.getByRole("region", { name: "Storage intake header" });
+    const header = page.getByRole("region", { name: "Storage order header" });
     await expect(header).toContainText(/STG-\d+/);
     await expect(header).toContainText("Stored");
     await expect(header).toContainText("IF-PALLET-01");
@@ -55,7 +55,7 @@ test("storage intake: intake → pickup batch → register payment → release",
     const boxes = page.getByRole("region", { name: "Boxes" });
     await expect(boxes.getByText("Box 1 · picked up")).toBeVisible();
     await expect(boxes.getByRole("checkbox", { name: "Pick up Box 2" })).toBeEnabled();
-    const header = page.getByRole("region", { name: "Storage intake header" });
+    const header = page.getByRole("region", { name: "Storage order header" });
     await expect(header).toContainText("Partly picked up");
   });
 });

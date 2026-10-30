@@ -219,14 +219,14 @@ it.each(["draft", "verifying"])(
   },
 );
 
-it("#84 Type code: a typed tote short code takes the scan path, flagged manual", async () => {
+it("#84 Enter manually: a typed tote short code takes the scan path, flagged manual", async () => {
   const { rpc } = setup();
   render(<WaveStation />);
   fireEvent.click(await screen.findByRole("button", { name: /WAVE-0001/ }));
-  fireEvent.click(screen.getByRole("button", { name: "Type code" }));
-  const field = screen.getByLabelText(/Type the code/);
+  fireEvent.click(screen.getByRole("button", { name: "Enter manually" }));
+  const field = screen.getByLabelText("Tote number (INT-0002-1)");
   fireEvent.change(field, { target: { value: "int-0003 1" } });
-  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Enter" }));
   await waitFor(() =>
     expect(mocks.scan).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -240,7 +240,7 @@ it("#84 Type code: a typed tote short code takes the scan path, flagged manual",
   // Delivery: the same scan_wave_tote RPC, with the entry-method header for scan_log.
   const setHeader = vi.fn();
   const reply = {
-    data: { ok: false, reason: "Unknown tote: scan a numbered tote label" },
+    data: { ok: false, reason: "Tote not found. Scan a tote from this wave." },
     error: null,
   };
   rpc.mockImplementationOnce(() => {
@@ -266,4 +266,28 @@ it("#84 Type code: a typed tote short code takes the scan path, flagged manual",
   // Closing returns to the hidden scanner.
   fireEvent.click(screen.getByRole("button", { name: /Close/ }));
   expect(document.activeElement).toBe(screen.getByLabelText("Station scanner"));
+});
+
+it("#98 the next step line walks the wave: tap orders → scan each tote → complete", async () => {
+  setup(1);
+  render(<WaveStation />);
+  await screen.findByText(/salmon_reds/);
+  const next = () => screen.getByTestId("next-step").textContent;
+  expect(next()).toBe("Tap orders to add to the wave");
+  expect(screen.getByText("1 Add orders").getAttribute("aria-current")).toBe("step");
+  expect(screen.getByText("Tap orders first")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /INT-0002/ }));
+  expect(next()).toBe("Tap Create wave");
+  expect(screen.queryByText("Tap orders first")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /WAVE-0001/ }));
+  expect(next()).toBe("Scan each tote (1 of 2)");
+  expect(screen.getByText("2 Scan totes").getAttribute("aria-current")).toBe("step");
+  expect(screen.getByText("Scan every tote first (1 of 2)")).toBeTruthy();
+});
+it("#98 at parity the next step is Complete wave", async () => {
+  setup(2);
+  render(<WaveStation />);
+  fireEvent.click(await screen.findByRole("button", { name: /WAVE-0001/ }));
+  expect(screen.getByTestId("next-step").textContent).toBe("Complete wave");
+  expect(screen.getByText("3 Complete").getAttribute("aria-current")).toBe("step");
 });

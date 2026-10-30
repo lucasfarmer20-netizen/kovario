@@ -289,7 +289,7 @@ describe("move bin and pull back (#88)", () => {
   it("PK-P5 bins move only at reconcile and while no allocation pools the intake", () => {
     expect(binMoveProblem("INT-0001", "reconcile", 0)).toBeNull();
     expect(binMoveProblem("INT-0001", "reconcile", 1)).toBe(
-      "INT-0001 is in a counter allocation; its bins cannot move",
+      "INT-0001 is in a counter allocation; its baskets cannot move",
     );
     expect(binMoveProblem("INT-0001", "blast_freezer", 0)).toBe(
       "INT-0001 is in the blast freezer; pull it back to reconcile first",

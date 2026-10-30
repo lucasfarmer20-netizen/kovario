@@ -86,7 +86,7 @@ describe("boxing ticks", () => {
     const w = wizard();
     const t = setLbsLeft(emptyTicks(), w.vessels[1]!, "5");
     expect(lineIssues(w, t)).toEqual([
-      { vesselId: "v2", message: `Tag 043 (INT-0001): ${LBS_LEFT_ON_UNTICKED}` },
+      { vesselId: "v2", message: `Basket 043 (INT-0001): ${LBS_LEFT_ON_UNTICKED}` },
     ]);
     expect(completePayload(w, t).vessel_ticks).toEqual([
       { vessel_id: "v2", lbs_left: 5, ticked: false, measure: 20 },
@@ -116,7 +116,7 @@ describe("scans", () => {
   it("I1 a tag scan ticks its tote, padded or not, and never a box", () => {
     const w = wizard();
     const out = scanTick(w, emptyTicks(), "42");
-    expect(out).toMatchObject({ kind: "ticked", message: "Ticked Tag 042 (INT-0001)" });
+    expect(out).toMatchObject({ kind: "ticked", message: "Ticked Basket 042 (INT-0001)" });
     if (out.kind !== "ticked") throw new Error("expected a tick");
     expect(out.ticks.boxes).toEqual([]);
     expect(out.ticks.vessels.v1?.ticked).toBe(true);
@@ -125,13 +125,13 @@ describe("scans", () => {
   it("#85 a 3-digit label ticks its re-padded 4-digit tag", () => {
     const w = wizard({ vessels: [vessel("v1", "0042", 20, 1)] });
     const out = scanTick(w, emptyTicks(), "FL:TAG:rel-a:042");
-    expect(out).toMatchObject({ kind: "ticked", message: "Ticked Tag 0042 (INT-0001)" });
+    expect(out).toMatchObject({ kind: "ticked", message: "Ticked Basket 0042 (INT-0001)" });
   });
 
   it("I17 a tag outside the party's pick list is rejected", () => {
     expect(scanTick(wizard(), emptyTicks(), "FL:TAG:rel-a:999")).toMatchObject({
       kind: "rejected",
-      message: "Tag 999 is not on ALC-0001's pick list",
+      message: "Basket 999 is not on ALC-0001's pick list",
     });
   });
 
@@ -159,7 +159,7 @@ describe("P15 additive re-scan keeps ticks only for still-eligible records (I15)
     expect(r.ticks.vessels.v2).toEqual({ ticked: true, lbsLeft: "5", measure: 20 });
     expect(r.notices).toEqual([
       "BOX-0001 is no longer planned (finalised elsewhere); its tick was dropped.",
-      "Tag 042 (INT-0001) is no longer in the freezer (released elsewhere); dropped.",
+      "Basket 042 (INT-0001) is no longer in the freezer (released elsewhere); dropped.",
     ]);
   });
 

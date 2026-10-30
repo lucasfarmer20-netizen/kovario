@@ -52,11 +52,11 @@ export function StatusForm({ orgSlug }: { orgSlug: string }) {
               <h2 className="text-xl font-semibold">{result.org_name}</h2>
               <p>Pickup hours: {result.pickup_hours || "Contact the plant for pickup hours."}</p>
               {result.rates_notice && <p>{result.rates_notice}</p>}
-              {result.intakes.length === 0 && <p>No open intakes found for this number.</p>}
+              {result.intakes.length === 0 && <p>No open orders found for this number.</p>}
               {result.intakes.map((i) => (
                 <article key={i.number} className="rounded-lg border p-4">
                   <h3 className="font-semibold">
-                    {i.number} · {CUSTOMER_STAGES[i.state]}
+                    Order {i.number} · {CUSTOMER_STAGES[i.state]}
                   </h3>
                   <p>
                     Estimated pickup:{" "}

@@ -13,3 +13,4 @@ export { OperatorPinOverlay, ManagerPinOverlay, type PinResult } from "./pin-ove
 export { useScanAction } from "./use-scan-action";
 export type { ScanRequest, ScanReply } from "./scan-queue";
 export { useOperatorIdle } from "./use-operator-idle";
+export { NextStep, DisabledReason } from "./next-step";
