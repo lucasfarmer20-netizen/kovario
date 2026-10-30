@@ -2,6 +2,9 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   encode,
+  MAX_TAG_DIGITS,
+  maxTagNumber,
+  NEW_ORG_TAG_DIGITS,
   normalizePairingCode,
   normalizeTagCode,
   PAIRING_ALPHABET,
@@ -10,6 +13,8 @@ import {
   parseManual,
   shortCode,
   QR_PREFIX,
+  sameTagCode,
+  TAG_DIGITS,
   type QrFields,
   type QrKind,
   PALLET_LOCATION_CODE,
@@ -491,5 +496,35 @@ describe("parseManual locations in INT / STG zones (issue #84 review)", () => {
         },
       ),
     );
+  });
+});
+
+describe("v1.1 tag capacity (#85)", () => {
+  it("new orgs start at 4 digits; the range form's max follows the width", () => {
+    expect(NEW_ORG_TAG_DIGITS).toBe(4);
+    expect(maxTagNumber(TAG_DIGITS)).toBe(999);
+    expect(maxTagNumber(NEW_ORG_TAG_DIGITS)).toBe(9999);
+    expect(maxTagNumber(MAX_TAG_DIGITS)).toBe(999_999);
+  });
+
+  it("an old 3-digit label resolves to the re-padded code after a raise", () => {
+    expect(parse("FL:TAG:demo:042", { tagDigits: 4 })).toMatchObject({
+      ok: true,
+      value: { kind: "TAG", code: "0042" },
+    });
+    expect(normalizeTagCode("042", 5)).toBe("00042");
+  });
+
+  it("sameTagCode matches a tag at any padding and nothing else", () => {
+    fc.assert(
+      fc.property(fc.nat({ max: 999_999 }), fc.nat({ max: 3 }), fc.nat({ max: 3 }), (n, a, b) => {
+        const x = String(n).padStart(a + 3, "0");
+        const y = String(n).padStart(b + 3, "0");
+        expect(sameTagCode(x, y)).toBe(true);
+        expect(sameTagCode(x, String(n + 1))).toBe(false);
+      }),
+    );
+    expect(sameTagCode("FL:TAG:demo:042", "042")).toBe(false);
+    expect(sameTagCode("", "")).toBe(false);
   });
 });

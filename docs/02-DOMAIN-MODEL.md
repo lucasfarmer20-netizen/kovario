@@ -162,10 +162,13 @@ rejected)`, `reason text`, `intake_id`, `vessel_id`, `location_id`, `scanned_at`
 Written for **every** scan.
 
 ### asset_tag  (← cs.asset.tag)
-Permanent reusable tag on a physical basket. `code text` (canonical **3-digit**, unique
-per org; scanner input normalised: `42`/`042`/`0042` → `042`), `qr text`
+Permanent reusable tag on a physical basket. `code text` (canonical, zero-padded to the
+org's `scanner.tag_digits` — **4** for new orgs, 3 for orgs created before v1.1; unique per
+org; scanner input normalised: `42`/`042`/`0042` → `0042` at 4 digits), `qr text`
 (= `FL:TAG:<org_slug>:<code>`), `state enum(available, in_use, retired)`,
-`current_vessel_id`, `retired_reason`.
+`current_vessel_id`, `retired_reason`. `tag_digits` is raise-only (3 → 4 → 5 → 6): raising
+re-pads every `code` and `qr` in `admin_update_org`; lookups normalise the numeric part, so a
+label printed before the raise (`…:042`) still resolves to `0042`.
 
 ### vessel  (← cs.reconcile.vessel)
 A physical basket of processed product. `intake_id`, `asset_tag_id` (nullable, unique
@@ -313,9 +316,11 @@ email) poll or react via Realtime and mark `processed_at`.
   "status_page_enabled": true,
   "tax": { "mode": "exclusive", "rate": 0.06, "cap_amount": 30.00 },
   "shipping": { "carrier_allowlist": "*", "buy_window_days": 1 },
-  "scanner": { "tag_digits": 3 }
+  "scanner": { "tag_digits": 4 }
 }
 ```
+`scanner.tag_digits` defaults to 4 for orgs created from v1.1 (earlier orgs keep 3) and can
+only be raised (see asset_tag).
 Money rates (Fast Pass, storage per box-day, method rates) live on the rate card, not
 here. `tax.cap_amount`: Kenai Peninsula Borough-style cap (tax only on first $500 → max $30).
 DECISION-07 covers whether tax is computed in v1 or recorded as a note.
@@ -327,7 +332,7 @@ DECISION-07 covers whether tax is computed in v1 or recorded as a note.
 | Thing | QR text | Short code (printed beside the QR, typeable) |
 |---|---|---|
 | Tote tag | `FL:TOTE:<INT-0001>:<n>` | `INT-0001-3` |
-| Asset tag | `FL:TAG:<org_slug>:<042>` | `042` |
+| Asset tag | `FL:TAG:<org_slug>:<0042>` (padded to `scanner.tag_digits`) | `0042` |
 | Location | `FL:LOC:<org_slug>:<IF-A-01-1-F>` | `IF-A-01-1-F` |
 | Boxing token | `FL:BOX:<settlement.boxing_token>` | — (full QR text only) |
 | Storage box | `FL:SBOX:<STG-0001>:<n>` | `STG-0001-2` |

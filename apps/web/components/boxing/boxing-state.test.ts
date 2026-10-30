@@ -122,6 +122,12 @@ describe("scans", () => {
     expect(out.ticks.vessels.v1?.ticked).toBe(true);
   });
 
+  it("#85 a 3-digit label ticks its re-padded 4-digit tag", () => {
+    const w = wizard({ vessels: [vessel("v1", "0042", 20, 1)] });
+    const out = scanTick(w, emptyTicks(), "FL:TAG:rel-a:042");
+    expect(out).toMatchObject({ kind: "ticked", message: "Ticked Tag 0042 (INT-0001)" });
+  });
+
   it("I17 a tag outside the party's pick list is rejected", () => {
     expect(scanTick(wizard(), emptyTicks(), "FL:TAG:rel-a:999")).toMatchObject({
       kind: "rejected",

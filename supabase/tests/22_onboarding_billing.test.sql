@@ -173,8 +173,10 @@ insert into t values ('settings', '{
   "receipt_footer": "Thanks!", "status_page_enabled": false,
   "tax": {"mode": "exclusive", "rate": 0.07, "cap_amount": null},
   "shipping": {"carrier_allowlist": ["usps", "fedex"], "buy_window_days": 2},
-  "scanner": {"tag_digits": 3}}');
+  "scanner": {"tag_digits": 4}}');
 
+select is((select settings #>> '{scanner,tag_digits}' from public.org), '4',
+  'I85 create_org: a new org gets 4-digit asset tags');
 select lives_ok(
   $$ select public.admin_update_org('org-upd-0001', 'Kenai Fish', 'America/Juneau', (select v from t where k = 'settings')) $$,
   'owner saves valid settings');

@@ -3,6 +3,8 @@ create extension if not exists pgtap with schema extensions;
 set local search_path=public,extensions;
 select no_plan();
 insert into public.org(id,slug,name,timezone) values ('a0000000-0000-4000-8000-00000000000a','rollstock-a','Wave A','UTC'),('b0000000-0000-4000-8000-00000000000b','rollstock-b','Wave B','UTC');
+-- An org from before v1.1 (#85): 3-digit asset tags; new orgs default to 4.
+update public.org set settings = jsonb_set(settings, '{scanner,tag_digits}', '3') where id in ('a0000000-0000-4000-8000-00000000000a', 'b0000000-0000-4000-8000-00000000000b');
 insert into public.site(id,org_id,name) values ('a0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-00000000000a','Main');
 insert into public.customer(id,org_id,name) values ('a0000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-00000000000a','Wave customer');
 insert into auth.users(id,email) values ('a0000000-0000-4000-8000-0000000000a1','rollstock-test@example.test');

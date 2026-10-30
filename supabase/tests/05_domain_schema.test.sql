@@ -151,6 +151,8 @@ insert into auth.users (id, email) values
 insert into public.org (id, slug, name, timezone) values
   ('c0000000-0000-4000-8000-00000000000c', 'org-c', 'Org C', 'America/Anchorage'),
   ('d0000000-0000-4000-8000-00000000000d', 'org-d', 'Org D', 'America/Anchorage');
+-- An org from before v1.1 (#85): 3-digit asset tags; new orgs default to 4.
+update public.org set settings = jsonb_set(settings, '{scanner,tag_digits}', '3') where id in ('c0000000-0000-4000-8000-00000000000c', 'd0000000-0000-4000-8000-00000000000d');
 
 insert into public.org_member (id, org_id, user_id, role, display_name) values
   ('c0000000-0000-4000-8000-0000000003c1', 'c0000000-0000-4000-8000-00000000000c',
