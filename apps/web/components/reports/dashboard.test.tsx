@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import { formatVariance } from "rules";
 import { ReportsDashboard } from "./dashboard";
+import { nowInBlastText } from "@/components/variance/now-in-blast";
 import type { ReportData } from "@/lib/reports";
 
 afterEach(cleanup);
@@ -61,7 +63,7 @@ it("WP21 dashboard shows charts and daily tables with units and signed variance"
   );
   expect(screen.getByRole("figure", { name: "Reconcile variance chart" })).toBeTruthy();
   expect(screen.getByRole("table", { name: "Reconcile variance daily detail" })).toBeTruthy();
-  expect(screen.getAllByText("-10")).toHaveLength(2);
+  expect(screen.getAllByText("−10%")).toHaveLength(2);
   expect(screen.getByText("Expected lb")).toBeTruthy();
 });
 
@@ -120,7 +122,7 @@ it("WP21 charts weight throughput by samples and variance by expected lb", () =>
     within(screen.getByRole("figure", { name: "Throughput chart" })).getByText("3.25"),
   ).toBeTruthy();
   expect(
-    within(screen.getByRole("figure", { name: "Reconcile variance chart" })).getByText("-10"),
+    within(screen.getByRole("figure", { name: "Reconcile variance chart" })).getByText("−10%"),
   ).toBeTruthy();
 });
 
@@ -194,8 +196,55 @@ it("#87 variance holds: who signed off, when, why and the variance, counted by o
   expect(within(chart).getByText("signoff")).toBeTruthy();
   expect(within(chart).getByText("2")).toBeTruthy();
   const table = screen.getByRole("table", { name: "Variance holds daily detail" });
-  for (const header of ["Signed off by", "Cleared at", "Reason", "Variance %"])
+  for (const header of [
+    "Signed off by",
+    "Cleared at",
+    "Reason",
+    "Variance",
+    "Variance at clearing",
+  ])
     expect(within(table).getByText(header)).toBeTruthy();
   expect(within(table).getAllByText("Variance manager")).toHaveLength(2);
   expect(within(table).getByText("trim_heavy")).toBeTruthy();
+});
+
+it("#94 report variance is the reconcile / blast text: formatVariance, not the raw number", () => {
+  const hold = {
+    org_id: "org",
+    site_id: null,
+    day: "2026-10-27",
+    intake_number: "INT-0003",
+    variance_pct: 40,
+    limit_pct: 15,
+    outcome: "active",
+    signed_off_by: null,
+    cleared_at: null,
+    reason: null,
+    note: null,
+    cleared_variance_pct: null,
+  };
+  render(
+    <ReportsDashboard
+      filters={filters}
+      sites={[]}
+      timezone="UTC"
+      data={{ ...data, holds: [hold, { ...hold, intake_number: "INT-0004", variance_pct: -3.54 }] }}
+    />,
+  );
+  const table = screen.getByRole("table", { name: "Variance holds daily detail" });
+  const blast = nowInBlastText({
+    intake_id: "i",
+    intake_number: "INT-0003",
+    variance_pct: 40,
+    band: "over",
+    limit_pct: 15,
+    rollstock_opened_at: null,
+    rollstock_scan_id: null,
+  });
+  expect(blast).toBe("INT-0003 is in the blast · variance +40%");
+  expect(within(table).getByText(formatVariance(40))).toBeTruthy();
+  expect(within(table).getByText("−3.5%")).toBeTruthy();
+  expect(within(table).queryByText("40")).toBeNull();
+  // Not cleared yet: no variance at clearing.
+  expect(within(table).getAllByText("—").length).toBeGreaterThanOrEqual(2);
 });

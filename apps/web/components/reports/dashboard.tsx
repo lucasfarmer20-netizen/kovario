@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { yieldVariancePct } from "rules";
+import { formatVariance, yieldVariancePct } from "rules";
 import {
   REPORTS,
   reportValue,
@@ -48,7 +48,7 @@ const LABELS: Record<string, string> = {
   line_count: "Lines",
   expected_lb: "Expected lb",
   actual_lb: "Actual lb",
-  variance_pct: "Variance %",
+  variance_pct: "Variance",
   station: "Station",
   entry: "Entry",
   entry_count: "Total",
@@ -61,8 +61,19 @@ const LABELS: Record<string, string> = {
   cleared_at: "Cleared at",
   reason: "Reason",
   note: "Note",
-  cleared_variance_pct: "Variance at clearing %",
+  cleared_variance_pct: "Variance at clearing",
 };
+
+/** Shown as formatVariance text, the same as reconcile and blast (#94); CSV keeps the number. */
+const VARIANCE_COLUMNS = new Set(["variance_pct", "cleared_variance_pct"]);
+
+function cellText(row: ReportRow, column: string): string | number {
+  const value = reportValue(row, column);
+  if (VARIANCE_COLUMNS.has(column)) return formatVariance(value === null ? null : Number(value));
+  return typeof value === "number"
+    ? value.toLocaleString("en-US", { maximumFractionDigits: 2 })
+    : (value ?? "—");
+}
 
 function chartRows(kind: ReportKind, rows: ReportRow[]) {
   const groups = new Map<
@@ -219,9 +230,11 @@ export function ReportsDashboard({
                         <div className="flex justify-between gap-3 text-sm">
                           <span>{bar.label}</span>
                           <span>
-                            {bar.value === null
-                              ? "—"
-                              : bar.value.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                            {kind === "variance"
+                              ? formatVariance(bar.value)
+                              : bar.value === null
+                                ? "—"
+                                : bar.value.toLocaleString("en-US", { maximumFractionDigits: 2 })}
                           </span>
                         </div>
                         <div className="h-3 rounded bg-muted">
@@ -253,11 +266,7 @@ export function ReportsDashboard({
                                 {c === "site_id"
                                   ? (siteNames[String(row.site_id)] ??
                                     "Unassigned / multiple sites")
-                                  : typeof reportValue(row, c) === "number"
-                                    ? Number(reportValue(row, c)).toLocaleString("en-US", {
-                                        maximumFractionDigits: 2,
-                                      })
-                                    : (reportValue(row, c) ?? "—")}
+                                  : cellText(row, c)}
                               </td>
                             ))}
                           </tr>

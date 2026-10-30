@@ -67,6 +67,24 @@ describe("variance band (#87)", () => {
     expect(formatVariance(0.04)).toBe("0%");
     expect(formatVariance(null)).toBe("—");
   });
+  it("#94 one variance text: whole numbers carry no decimal, one decimal at most", () => {
+    expect(formatVariance(40)).toBe("+40%");
+    expect(formatVariance(40.0)).toBe("+40%");
+    expect(formatVariance(-40)).toBe("−40%");
+    expect(formatVariance(3.5)).toBe("+3.5%");
+    expect(formatVariance(39.96)).toBe("+40%");
+    expect(formatVariance(0)).toBe("0%");
+    expect(formatVariance(-0.04)).toBe("0%");
+    expect(formatVariance(variancePercent(140, 100))).toBe("+40%");
+    expect(formatVariance(variancePercent(140, 0))).toBe("—");
+  });
+  it("#94 the generated app.format_variance is built from the same text", () => {
+    const sql = renderVarianceSql();
+    expect(sql).toContain("when p_pct is null then '—'");
+    expect(sql).toContain("when t.tenths = 0 then '0%'");
+    expect(sql).toContain("case when p_pct > 0 then '+' else '−' end");
+    expect(sql).not.toMatch(/to_char|\.0%/);
+  });
 });
 
 // Two waves; wave 2 starts after INT-0003. A rejected scan never opens an intake, repeat
