@@ -9,6 +9,9 @@
 --   app.variance_hold_limit            — varianceHoldLimit (org settings, with default);
 --   app.variance_hold_setting_problem  — varianceHoldSettingProblem;
 --   app.variance_signoff_problem       — varianceSignoffProblem;
+--   app.variance_hold_blocks           — holdBlocks (HOLD_BLOCKED_STATES);
+--   app.variance_actual_frozen         — actualFrozen (SENT_STATES);
+--   app.variance_member_keeps_open     — memberKeepsHoldOpen;
 --   public.variance_signoff_reason     — VARIANCE_SIGNOFF_REASONS.
 
 do $$ begin
@@ -129,14 +132,51 @@ as $$
   end
 $$;
 
+-- Not yet sent to blast: the states a hold blocks.
+create or replace function app.variance_hold_blocks(p_state public.intake_state)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select p_state in ('draft', 'holding', 'processing', 'rollstock', 'reconcile')
+$$;
+
+-- Sent to blast: the actual is the weight at Send to Blast.
+create or replace function app.variance_actual_frozen(p_state public.intake_state)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select p_state in ('blast_freezer', 'stored', 'done')
+$$;
+
+-- A member keeps its hold open: not yet at reconcile, or at reconcile over the limit and not
+-- signed off at its current weight. Past reconcile and cancelled members are not judged.
+create or replace function app.variance_member_keeps_open(
+  p_state public.intake_state, p_band text, p_signed_off boolean
+)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select p_state in ('draft', 'holding', 'processing', 'rollstock')
+    or (p_state = 'reconcile' and p_band = 'over' and not coalesce(p_signed_off, false))
+$$;
+
 revoke all on function app.variance_pct(numeric, numeric),
   app.variance_band(numeric, numeric, int), app.variance_hold_group(uuid[], uuid),
   app.variance_hold_limit(jsonb), app.variance_hold_setting_problem(jsonb),
   app.variance_signoff_problem(text, text), app.variance_rollstock_window(),
-  app.format_variance(numeric) from public;
+  app.format_variance(numeric), app.variance_hold_blocks(public.intake_state),
+  app.variance_actual_frozen(public.intake_state),
+  app.variance_member_keeps_open(public.intake_state, text, boolean) from public;
 grant execute on function app.variance_pct(numeric, numeric),
   app.variance_band(numeric, numeric, int), app.variance_hold_group(uuid[], uuid),
-  app.variance_hold_limit(jsonb), app.variance_rollstock_window(), app.format_variance(numeric)
-  to authenticated, service_role;
+  app.variance_hold_limit(jsonb), app.variance_rollstock_window(), app.format_variance(numeric),
+  app.variance_hold_blocks(public.intake_state), app.variance_actual_frozen(public.intake_state),
+  app.variance_member_keeps_open(public.intake_state, text, boolean) to authenticated, service_role;
 grant execute on function app.variance_hold_setting_problem(jsonb),
   app.variance_signoff_problem(text, text) to service_role;

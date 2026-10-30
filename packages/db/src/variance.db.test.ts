@@ -6,8 +6,13 @@
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  STATES,
+  VARIANCE_BANDS,
+  actualFrozen,
   formatVariance,
+  holdBlocks,
   holdGroup,
+  memberKeepsHoldOpen,
   variancePercent,
   varianceBand,
   varianceHoldLimit,
@@ -73,6 +78,27 @@ describe("generated variance SQL ≡ variance.ts", () => {
         pct,
       ]);
       expect(rows[0]!.f, String(pct)).toBe(formatVariance(pct));
+    }
+  });
+
+  it("hold state predicates over every intake state", async () => {
+    for (const state of STATES.intake) {
+      const { rows } = await pool.query<{ blocks: boolean; frozen: boolean }>(
+        "select app.variance_hold_blocks($1) as blocks, app.variance_actual_frozen($1) as frozen",
+        [state],
+      );
+      expect(rows[0], state).toEqual({ blocks: holdBlocks(state), frozen: actualFrozen(state) });
+      for (const band of VARIANCE_BANDS) {
+        for (const signedOff of [false, true]) {
+          const open = await pool.query<{ open: boolean }>(
+            "select app.variance_member_keeps_open($1, $2, $3) as open",
+            [state, band, signedOff],
+          );
+          expect(open.rows[0]!.open, `${state} ${band} ${signedOff}`).toBe(
+            memberKeepsHoldOpen(state, band, signedOff),
+          );
+        }
+      }
     }
   });
 
@@ -197,6 +223,21 @@ function send(c: pg.PoolClient, intakeId: string) {
     .then((q) => q.rows[0]!.r);
 }
 
+/** A manual reweigh of the intake's one vessel at reconcile. */
+async function reweigh(c: pg.PoolClient, intakeId: string, lb: number) {
+  const { rows } = await c.query<{ id: string }>(
+    "select id from public.vessel where intake_id = $1",
+    [intakeId],
+  );
+  return c
+    .query<{ r: { ok: boolean; reason: string } }>(
+      `select public.reconcile_action(p_client_action_id => $1, p_intake_id => $2,
+         p_operation => 'manual', p_vessel_id => $3, p_weight => $4) as r`,
+      [crypto.randomUUID(), intakeId, rows[0]!.id, lb],
+    )
+    .then((q) => q.rows[0]!.r);
+}
+
 async function waitUntilBlocked(pid: number) {
   for (let i = 0; i < 200; i++) {
     const { rows } = await pool.query(
@@ -277,6 +318,59 @@ describe("Send to Blast serialises flags and neighbours", () => {
       ]);
     } finally {
       await release(neighbour, flagger);
+    }
+  });
+
+  it("V-race concurrent reweighs in one group end as a serial order; the over member is held at its own send", async () => {
+    // H is flagged on a (+40%); its group is {a, b}.
+    const { a, b } = await fixture();
+    const flagger = await pool.connect();
+    try {
+      await beginAsManager(flagger);
+      expect((await send(flagger, a)).ok).toBe(false);
+      await flagger.query("commit");
+    } finally {
+      flagger.release();
+    }
+    const tx1 = await pool.connect();
+    const tx2 = await pool.connect();
+    try {
+      // tx1: a back to 50 lb. Its re-evaluation sees a and b within and clears H (row locked).
+      await beginAsManager(tx1);
+      expect((await reweigh(tx1, a, 50)).ok).toBe(true);
+      // tx2: b to 30 lb (−40%). The vessel is written; its re-evaluation waits on H's row.
+      await beginAsManager(tx2);
+      const { rows } = await tx2.query<{ pid: number }>("select pg_backend_pid() as pid");
+      const edited = reweigh(tx2, b, 30);
+      await waitUntilBlocked(rows[0]!.pid);
+      await tx1.query("commit");
+      expect((await edited).ok).toBe(true);
+      await tx2.query("commit");
+    } finally {
+      await release(tx1, tx2);
+    }
+    // Exactly the serial order tx1 → tx2: H cleared with both members within (a at 50 lb),
+    // then b went over. An org lock on weight edits would only pick between the two serial
+    // orders; the other one (tx2 → tx1) keeps H active because tx1 then sees b over.
+    const { rows: holds } = await pool.query<{
+      state: string;
+      clear_kind: string;
+      cleared_actual_lb: string;
+    }>("select state, clear_kind, cleared_actual_lb from public.variance_hold where org_id = $1", [
+      org.id,
+    ]);
+    expect(holds).toEqual([{ state: "cleared", clear_kind: "auto", cleared_actual_lb: "50.00" }]);
+    // b, now over at reconcile, is held at its own Send to Blast and holds a with it.
+    const c = await pool.connect();
+    try {
+      await beginAsManager(c);
+      expect((await send(c, b)).reason).toMatch(/^Variance hold: INT-0002 is −40% \(limit ±15%\)/);
+      expect((await send(c, a)).reason).toBe(
+        "Variance hold on INT-0002: INT-0001 is its rollstock neighbour and waits for the hold to clear",
+      );
+      await c.query("commit");
+    } finally {
+      c.release();
     }
   });
 });

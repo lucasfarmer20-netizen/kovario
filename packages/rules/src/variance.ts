@@ -2,6 +2,9 @@
 // variance usually means fish went into a neighbouring order at rollstock, so Send to Blast is
 // refused over the org's limit and the flagged intake's rollstock neighbours are held with it.
 // variance-sql.ts renders the SQL forms of these rules; the DB never re-implements them.
+import type { StateOf } from "./states.ts";
+
+export type IntakeState = StateOf<"intake">;
 
 /** org.settings.reconcile.variance_hold_pct: whole percent, default 15, 1–100. */
 export const VARIANCE_HOLD_PCT_DEFAULT = 15;
@@ -117,6 +120,48 @@ export function holdGroup<T>(sequence: readonly T[], flagged: T): T[] {
   const at = sequence.indexOf(flagged);
   if (at < 0) return [flagged];
   return sequence.slice(Math.max(0, at - HOLD_GROUP_BEFORE), at + HOLD_GROUP_AFTER + 1);
+}
+
+/** Not yet sent to blast: the states a hold blocks from Send to Blast. */
+export const HOLD_BLOCKED_STATES: readonly IntakeState[] = [
+  "draft",
+  "holding",
+  "processing",
+  "rollstock",
+  "reconcile",
+];
+/** Not yet at reconcile: a member here cannot be judged, so it keeps its hold open. */
+export const AWAITING_RECONCILE_STATES: readonly IntakeState[] = [
+  "draft",
+  "holding",
+  "processing",
+  "rollstock",
+];
+/** Sent to blast: the actual is the weight at Send to Blast, not the falling remainder. */
+export const SENT_STATES: readonly IntakeState[] = ["blast_freezer", "stored", "done"];
+
+export function holdBlocks(state: IntakeState): boolean {
+  return HOLD_BLOCKED_STATES.includes(state);
+}
+
+export function actualFrozen(state: IntakeState): boolean {
+  return SENT_STATES.includes(state);
+}
+
+/**
+ * A group member keeps its hold open while it is not yet at reconcile, or is at reconcile over
+ * the limit without a sign-off at its current weight. Members past reconcile (sent within the
+ * limit or signed off) and cancelled members are not judged: their weight can no longer change.
+ */
+export function memberKeepsHoldOpen(
+  state: IntakeState,
+  band: VarianceBand,
+  signedOffAtCurrentWeight: boolean,
+): boolean {
+  return (
+    AWAITING_RECONCILE_STATES.includes(state) ||
+    (state === "reconcile" && band === "over" && !signedOffAtCurrentWeight)
+  );
 }
 
 /** Manager sign-off reasons (public.variance_signoff_reason). */

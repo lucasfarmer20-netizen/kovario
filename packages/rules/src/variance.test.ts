@@ -3,10 +3,14 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { variancePercent } from "./reconcile";
+import { STATES } from "./states";
 import {
+  actualFrozen,
   exceedsVarianceHold,
   formatVariance,
+  holdBlocks,
   holdGroup,
+  memberKeepsHoldOpen,
   rollstockSequence,
   SIGNOFF_NOTE_TOO_LONG,
   SIGNOFF_OTHER_NEEDS_NOTE,
@@ -117,6 +121,29 @@ describe("rollstock order and hold group (#87)", () => {
     expect(holdGroup(sequence, "INT-0012")).toEqual(["INT-0011", "INT-0012"]);
     expect(holdGroup(sequence, "INT-0099")).toEqual(["INT-0099"]);
     expect(holdGroup([], "INT-0001")).toEqual(["INT-0001"]);
+  });
+});
+
+describe("hold states (#87)", () => {
+  it("V-states a hold blocks every intake not yet sent to blast", () => {
+    expect(STATES.intake.filter(holdBlocks)).toEqual([
+      "draft",
+      "holding",
+      "processing",
+      "rollstock",
+      "reconcile",
+    ]);
+    expect(STATES.intake.filter(actualFrozen)).toEqual(["blast_freezer", "stored", "done"]);
+  });
+  it("V-open only members whose weight can still change keep a hold open", () => {
+    for (const state of ["processing", "rollstock"] as const)
+      expect(memberKeepsHoldOpen(state, "within", false)).toBe(true);
+    expect(memberKeepsHoldOpen("reconcile", "over", false)).toBe(true);
+    expect(memberKeepsHoldOpen("reconcile", "over", true)).toBe(false);
+    expect(memberKeepsHoldOpen("reconcile", "near", false)).toBe(false);
+    expect(memberKeepsHoldOpen("reconcile", "unknown", false)).toBe(false);
+    for (const state of ["blast_freezer", "stored", "done", "cancelled"] as const)
+      expect(memberKeepsHoldOpen(state, "over", false)).toBe(false);
   });
 });
 

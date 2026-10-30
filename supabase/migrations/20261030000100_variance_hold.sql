@@ -142,7 +142,7 @@ cross join lateral (
   where v.intake_id = i.id and v.org_id = i.org_id and v.lifecycle_state = 'occupied'
 ) w
 cross join lateral (
-  select (i.state in ('blast_freezer', 'stored', 'done') and s.id is not null) as actual_frozen
+  select (app.variance_actual_frozen(i.state) and s.id is not null) as actual_frozen
 ) f
 cross join lateral (
   select case when f.actual_frozen then s.actual_lb else w.live_lb end as actual_lb
@@ -205,12 +205,6 @@ returns uuid[] language sql stable set search_path = '' as $$
   where i.id = p_hold.intake_id and i.org_id = p_hold.org_id
 $$;
 
--- Not yet sent to blast: these are the members a hold blocks.
-create or replace function app.variance_hold_blocks(p_state public.intake_state)
-returns boolean language sql immutable set search_path = '' as $$
-  select p_state in ('draft', 'holding', 'processing', 'rollstock', 'reconcile')
-$$;
-
 -- Each hold's group in rollstock order: position −1 (before), 0 (flagged), 1, 2 (after).
 create or replace view public.variance_hold_member with (security_invoker = true) as
 select h.id as hold_id, h.org_id, h.state as hold_state, h.intake_id as flagged_intake_id,
@@ -238,13 +232,11 @@ $$;
 -- signed off at its current weight. Members past reconcile (sent within the limit or signed
 -- off, actual frozen at send; #88 pulls one back to reconcile to move fish) and cancelled
 -- members are not judged.
--- A member that keeps its hold open: not yet at reconcile, or at reconcile over the limit and
--- not signed off at its current weight.
+-- A member that keeps its hold open (rules: memberKeepsHoldOpen, generated).
 create or replace function app.variance_member_open(p_iv public.intake_variance)
 returns boolean language sql stable set search_path = '' as $$
-  select p_iv.state in ('draft', 'holding', 'processing', 'rollstock')
-    or (p_iv.state = 'reconcile' and p_iv.band = 'over'
-      and not app.variance_signed_off(p_iv.org_id, p_iv.intake_id, p_iv.actual_lb))
+  select app.variance_member_keeps_open(p_iv.state, p_iv.band,
+    app.variance_signed_off(p_iv.org_id, p_iv.intake_id, p_iv.actual_lb))
 $$;
 
 create or replace function app.variance_group_within(p_org_id uuid, p_group uuid[])
@@ -484,11 +476,10 @@ grant select on public.rollstock_open, public.intake_variance, public.variance_h
 revoke all on function app.rollstock_sequence(uuid, uuid, timestamptz), app.variance_hold_group_of(public.variance_hold),
   app.variance_signed_off(uuid, uuid, numeric), app.variance_member_open(public.intake_variance),
   app.variance_hold_waiting_on(public.variance_hold),
-  app.variance_hold_blocks(public.intake_state), app.variance_group_within(uuid, uuid[]),
+  app.variance_group_within(uuid, uuid[]),
   app.variance_holds_reevaluate(uuid[]), app.variance_hold_blocking(uuid) from public;
 grant execute on function app.rollstock_sequence(uuid, uuid, timestamptz), app.variance_hold_group_of(public.variance_hold),
-  app.variance_hold_blocks(public.intake_state), app.variance_signed_off(uuid, uuid, numeric)
-  to authenticated, service_role;
+  app.variance_signed_off(uuid, uuid, numeric) to authenticated, service_role;
 
 revoke all on function public.variance_hold_signoff(text, uuid, text, text, text) from public, anon;
 grant execute on function public.variance_hold_signoff(text, uuid, text, text, text) to authenticated;
