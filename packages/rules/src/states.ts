@@ -1,6 +1,7 @@
 // State machines (docs/03-STATE-MACHINES.md) as allowed-transition tables. The DB guard
 // trigger reads the same table, filled by the migration
-// `supabase/migrations/20261026100100_state_transitions.sql`, generated from this file by
+// `supabase/migrations/20261031000100_state_transitions.sql` (STATE_TRANSITIONS_SQL_PATH;
+// earlier copies stay as applied), generated from this file by
 // `pnpm --filter rules gen:states` — never edit the SQL by hand.
 //
 // Guards that need data (tote completeness, close gate I10, wave parity) live in the SQL
@@ -85,6 +86,7 @@ export const TRANSITIONS: Table = {
     { from: "blast_freezer", to: "stored" }, // first locate placement
     { from: "stored", to: "done" }, // close gate I10
     { from: "blast_freezer", to: "done" }, // close gate I10 (state ∈ {stored, blast_freezer})
+    { from: "blast_freezer", to: "reconcile", manager: true }, // pull back from blast (#88)
     ...INTAKE_NON_TERMINAL.map((from) => ({
       from,
       to: "cancelled" as const,
