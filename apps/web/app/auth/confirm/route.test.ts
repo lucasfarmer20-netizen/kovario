@@ -33,6 +33,23 @@ describe("GET /auth/confirm", () => {
     expect(res.headers.get("location")).toBe("/onboarding");
   });
 
+  // #121: hosted projects without custom SMTP keep Supabase's default templates, whose
+  // {{ .ConfirmationURL }} verifies on Supabase and redirects to the redirectTo the app passed
+  // (signup/actions.ts, forgot-password/actions.ts) with the PKCE `code` appended and no type.
+  it.each([
+    ["signup", "/auth/confirm?next=/onboarding", "/onboarding"],
+    ["recovery", "/auth/confirm?next=/reset-password", "/reset-password"],
+  ])(
+    "a default-template %s link (code, no type) signs in and lands on next",
+    async (_, to, next) => {
+      const res = await GET(new NextRequest(`${origin}${to}&code=4c1e5a1b-pkce`));
+      expect(auth.exchangeCodeForSession).toHaveBeenCalledWith("4c1e5a1b-pkce");
+      expect(auth.verifyOtp).not.toHaveBeenCalled();
+      expect(res.status).toBe(303);
+      expect(res.headers.get("location")).toBe(next);
+    },
+  );
+
   it("sends an invalid or expired link to /login with a notice", async () => {
     auth.verifyOtp.mockResolvedValue(bad);
     const res = await get("token_hash=old&type=recovery&next=/reset-password");
