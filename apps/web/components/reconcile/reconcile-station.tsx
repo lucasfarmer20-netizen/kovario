@@ -16,6 +16,7 @@ import {
   useStationSession,
   type StationSession,
 } from "@/components/intake/use-station-session";
+import { BasketButton, ScaleReadout, ActionStrip } from "@/src/components/station/workbench";
 import { StationShell } from "@/src/components/station/station-shell";
 import { DisabledReason } from "@/src/components/station/next-step";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
@@ -124,9 +125,15 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
   const [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
     [weight, setWeight] = useState("");
+  const scalePanel = useRef<HTMLDivElement>(null);
   const [manualOpen, setManualOpen] = useState(false);
   // "Enter manually" in the order card (#97): typing a basket number pauses the scanner.
   const [typingBasket, setTypingBasket] = useState(false);
+  useEffect(() => {
+    if (selected && !typingBasket && window.matchMedia?.("(max-width: 600px)").matches) {
+      scalePanel.current?.scrollIntoView({ block: "center", behavior: "instant" });
+    }
+  }, [selected, typingBasket]);
   // Typing a sign-off note pauses the scanner like manual weight (its focus capture would
   // otherwise pull focus out of the note field).
   const [noteOpen, setNoteOpen] = useState(false);
@@ -512,6 +519,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
   return (
     <StationShell
       name="Reconcile"
+      className="station-tide"
       site={siteName}
       operator={operator}
       pending={pending}
@@ -532,17 +540,24 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       status={
         <>
           <ScanFeedback feedback={feedback} />
-          <p role="status">{message}</p>
+          <p className="station-message" role="status">
+            {busy ? "Saving…" : message}
+          </p>
         </>
       }
       manual={{ ...manual, accept: ["TOTE", "TAG"] }}
       onScan={(raw, _parsed, method) => submitCode(raw, method)}
     >
-      <div className="station-workspace">
-        <section className="station-card">
+      <div className="station-workspace reconcile-workspace">
+        <section className="station-card reconcile-queue">
           <h2>Reconcile queue</h2>
           {intakes.map((i) => (
-            <button key={i.id} disabled={disabled} onClick={() => remember(i.id)}>
+            <button
+              key={i.id}
+              aria-pressed={openId === i.id}
+              disabled={disabled}
+              onClick={() => remember(i.id)}
+            >
               {i.number}
               {blocked.has(i.id) && (
                 <>
@@ -554,112 +569,131 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
           ))}
           {!intakes.length && <p>Queue empty</p>}
         </section>
-        <section className="station-card">
+        <section className="station-card reconcile-order">
           <h2>{open ? `Order ${open.number}` : "No order open"}</h2>
           {open && (
             <>
-              <h3>Expected yield</h3>
-              {open.intake_line.map((l, n) => (
-                <p key={n}>
-                  {l.species_code}: {l.est_yield_lb ?? 0} lb
-                </p>
-              ))}
-              {empty ? (
-                <p>Expected {open.total_est_yield_lb.toFixed(2)} lb · No baskets yet</p>
-              ) : (
-                <>
-                  <p>
-                    Actual {actual.toFixed(2)} lb · Expected {open.total_est_yield_lb.toFixed(2)} lb
-                    · Variance {variance === null ? "—" : `${variance}%`}
+              <div className="reconcile-summary">
+                <h3>Expected yield</h3>
+                {open.intake_line.map((l, n) => (
+                  <p key={n}>
+                    {l.species_code}: {l.est_yield_lb ?? 0} lb
                   </p>
-                  <p className={`station-band station-band-${band}`}>
-                    {BAND_LABEL[band]} (limit ±{holds.limit}%)
-                    {band === "over" &&
-                      !group &&
-                      " — Send to Blast will be refused and held with its rollstock neighbours"}
-                  </p>
-                  {waiting && <p>{waiting}</p>}
-                </>
-              )}
-              <h3>Baskets</h3>
-              {empty && (
-                <p className="station-hint">Scan basket to add it — or tap Enter manually.</p>
-              )}
-              {rows.map((v) => (
-                <div key={v.id}>
-                  <button
-                    disabled={disabled}
-                    aria-pressed={selected === v.id}
-                    onClick={() => {
-                      setSelected(v.id);
-                      setWeight(String(v.weight_lb));
-                    }}
-                  >
-                    {basketName(v)} · {v.weight_lb} lb{" "}
-                    {v.manual && <span className="station-badge">MANUAL WEIGHT</span>}
-                  </button>
-                </div>
-              ))}
-              <div className="station-actions station-add-basket">
-                <ManualEntry
-                  open={basketTyping}
-                  onOpenChange={setTypingBasket}
-                  disabled={disabled || manualOpen || noteEditing || reasonEditing}
-                  options={{ ...manual, accept: ["TAG"] }}
-                  label="Basket number"
-                  placeholder="042"
-                  onSubmit={(text) => submitCode(text, "manual")}
-                />
-                <button disabled={disabled} onClick={() => void mutate("exchange")}>
-                  Add exchange basket
-                </button>
+                ))}
+                {empty ? (
+                  <p>Expected {open.total_est_yield_lb.toFixed(2)} lb · No baskets yet</p>
+                ) : (
+                  <>
+                    <p>
+                      Actual {actual.toFixed(2)} lb · Expected {open.total_est_yield_lb.toFixed(2)}{" "}
+                      lb · Variance {variance === null ? "—" : `${variance}%`}
+                    </p>
+                    <p className={`station-band station-band-${band}`}>
+                      {BAND_LABEL[band]} (limit ±{holds.limit}%)
+                      {band === "over" &&
+                        !group &&
+                        " — Send to Blast will be refused and held with its rollstock neighbours"}
+                    </p>
+                    {waiting && <p>{waiting}</p>}
+                  </>
+                )}
               </div>
-              <p>
-                Latest stable scale:{" "}
-                {reading === null ? "No reading / scale not assigned" : `${reading} lb`}
-              </p>
-              <button
-                disabled={disabled || scaleWhy !== null}
-                onClick={() => void mutate("accept")}
-              >
-                Accept scale weight
-              </button>
-              <DisabledReason reason={scaleWhy} />
-              <button disabled={disabled || !selected} onClick={() => setManualOpen(true)}>
-                Enter weight manually
-              </button>
-              <DisabledReason reason={pickWhy} />
-              {manualOpen && (
-                <>
-                  <label>
-                    Manual weight (lb)
-                    <input
-                      autoFocus
-                      type="number"
-                      inputMode="decimal"
-                      min="0.01"
-                      step="0.01"
-                      value={weight}
-                      onChange={(e) => setWeight(e.target.value)}
+              <div className="reconcile-bench">
+                <div className="reconcile-baskets">
+                  <h3>
+                    Baskets <span className="station-count">{rows.length}</span>
+                  </h3>
+                  {empty && (
+                    <p className="station-hint">Scan basket to add it — or tap Enter manually.</p>
+                  )}
+                  <div className="station-basket-list">
+                    {rows.map((v) => (
+                      <BasketButton
+                        key={v.id}
+                        name={basketName(v)}
+                        weight={v.weight_lb}
+                        manual={v.manual}
+                        selected={selected === v.id}
+                        disabled={disabled}
+                        onClick={() => {
+                          setSelected(v.id);
+                          setWeight(String(v.weight_lb));
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <div className="station-actions station-add-basket">
+                    <ManualEntry
+                      open={basketTyping}
+                      onOpenChange={setTypingBasket}
+                      disabled={disabled || manualOpen || noteEditing || reasonEditing}
+                      options={{ ...manual, accept: ["TAG"] }}
+                      label="Basket number"
+                      placeholder="042"
+                      onSubmit={(text) => submitCode(text, "manual")}
                     />
-                  </label>
+                    <button disabled={disabled} onClick={() => void mutate("exchange")}>
+                      Add exchange basket
+                    </button>
+                  </div>
+                  <div className="reconcile-remove">
+                    <button disabled={disabled || !selected} onClick={() => void mutate("remove")}>
+                      Remove selected basket
+                    </button>
+                    <DisabledReason reason={pickWhy} />
+                  </div>
+                </div>
+                <div className="reconcile-scale" ref={scalePanel}>
+                  <ScaleReadout
+                    reading={reading}
+                    basket={
+                      rows.find((v) => v.id === selected)
+                        ? basketName(rows.find((v) => v.id === selected)!)
+                        : null
+                    }
+                  />
                   <button
-                    disabled={disabled || !selected || !(Number(weight) > 0)}
-                    onClick={() => void mutate("manual")}
+                    disabled={disabled || scaleWhy !== null}
+                    onClick={() => void mutate("accept")}
                   >
-                    Save manual weight
+                    Accept scale weight
                   </button>
-                  <button onClick={() => setManualOpen(false)}>Cancel manual weight</button>
-                </>
-              )}
-              <button disabled={disabled || !selected} onClick={() => void mutate("remove")}>
-                Remove selected basket
-              </button>
-              <DisabledReason reason={pickWhy} />
-              <button disabled={disabled || sendWhy !== null} onClick={() => void mutate("send")}>
-                Send to Blast Freezer
-              </button>
-              <DisabledReason reason={sendWhy} />
+                  <DisabledReason reason={scaleWhy} />
+                  <button disabled={disabled || !selected} onClick={() => setManualOpen(true)}>
+                    Enter weight manually
+                  </button>
+                  <DisabledReason reason={pickWhy} />
+                  {manualOpen && (
+                    <>
+                      <label>
+                        Manual weight (lb)
+                        <input
+                          autoFocus
+                          type="number"
+                          inputMode="decimal"
+                          min="0.01"
+                          step="0.01"
+                          value={weight}
+                          onChange={(e) => setWeight(e.target.value)}
+                        />
+                      </label>
+                      <button
+                        disabled={disabled || !selected || !(Number(weight) > 0)}
+                        onClick={() => void mutate("manual")}
+                      >
+                        Save manual weight
+                      </button>
+                      <button onClick={() => setManualOpen(false)}>Cancel manual weight</button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <ActionStrip
+                disabled={disabled || sendWhy !== null}
+                reason={sendWhy}
+                onSend={() => void mutate("send")}
+                summary={`${rows.filter((v) => v.weight_lb > 0).length} of ${rows.length} baskets weighed`}
+              />
             </>
           )}
         </section>

@@ -215,7 +215,7 @@ export function SuspectPicker({
   );
   if (!center)
     return (
-      <section className="station-card" aria-label="Suspect picker">
+      <section className="station-card station-suspects" aria-label="Suspect picker">
         <h3>SUSPECTS</h3>
         <p role={error ? "alert" : undefined}>
           {error ? "Suspects unavailable; check connection." : "Loading suspects…"}
@@ -226,7 +226,7 @@ export function SuspectPicker({
       </section>
     );
   return (
-    <section className="station-card" aria-label="Suspect picker">
+    <section className="station-card station-suspects" aria-label="Suspect picker">
       <h3>
         SUSPECTS · {center.intake_number} {formatVariance(center.variance_pct)} (limit ±
         {center.limit_pct}%){center.hold_id ? " · HELD" : ""}
