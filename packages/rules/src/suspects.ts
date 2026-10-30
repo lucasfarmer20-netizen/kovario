@@ -254,6 +254,25 @@ export const PULL_BACK_REASON_MAX = 500;
 export const PULL_BACK_NEEDS_REASON = "Pull back needs a reason";
 export const PULL_BACK_REASON_TOO_LONG = `Reason must be at most ${PULL_BACK_REASON_MAX} characters`;
 export const PULL_BACK_NOT_IN_BLAST = "Only an intake in the blast freezer can be pulled back";
+/**
+ * Unicode White_Space: a reason made only of these is blank. Listed (not `\s`, which differs
+ * between JS and Postgres, and Postgres has no `\p{}`) so the SQL form uses the same set.
+ */
+export const BLANK_CHARS = [
+  0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,
+  0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000,
+].map((c) => String.fromCodePoint(c));
+const NOT_BLANK = new RegExp(`[^${BLANK_CHARS.join("")}]`, "u");
+
+/** Has a character that is not White_Space. */
+export function notBlank(text: string | null): boolean {
+  return NOT_BLANK.test(text ?? "");
+}
+
+/** Length in code points, as Postgres length() counts (an emoji is 1, not 2 UTF-16 units). */
+export function codePoints(text: string | null): number {
+  return [...(text ?? "")].length;
+}
 export const PULL_BACK_RELEASED =
   "Fish from this intake has already been released; it cannot be pulled back";
 export const PULL_BACK_POOLED = "This intake is in a counter allocation; it cannot be pulled back";
@@ -274,8 +293,8 @@ export function pullBackProblem(
   reason: string | null,
   facts: PullBackFacts = NO_FACTS,
 ): string | null {
-  if (!/\S/.test(reason ?? "")) return PULL_BACK_NEEDS_REASON;
-  if ((reason ?? "").length > PULL_BACK_REASON_MAX) return PULL_BACK_REASON_TOO_LONG;
+  if (!notBlank(reason)) return PULL_BACK_NEEDS_REASON;
+  if (codePoints(reason) > PULL_BACK_REASON_MAX) return PULL_BACK_REASON_TOO_LONG;
   if (
     state !== PULL_BACK_FROM ||
     !canTransition("intake", state, PULL_BACK_TO, { isManager: true })

@@ -260,6 +260,13 @@ describe("move bin and pull back (#88)", () => {
     expect(pullBackProblem("blast_freezer", "Wrong bin in INT-0003")).toBeNull();
     expect(pullBackProblem("blast_freezer", "  ")).toBe(PULL_BACK_NEEDS_REASON);
     expect(pullBackProblem("blast_freezer", null)).toBe(PULL_BACK_NEEDS_REASON);
+    // Unicode-only whitespace is blank; emoji count as one character each (as Postgres length()).
+    expect(pullBackProblem("blast_freezer", "\u00a0\u3000\u2003")).toBe(PULL_BACK_NEEDS_REASON);
+    expect(pullBackProblem("blast_freezer", "🐟".repeat(PULL_BACK_REASON_MAX))).toBeNull();
+    expect(pullBackProblem("blast_freezer", "🐟".repeat(PULL_BACK_REASON_MAX + 1))).toBe(
+      PULL_BACK_REASON_TOO_LONG,
+    );
+    expect(pullBackProblem("blast_freezer", "\ufeff")).toBeNull(); // not White_Space
     expect(pullBackProblem("blast_freezer", "x".repeat(PULL_BACK_REASON_MAX + 1))).toBe(
       PULL_BACK_REASON_TOO_LONG,
     );

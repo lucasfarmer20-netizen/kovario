@@ -76,7 +76,7 @@ immutable
 set search_path = ''
 as $$
   select case
-    when coalesce(p_reason, '') !~ '\S' then 'Pull back needs a reason'
+    when coalesce(p_reason, '') !~ E'[^\u0009\u000a\u000b\u000c\u000d\u0020\u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]' then 'Pull back needs a reason'
     when length(p_reason) > 500 then 'Reason must be at most 500 characters'
     when p_state is distinct from 'blast_freezer' then 'Only an intake in the blast freezer can be pulled back'
     when coalesce(p_vessels_not_occupied, 0) > 0 then 'Fish from this intake has already been released; it cannot be pulled back'

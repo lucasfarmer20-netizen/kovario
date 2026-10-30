@@ -183,6 +183,8 @@ begin
   else
     -- Both at reconcile and pooled by no allocation session (rules: binMoveProblem): a
     -- session's release wizard projects exactly its intakes' occupied vessels (I15/I17).
+    -- Allocation does not lock the intake when it pools it, so a session created at the same
+    -- moment can still commit alongside this move (#102).
     foreach m in array array[f, t] loop
       v_problem := app.bin_move_problem(m.number, m.state,
         (select count(*)::int from app.pooling_sessions(m.id)));

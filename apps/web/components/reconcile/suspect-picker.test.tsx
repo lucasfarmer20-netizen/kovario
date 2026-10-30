@@ -61,7 +61,7 @@ function Picker({
   onMove = vi.fn(),
   onPullBack = vi.fn(),
 }: {
-  rows: SuspectRow[];
+  rows: readonly SuspectRow[];
   onMove?: (vesselId: string, to: string, center: string) => void;
   onPullBack?: (intakeId: string, reason: string) => void;
 }) {
@@ -152,6 +152,23 @@ it("#88 pull back needs a reason, typed in an explicit editing mode", () => {
   fireEvent.click(screen.getByRole("button", { name: "Done" }));
   fireEvent.click(confirm);
   expect(onPullBack).toHaveBeenCalledWith("i1", "Fish from INT-0002");
+});
+
+it("#88 a failed pull back keeps the form and its reason; it closes once the intake leaves blast", () => {
+  const rows = group();
+  const view = render(<Picker rows={rows} />);
+  fireEvent.click(screen.getByRole("button", { name: "Pull back INT-0001" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add reason" }));
+  fireEvent.change(screen.getByLabelText(/Pull back reason/), { target: { value: "Wrong bin" } });
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm pull back" }));
+  // The station has not refreshed the group (the call failed): the form and reason stay.
+  expect(screen.getByRole("group", { name: "Pull back from blast" }).textContent).toContain(
+    "Reason: Wrong bin",
+  );
+  // Pulled back: the refreshed group shows INT-0001 reconciled, and the form closes.
+  view.rerender(<Picker rows={[row(1, -1, "reconciled", 50), ...rows.slice(1)]} />);
+  expect(screen.queryByRole("group", { name: "Pull back from blast" })).toBeNull();
 });
 
 it("#88 a manager moves any bin between members at reconcile", () => {

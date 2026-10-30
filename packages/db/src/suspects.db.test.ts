@@ -64,7 +64,20 @@ describe("generated suspect SQL ≡ suspects.ts", () => {
 
   it("pull back and bin move checks over every intake state, reason and fact", async () => {
     for (const state of STATES.intake) {
-      for (const reason of [null, "", " \t", "Wrong bin", "x".repeat(500), "x".repeat(501)]) {
+      for (const reason of [
+        null,
+        "",
+        " \t",
+        "Wrong bin",
+        "x".repeat(500),
+        "x".repeat(501),
+        "\u00a0",
+        "\u3000\u2003\u0085",
+        "\u00a0bin\u00a0",
+        "\ufeff",
+        "🐟".repeat(500),
+        "🐟".repeat(501),
+      ]) {
         for (const [vesselsNotOccupied, poolingSessions] of [
           [0, 0],
           [1, 0],

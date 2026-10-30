@@ -5,6 +5,7 @@
 // packages/db suspects.db.test.ts checks the SQL agrees with suspects.ts on a grid. Ranking and
 // move suggestions are pure TS (the picker); the database does not rank.
 import {
+  BLANK_CHARS,
   BIN_IN_BLAST,
   BIN_NOT_AT_RECONCILE,
   BIN_POOLED,
@@ -26,6 +27,14 @@ export const SUSPECTS_SQL_PATH = "supabase/migrations/20261031000000_suspect_rul
 
 function literal(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
+}
+
+/** BLANK_CHARS as an E'' string bracket class of \uXXXX escapes: [^…] = not blank. */
+function notBlankClass(): string {
+  const escapes = BLANK_CHARS.map(
+    (c) => `\\u${c.codePointAt(0)!.toString(16).padStart(4, "0")}`,
+  ).join("");
+  return `E'[^${escapes}]'`;
 }
 
 function states(list: readonly string[]): string {
@@ -117,7 +126,7 @@ export function renderSuspectsSql(): string {
     "set search_path = ''",
     "as $$",
     "  select case",
-    `    when coalesce(p_reason, '') !~ '\\S' then ${literal(PULL_BACK_NEEDS_REASON)}`,
+    `    when coalesce(p_reason, '') !~ ${notBlankClass()} then ${literal(PULL_BACK_NEEDS_REASON)}`,
     `    when length(p_reason) > ${PULL_BACK_REASON_MAX} then ${literal(PULL_BACK_REASON_TOO_LONG)}`,
     `    when p_state is distinct from ${literal(PULL_BACK_FROM)} then ${literal(PULL_BACK_NOT_IN_BLAST)}`,
     `    when coalesce(p_vessels_not_occupied, 0) > 0 then ${literal(PULL_BACK_RELEASED)}`,

@@ -168,7 +168,10 @@ export function SuspectPicker({
     : [];
   const atReconcile = rows.filter((r) => r.state === "reconcile");
   const bin = bins.find((b) => b.id === selectedBin);
-  const pullBackRow = pullBackFor ? byId.get(pullBackFor) : undefined;
+  // Open until the intake has left blast: after a successful pull back the refreshed group shows
+  // it reconciled and the form closes; a failure (refused, PIN cancelled) keeps the typed reason.
+  const pullBackRow =
+    pullBackFor && byId.get(pullBackFor)?.status === "in_blast" ? byId.get(pullBackFor) : undefined;
   const problem = pullBackRow
     ? pullBackProblem(pullBackRow.state as Parameters<typeof pullBackProblem>[0], reason)
     : null;
@@ -322,10 +325,7 @@ export function SuspectPicker({
           <button
             type="button"
             disabled={disabled || editingReason || problem !== null}
-            onClick={() => {
-              onPullBack(pullBackRow.intake_id, reason);
-              setPullBackFor(null);
-            }}
+            onClick={() => onPullBack(pullBackRow.intake_id, reason)}
           >
             Confirm pull back
           </button>
