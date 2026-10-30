@@ -126,7 +126,13 @@ A large variance usually means fish went into the wrong order, typically a rolls
   limit: every member has reached reconcile, and each one at reconcile is within the limit or
   signed off at its current weight. Members past reconcile (sent within the limit or signed off,
   actual frozen) and cancelled members are not judged. Re-checked on every reconcile weight
-  change and every send; #88's bin moves call `app.variance_holds_reevaluate`. Or (b) by
+  change and every send; #88's bin moves call `app.variance_holds_reevaluate`. Kept current
+  (v1.2, #95) in the same transaction as any other change to its inputs, never left for the
+  next touch: a member entering or leaving reconcile or cancelled (a trigger on
+  `intake.state`, for changes `holdReevaluateOn` says alter how the hold judges the member)
+  and a change to `variance_hold_pct` (`admin_update_org` re-evaluates the org's active holds;
+  lock order org row → the org's variance lock → hold rows by id). Re-evaluation only clears;
+  a lower limit never re-flags a hold (DECISION-30). Or (b) by
   **manager sign-off**: reason
   `estimate_wrong | mixed_species | spoilage | trim_heavy | other` (other needs a note),
   manager account or manager PIN elevation, one SQL function (`variance_hold_signoff`) in

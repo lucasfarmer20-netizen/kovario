@@ -12,6 +12,8 @@ import {
   formatVariance,
   holdBlocks,
   holdGroup,
+  holdJudgement,
+  holdReevaluateOn,
   holdWaitingMessage,
   holdWaitingOn,
   holdWaitText,
@@ -134,6 +136,21 @@ describe("generated variance SQL ≡ variance.ts", () => {
             memberKeepsHoldOpen(state, band, signedOff),
           );
         }
+      }
+    }
+  });
+
+  it("I95 which state changes re-evaluate holds, over every pair of intake states", async () => {
+    for (const from of STATES.intake) {
+      for (const to of STATES.intake) {
+        const { rows } = await pool.query<{ judgement: string; on: boolean }>(
+          "select app.variance_hold_judgement($1) as judgement, app.variance_hold_reevaluate_on($1, $2) as on",
+          [from, to],
+        );
+        expect(rows[0], `${from} → ${to}`).toEqual({
+          judgement: holdJudgement(from),
+          on: holdReevaluateOn(from, to),
+        });
       }
     }
   });
@@ -462,3 +479,91 @@ describe("Send to Blast serialises flags and neighbours", () => {
     }
   });
 });
+
+/** admin_update_org with the org's settings, variance_hold_pct set to `pct`. */
+async function setLimit(c: pg.PoolClient, pct: number) {
+  return c
+    .query<{ r: { variance_holds_cleared: number } }>(
+      `select public.admin_update_org($1, o.name, o.timezone,
+         jsonb_set(o.settings, '{reconcile}', jsonb_build_object('variance_hold_pct', $2::int))) as r
+       from public.org o where o.id = $3`,
+      [crypto.randomUUID(), pct, org.id],
+    )
+    .then((q) => q.rows[0]!.r);
+}
+
+async function holds() {
+  const { rows } = await pool.query<{ state: string; clear_kind: string | null }>(
+    "select state, clear_kind from public.variance_hold where org_id = $1",
+    [org.id],
+  );
+  return rows;
+}
+
+// #95: a settings save re-evaluates holds. Lock order: org row (sends key-share it through
+// action_log first) → the org's variance lock → hold rows, so a flag under the old limit and a
+// raise can never miss each other: whichever commits second sees the first.
+describe("I95 raising variance_hold_pct serialises with Send to Blast", () => {
+  afterAll(async () => {
+    await pool.query(
+      `update public.org set settings = jsonb_set(settings, '{reconcile}', '{"variance_hold_pct": 15}')
+       where id = $1`,
+      [org.id],
+    );
+  });
+
+  it("I95-race a raise while a flag is uncommitted waits, then clears the new hold", async () => {
+    const { a } = await fixture();
+    await setLimitAsOwner(15);
+    const flagger = await pool.connect();
+    const admin = await pool.connect();
+    try {
+      await beginAsManager(flagger);
+      expect((await send(flagger, a)).ok).toBe(false); // +40% over ±15%: flags, uncommitted
+
+      await beginAsManager(admin);
+      const { rows } = await admin.query<{ pid: number }>("select pg_backend_pid() as pid");
+      const raised = setLimit(admin, 50);
+      await waitUntilBlocked(rows[0]!.pid);
+      await flagger.query("commit");
+
+      expect((await raised).variance_holds_cleared).toBe(1);
+      await admin.query("commit");
+      expect(await holds()).toEqual([{ state: "cleared", clear_kind: "auto" }]);
+    } finally {
+      await release(flagger, admin);
+    }
+  });
+
+  it("I95-race a send during an uncommitted raise waits, then reads the new limit", async () => {
+    const { a } = await fixture();
+    await setLimitAsOwner(15);
+    const admin = await pool.connect();
+    const sender = await pool.connect();
+    try {
+      await beginAsManager(admin);
+      expect((await setLimit(admin, 50)).variance_holds_cleared).toBe(0);
+
+      await beginAsManager(sender);
+      const { rows } = await sender.query<{ pid: number }>("select pg_backend_pid() as pid");
+      const sent = send(sender, a);
+      await waitUntilBlocked(rows[0]!.pid);
+      await admin.query("commit");
+
+      expect((await sent).ok).toBe(true); // +40% is within ±50%: no hold
+      await sender.query("commit");
+      expect(await holds()).toEqual([]);
+      expect(await state(a)).toBe("blast_freezer");
+    } finally {
+      await release(admin, sender);
+    }
+  });
+});
+
+async function setLimitAsOwner(pct: number) {
+  await pool.query(
+    `update public.org set settings = jsonb_set(settings, '{reconcile}', jsonb_build_object('variance_hold_pct', $2::int))
+     where id = $1`,
+    [org.id, pct],
+  );
+}
