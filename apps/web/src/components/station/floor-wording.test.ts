@@ -26,6 +26,7 @@ const FLOOR = [
   "app/s/[orgSlug]",
   "app/device/device-home.tsx",
   "app/dev/stations/station-demo.tsx",
+  "app/dev/station-gallery",
 ];
 
 /**
