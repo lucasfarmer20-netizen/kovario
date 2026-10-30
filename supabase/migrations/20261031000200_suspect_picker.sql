@@ -148,7 +148,7 @@ create or replace function public.variance_move_vessel(p_client_action_id text, 
   p_to_intake_id uuid, p_center_intake_id uuid, p_elevation_token text default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare a jsonb; r jsonb; approval record; v public.vessel; v_from uuid; v_ids uuid[]; v_id uuid;
-  f public.intake; t public.intake; m public.intake; v_group uuid[]; v_tag text; v_cleared int;
+  f public.intake; t public.intake; m public.intake; v_group uuid[]; v_problem text; v_tag text; v_cleared int;
   fv public.intake_variance; tv public.intake_variance;
 begin
   perform app.require_role('{owner,manager,staff,station}');
@@ -181,12 +181,12 @@ begin
     r := jsonb_build_object('ok', true, 'moved', false, 'holds_cleared', 0,
       'reason', format('%s is already in %s', coalesce(v_tag, 'The exchange bin'), t.number));
   else
+    -- Both at reconcile and pooled by no allocation session (rules: binMoveProblem): a
+    -- session's release wizard projects exactly its intakes' occupied vessels (I15/I17).
     foreach m in array array[f, t] loop
-      if not app.bin_movable(m.state) then
-        raise exception '%', case when m.state = 'blast_freezer'
-          then format('%s is in the blast freezer; pull it back to reconcile first', m.number)
-          else format('%s is not at reconcile', m.number) end using errcode = '22023';
-      end if;
+      v_problem := app.bin_move_problem(m.number, m.state,
+        (select count(*)::int from app.pooling_sessions(m.id)));
+      if v_problem is not null then raise exception '%', v_problem using errcode = '22023'; end if;
     end loop;
     -- Fail closed: an unknown, other-org or null centre has no group (null), and a null
     -- membership test must refuse, never fall through to the move.
@@ -223,7 +223,9 @@ begin
 end $$;
 
 -- Pull back from blast ----------------------------------------------------------------------------
--- blast_freezer → reconcile (manager edge, states.ts) with a reason (rules: pullBackProblem).
+-- blast_freezer → reconcile (manager edge, states.ts) with a reason (rules: pullBackProblem), and
+-- only while the fish is untouched: every vessel still occupied (release acts on intakes in blast,
+-- and close gate I10 takes only stored / blast_freezer) and no allocation session pooling it.
 -- The intake's vessels' blast_in_at / blast_out_at are cleared, so re-entering blast restarts blast
 -- time (a re-send also re-stamps intake.blast_at and overwrites intake_blast_send). The stamps
 -- entering reconcile writes (rollstock_done_at, reconcile_at) are put back: they record the first
@@ -233,6 +235,7 @@ create or replace function public.intake_pull_back(p_client_action_id text, p_in
   p_reason text, p_elevation_token text default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare a jsonb; r jsonb; approval record; i public.intake; v_problem text; v_vessels int;
+  v_not_occupied int; v_pooling int;
 begin
   perform app.require_role('{owner,manager,staff,station}');
   a := app.action_begin(p_client_action_id, 'intake.pull_back',
@@ -244,9 +247,15 @@ begin
   perform 1 from public.vessel where intake_id = p_intake_id and org_id = app.org_id() order by id for update;
   select * into i from public.intake where id = p_intake_id and org_id = app.org_id() for update;
   if i.id is null then raise exception 'Unknown intake' using errcode = '22023'; end if;
-  v_problem := app.pull_back_problem(i.state, p_reason);
+  select count(*)::int into v_not_occupied from public.vessel
+  where intake_id = i.id and org_id = i.org_id and lifecycle_state <> 'occupied';
+  select count(*)::int into v_pooling from app.pooling_sessions(i.id);
+  v_problem := app.pull_back_problem(i.state, p_reason, v_not_occupied, v_pooling);
   if v_problem is not null then raise exception '%', v_problem using errcode = '22023'; end if;
+  -- The one way through the pull-back edge (app.intake_pull_back_only), scoped to this row.
+  perform set_config('app.pull_back', i.id::text, true);
   update public.intake set state = 'reconcile' where id = i.id;
+  perform set_config('app.pull_back', '', true);
   update public.intake set rollstock_done_at = i.rollstock_done_at, reconcile_at = i.reconcile_at
   where id = i.id;
   update public.vessel set blast_in_at = null, blast_out_at = null
@@ -264,8 +273,24 @@ begin
   return r;
 end $$;
 
+-- Only intake_pull_back takes blast_freezer → reconcile: force_transition or a direct update would
+-- skip its guards (released / allocated fish), intake_history and the blast-time reset.
+create or replace function app.intake_pull_back_only()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if old.state = 'blast_freezer' and new.state = 'reconcile'
+     and coalesce(current_setting('app.pull_back', true), '') <> new.id::text then
+    raise exception 'Pull an intake back from blast with intake_pull_back' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+drop trigger if exists intake_pull_back_only on public.intake;
+create trigger intake_pull_back_only before update of state on public.intake
+  for each row execute function app.intake_pull_back_only();
+
 -- Grants ----------------------------------------------------------------------------------------
-revoke all on function app.intake_hold_group(uuid, uuid), app.manager_approval(text) from public;
+revoke all on function app.intake_hold_group(uuid, uuid), app.manager_approval(text),
+  app.intake_pull_back_only() from public;
 grant execute on function app.intake_hold_group(uuid, uuid) to authenticated, service_role;
 revoke all on function public.variance_suspect_group(uuid) from public, anon;
 grant execute on function public.variance_suspect_group(uuid) to authenticated, service_role;

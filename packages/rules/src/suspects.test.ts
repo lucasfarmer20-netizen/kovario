@@ -7,9 +7,12 @@ import { STATES, canTransition, nextStates } from "./states";
 import {
   PULL_BACK_NEEDS_REASON,
   PULL_BACK_NOT_IN_BLAST,
+  PULL_BACK_POOLED,
+  PULL_BACK_RELEASED,
   PULL_BACK_REASON_MAX,
   PULL_BACK_REASON_TOO_LONG,
   binMovable,
+  binMoveProblem,
   pullBackProblem,
   rankSuspects,
   suggestMoves,
@@ -262,6 +265,29 @@ describe("move bin and pull back (#88)", () => {
     );
     for (const state of STATES.intake.filter((s) => s !== "blast_freezer"))
       expect(pullBackProblem(state, "reason")).toBe(PULL_BACK_NOT_IN_BLAST);
+  });
+
+  it("PK-P4 an intake whose fish is released or allocated cannot be pulled back (I10, I15/I17)", () => {
+    const facts = (vesselsNotOccupied: number, poolingSessions: number) => ({
+      vesselsNotOccupied,
+      poolingSessions,
+    });
+    expect(pullBackProblem("blast_freezer", "Wrong bin", facts(0, 0))).toBeNull();
+    expect(pullBackProblem("blast_freezer", "Wrong bin", facts(1, 0))).toBe(PULL_BACK_RELEASED);
+    expect(pullBackProblem("blast_freezer", "Wrong bin", facts(0, 1))).toBe(PULL_BACK_POOLED);
+    expect(pullBackProblem("blast_freezer", "Wrong bin", facts(2, 1))).toBe(PULL_BACK_RELEASED);
+    expect(pullBackProblem("stored", "Wrong bin", facts(1, 1))).toBe(PULL_BACK_NOT_IN_BLAST);
+  });
+
+  it("PK-P5 bins move only at reconcile and while no allocation pools the intake", () => {
+    expect(binMoveProblem("INT-0001", "reconcile", 0)).toBeNull();
+    expect(binMoveProblem("INT-0001", "reconcile", 1)).toBe(
+      "INT-0001 is in a counter allocation; its bins cannot move",
+    );
+    expect(binMoveProblem("INT-0001", "blast_freezer", 0)).toBe(
+      "INT-0001 is in the blast freezer; pull it back to reconcile first",
+    );
+    expect(binMoveProblem("INT-0001", "rollstock", 1)).toBe("INT-0001 is not at reconcile");
   });
 });
 

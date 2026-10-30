@@ -220,6 +220,31 @@ export function binMovable(state: IntakeState): boolean {
   return MOVE_BIN_STATES.includes(state);
 }
 
+/** `%s` is the intake number (SQL: format()). */
+export const BIN_IN_BLAST = "%s is in the blast freezer; pull it back to reconcile first";
+export const BIN_NOT_AT_RECONCILE = "%s is not at reconcile";
+export const BIN_POOLED = "%s is in a counter allocation; its bins cannot move";
+
+/**
+ * Null when bins can move into or out of the intake, else the message: it must be at reconcile,
+ * and not pooled by a non-cancelled allocation session (whose release wizard projects exactly
+ * its occupied vessels, I15/I17).
+ */
+export function binMoveProblem(
+  number: string,
+  state: IntakeState,
+  poolingSessions: number,
+): string | null {
+  const message = !binMovable(state)
+    ? state === "blast_freezer"
+      ? BIN_IN_BLAST
+      : BIN_NOT_AT_RECONCILE
+    : poolingSessions > 0
+      ? BIN_POOLED
+      : null;
+  return message && message.replace("%s", number);
+}
+
 // Pull back from blast -----------------------------------------------------------------------
 
 /** blast_freezer → reconcile, manager only (states.ts). */
@@ -229,9 +254,26 @@ export const PULL_BACK_REASON_MAX = 500;
 export const PULL_BACK_NEEDS_REASON = "Pull back needs a reason";
 export const PULL_BACK_REASON_TOO_LONG = `Reason must be at most ${PULL_BACK_REASON_MAX} characters`;
 export const PULL_BACK_NOT_IN_BLAST = "Only an intake in the blast freezer can be pulled back";
+export const PULL_BACK_RELEASED =
+  "Fish from this intake has already been released; it cannot be pulled back";
+export const PULL_BACK_POOLED = "This intake is in a counter allocation; it cannot be pulled back";
+
+/**
+ * What the database knows besides the state: how many of the intake's vessels are not
+ * `occupied` (emptied by a release, or void), and how many non-cancelled allocation sessions
+ * pool it. Release already acts on intakes in blast (close gate I10 takes blast_freezer); once
+ * fish is handed out or allocated, pulling the intake back to reconcile would strand I10 and
+ * change what the session's wizard projects (I15/I17), so it is refused.
+ */
+export type PullBackFacts = { vesselsNotOccupied: number; poolingSessions: number };
+const NO_FACTS: PullBackFacts = { vesselsNotOccupied: 0, poolingSessions: 0 };
 
 /** Null when the intake can be pulled back with this reason, else the message. */
-export function pullBackProblem(state: IntakeState, reason: string | null): string | null {
+export function pullBackProblem(
+  state: IntakeState,
+  reason: string | null,
+  facts: PullBackFacts = NO_FACTS,
+): string | null {
   if (!/\S/.test(reason ?? "")) return PULL_BACK_NEEDS_REASON;
   if ((reason ?? "").length > PULL_BACK_REASON_MAX) return PULL_BACK_REASON_TOO_LONG;
   if (
@@ -239,5 +281,7 @@ export function pullBackProblem(state: IntakeState, reason: string | null): stri
     !canTransition("intake", state, PULL_BACK_TO, { isManager: true })
   )
     return PULL_BACK_NOT_IN_BLAST;
+  if (facts.vesselsNotOccupied > 0) return PULL_BACK_RELEASED;
+  if (facts.poolingSessions > 0) return PULL_BACK_POOLED;
   return null;
 }

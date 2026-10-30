@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   STATES,
   binMovable,
+  binMoveProblem,
   pullBackProblem,
   suspectStatus,
   suspectWaiting,
@@ -61,14 +62,32 @@ describe("generated suspect SQL ≡ suspects.ts", () => {
     }
   });
 
-  it("pull back check over every intake state and reason", async () => {
+  it("pull back and bin move checks over every intake state, reason and fact", async () => {
     for (const state of STATES.intake) {
       for (const reason of [null, "", " \t", "Wrong bin", "x".repeat(500), "x".repeat(501)]) {
+        for (const [vesselsNotOccupied, poolingSessions] of [
+          [0, 0],
+          [1, 0],
+          [0, 2],
+          [3, 1],
+        ] as const) {
+          const { rows } = await pool.query<{ problem: string | null }>(
+            "select app.pull_back_problem($1, $2, $3, $4) as problem",
+            [state, reason, vesselsNotOccupied, poolingSessions],
+          );
+          expect(rows[0]!.problem, `${state} ${reason?.length} ${vesselsNotOccupied}`).toBe(
+            pullBackProblem(state, reason, { vesselsNotOccupied, poolingSessions }),
+          );
+        }
+      }
+      for (const pooling of [0, 1]) {
         const { rows } = await pool.query<{ problem: string | null }>(
-          "select app.pull_back_problem($1, $2) as problem",
-          [state, reason],
+          "select app.bin_move_problem($1, $2, $3) as problem",
+          ["INT-0042", state, pooling],
         );
-        expect(rows[0]!.problem, `${state} ${reason?.length}`).toBe(pullBackProblem(state, reason));
+        expect(rows[0]!.problem, `${state} ${pooling}`).toBe(
+          binMoveProblem("INT-0042", state, pooling),
+        );
       }
     }
   });

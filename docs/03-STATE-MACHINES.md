@@ -37,7 +37,9 @@ Notes:
   when. The intake's vessels' `blast_in_at` / `blast_out_at` are cleared, so re-entering blast
   restarts blast time (`blast_at` is re-stamped by the next send); `rollstock_done_at` and
   `reconcile_at` keep their first values. A `stored` intake (a vessel on a shelf) cannot be
-  pulled back.
+  pulled back, nor one with a vessel no longer `occupied` (fish released: I10 must still close
+  it) or one pooled by a non-cancelled allocation session (I15/I17). No other path takes this
+  edge: a trigger refuses it from `force_transition` and direct updates.
 
 ## Variance hold (v1.1, #87)
 ```

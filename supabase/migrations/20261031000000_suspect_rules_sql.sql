@@ -4,6 +4,7 @@
 --   app.suspect_status        — suspectStatus;
 --   app.suspect_waiting       — suspectWaiting (SUSPECT_WAITING);
 --   app.bin_movable           — binMovable (MOVE_BIN_STATES);
+--   app.bin_move_problem      — binMoveProblem (at reconcile, not pooled);
 --   app.pull_back_problem     — pullBackProblem (PULL_BACK_FROM → PULL_BACK_TO).
 
 -- Reconciled: at reconcile with at least one occupied vessel, every one weighed.
@@ -48,8 +49,27 @@ as $$
   select coalesce(p_state in ('reconcile'), false)
 $$;
 
--- blast_freezer → reconcile, with a reason (≤ 500 characters).
-create or replace function app.pull_back_problem(p_state public.intake_state, p_reason text)
+-- Bins move into or out of an intake only at reconcile and while no allocation pools it.
+create or replace function app.bin_move_problem(
+  p_number text, p_state public.intake_state, p_pooling_sessions int
+)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when not app.bin_movable(p_state) and p_state = 'blast_freezer' then format('%s is in the blast freezer; pull it back to reconcile first', p_number)
+    when not app.bin_movable(p_state) then format('%s is not at reconcile', p_number)
+    when coalesce(p_pooling_sessions, 0) > 0 then format('%s is in a counter allocation; its bins cannot move', p_number)
+  end
+$$;
+
+-- blast_freezer → reconcile, with a reason (≤ 500 characters), while every
+-- vessel is still occupied and no allocation pools the intake.
+create or replace function app.pull_back_problem(
+  p_state public.intake_state, p_reason text, p_vessels_not_occupied int, p_pooling_sessions int
+)
 returns text
 language sql
 immutable
@@ -59,12 +79,16 @@ as $$
     when coalesce(p_reason, '') !~ '\S' then 'Pull back needs a reason'
     when length(p_reason) > 500 then 'Reason must be at most 500 characters'
     when p_state is distinct from 'blast_freezer' then 'Only an intake in the blast freezer can be pulled back'
+    when coalesce(p_vessels_not_occupied, 0) > 0 then 'Fish from this intake has already been released; it cannot be pulled back'
+    when coalesce(p_pooling_sessions, 0) > 0 then 'This intake is in a counter allocation; it cannot be pulled back'
   end
 $$;
 
 revoke all on function app.suspect_status(public.intake_state, int, int),
   app.suspect_waiting(text), app.bin_movable(public.intake_state),
-  app.pull_back_problem(public.intake_state, text) from public;
+  app.bin_move_problem(text, public.intake_state, int),
+  app.pull_back_problem(public.intake_state, text, int, int) from public;
 grant execute on function app.suspect_status(public.intake_state, int, int),
   app.suspect_waiting(text), app.bin_movable(public.intake_state),
-  app.pull_back_problem(public.intake_state, text) to authenticated, service_role;
+  app.bin_move_problem(text, public.intake_state, int),
+  app.pull_back_problem(public.intake_state, text, int, int) to authenticated, service_role;
