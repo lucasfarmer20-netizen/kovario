@@ -81,7 +81,10 @@ and the intake is held with its rollstock neighbours (1 before, 2 after). Held i
 HELD badge in the queue. Opening a held intake shows the hold group in rollstock order (each
 member's variance, band and where it is) and the **manager sign-off**: tap a reason (≥ 56 px
 buttons; "Other" needs a note), then a manager PIN (a manager account signs off directly). The
-"now in blast" lines are listed below.
+"now in blast" lines are listed below. A flagged order back within the limit shows, under its
+band and before Send is pressed, the same line the refusal gives (v1.2, #93): "INT-0002 is
+within the limit. Hold waits on INT-0004 (+22%) and INT-0003 (not at reconcile yet). …"
+(`04-BUSINESS-RULES.md §6a`, Waiting on).
 **Suspect picker** (v1.1, #88; `04-BUSINESS-RULES.md §6b`): **Find the fish (suspects)** on the
 hold panel, or a tap on any "now in blast" line, opens a card (no modal) with the group: the
 flagged (or tapped) intake, then its suspects most likely first, each "INT-0003 · −40% · over

@@ -2720,7 +2720,7 @@ isOneToOne: false
                   ]
                 },"variance_hold_member": {
                   Row: {
-                    "actual_lb": number | null,"band": string | null,"blocked": boolean | null,"expected_lb": number,"flagged_intake_id": string,"hold_id": string,"hold_state": Database["public"]['Enums']["variance_hold_state"],"intake_id": string | null,"intake_number": string,"limit_pct": number | null,"org_id": string,"position": number | null,"state": Database["public"]['Enums']["intake_state"],"variance_pct": number | null
+                    "actual_lb": number | null,"band": string | null,"blocked": boolean | null,"expected_lb": number,"flagged_intake_id": string,"hold_id": string,"hold_state": Database["public"]['Enums']["variance_hold_state"],"intake_id": string | null,"intake_number": string,"limit_pct": number | null,"org_id": string,"position": number | null,"signed_off": boolean | null,"state": Database["public"]['Enums']["intake_state"],"variance_pct": number | null
                   }
                   ComputedFields: never
                   Relationships: [

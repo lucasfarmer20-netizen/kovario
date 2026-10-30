@@ -8,6 +8,11 @@ import {
   actualFrozen,
   exceedsVarianceHold,
   formatVariance,
+  holdWaitingMessage,
+  holdWaitingOn,
+  holdWaitText,
+  joinWaitTexts,
+  type HoldGroupMember,
   holdBlocks,
   holdGroup,
   memberKeepsHoldOpen,
@@ -24,7 +29,12 @@ import {
   varianceSignoffProblem,
   type RollstockScan,
 } from "./variance";
-import { renderVarianceSql, VARIANCE_SQL_PATH } from "./variance-sql";
+import {
+  HOLD_WAIT_SQL_PATH,
+  renderHoldWaitSql,
+  renderVarianceSql,
+  VARIANCE_SQL_PATH,
+} from "./variance-sql";
 
 describe("variance band (#87)", () => {
   it("V-band over is strictly past the limit; exactly at the limit is near", () => {
@@ -215,5 +225,88 @@ describe("generated variance SQL", () => {
       VARIANCE_SETTING_PROBLEM,
     ])
       expect(sql).toContain(text);
+  });
+});
+
+describe("what a hold waits on (#93, DECISION-27)", () => {
+  const m = (
+    number: string,
+    state: HoldGroupMember["state"],
+    band: HoldGroupMember["band"],
+    variancePct: number | null,
+    actualLb = 50,
+    signedOffAtCurrentWeight = false,
+  ): HoldGroupMember => ({
+    intakeId: number,
+    number,
+    state,
+    band,
+    actualLb,
+    variancePct,
+    signedOffAtCurrentWeight,
+  });
+  const group = [
+    m("INT-0001", "blast_freezer", "within", 2),
+    m("INT-0002", "reconcile", "within", 3),
+    m("INT-0003", "rollstock", "unknown", null, 0),
+    m("INT-0004", "reconcile", "over", 22),
+  ];
+
+  it("I93 lists the other members keeping the hold open, in rollstock order, with why", () => {
+    expect(holdWaitingOn(group, "INT-0002")).toEqual([
+      { number: "INT-0003", reason: "not_at_reconcile", variancePct: null },
+      { number: "INT-0004", reason: "over_limit", variancePct: 22 },
+    ]);
+  });
+  it("I93 names the issue's example: within, waiting on a neighbour upstream and one over", () => {
+    expect(holdWaitingMessage("INT-0002", "within", holdWaitingOn(group, "INT-0002"))).toBe(
+      "INT-0002 is within the limit. Hold waits on INT-0003 (not at reconcile yet) and INT-0004 (+22%). It clears when they are at reconcile within the limit, or a manager signs off.",
+    );
+  });
+  it("I93 near is still within the limit; no estimate says so instead", () => {
+    const waits = holdWaitingOn(group, "INT-0002");
+    expect(holdWaitingMessage("INT-0002", "near", waits)).toMatch(
+      /^INT-0002 is within the limit\./,
+    );
+    expect(holdWaitingMessage("INT-0002", "unknown", waits)).toMatch(
+      /^INT-0002 has no expected yield to compare\. Hold waits on INT-0003/,
+    );
+  });
+  it("I93 over the limit is not a waiting message (that refusal names its own variance)", () => {
+    expect(holdWaitingMessage("INT-0004", "over", [])).toBeNull();
+  });
+  it("I93 nothing left waiting: Send to Blast clears the hold", () => {
+    expect(holdWaitingMessage("INT-0002", "within", [])).toBe(
+      "INT-0002 is within the limit. The rest of its hold group is within the limit too. Send to Blast clears the hold.",
+    );
+  });
+  it("I93 never judges the flagged order itself, signed-off, past-reconcile or cancelled members", () => {
+    const quiet = [
+      m("INT-0002", "reconcile", "over", 40),
+      m("INT-0005", "reconcile", "over", 30, 65, true),
+      m("INT-0006", "stored", "over", 50),
+      m("INT-0007", "cancelled", "unknown", null),
+    ];
+    expect(holdWaitingOn(quiet, "INT-0002")).toEqual([]);
+  });
+  it("I93 a member at reconcile with nothing weighed is 'not weighed yet', not −100%", () => {
+    const [wait] = holdWaitingOn([m("INT-0003", "reconcile", "over", -100, 0)], "INT-0002");
+    expect(holdWaitText(wait!)).toBe("INT-0003 (not weighed yet)");
+    expect(holdWaitText({ number: "INT-0004", reason: "over_limit", variancePct: -18.25 })).toBe(
+      "INT-0004 (−18.3%)",
+    );
+  });
+  it("I93 joins one, two and many", () => {
+    expect(joinWaitTexts([])).toBe("");
+    expect(joinWaitTexts(["A"])).toBe("A");
+    expect(joinWaitTexts(["A", "B"])).toBe("A and B");
+    expect(joinWaitTexts(["A", "B", "C"])).toBe("A, B and C");
+  });
+});
+
+describe("generated hold-wait SQL (#93)", () => {
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+  it(`${HOLD_WAIT_SQL_PATH} is up to date (run \`pnpm --filter rules gen:sql\`)`, () => {
+    expect(readFileSync(resolve(repoRoot, HOLD_WAIT_SQL_PATH), "utf8")).toBe(renderHoldWaitSql());
   });
 });

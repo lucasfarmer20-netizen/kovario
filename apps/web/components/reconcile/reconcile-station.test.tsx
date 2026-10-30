@@ -701,3 +701,30 @@ it("#97 with no order open, Enter manually under the next step line reads a tote
   fireEvent.click(screen.getByRole("button", { name: "Enter manually" }));
   expect(screen.getByLabelText("Tote number (INT-0002-1)")).toBeTruthy();
 });
+
+// #93 a fixed order's hold waiting on its neighbours ---------------------------------------------
+it("#93 a flagged order back within the limit shows what its hold waits on, next to the band", async () => {
+  setup(20, {
+    variance_hold_member: [
+      { ...member(4, -1, 2, "within", "blast_freezer"), actual_lb: 51, signed_off: false },
+      { ...member(1, 0, 0, "within", "reconcile"), actual_lb: 20, signed_off: false },
+      { ...member(2, 1, 22, "over", "reconcile"), actual_lb: 61, signed_off: false },
+      { ...member(3, 2, 0, "unknown", "rollstock"), actual_lb: 0, signed_off: false },
+    ],
+    org: [{ settings: { reconcile: { variance_hold_pct: 15 } } }],
+  });
+  render(<ReconcileStation />);
+  const line = await screen.findByText(/^INT-0001 is within the limit\./);
+  expect(line.textContent).toBe(
+    "INT-0001 is within the limit. Hold waits on INT-0002 (+22%) and INT-0003 (not at reconcile yet). It clears when they are at reconcile within the limit, or a manager signs off.",
+  );
+  // Next to the band, before Send to Blast is pressed.
+  expect(line.previousElementSibling?.textContent).toMatch(/^within limit \(limit ±15%\)/);
+});
+
+it("#93 no waiting-on line while the order itself is still over the limit", async () => {
+  setup(28, held);
+  render(<ReconcileStation />);
+  await screen.findByRole("region", { name: "Variance hold" });
+  expect(screen.queryByText(/Hold waits on/)).toBeNull();
+});

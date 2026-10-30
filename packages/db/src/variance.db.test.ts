@@ -12,12 +12,17 @@ import {
   formatVariance,
   holdBlocks,
   holdGroup,
+  holdWaitingMessage,
+  holdWaitingOn,
+  holdWaitText,
+  joinWaitTexts,
   memberKeepsHoldOpen,
   variancePercent,
   varianceBand,
   varianceHoldLimit,
   varianceHoldSettingProblem,
   varianceSignoffProblem,
+  type HoldWait,
 } from "../../rules/src/index.ts";
 import { createOrg, dropOrg, localSupabase, type TestOrg } from "./testing/local-supabase";
 
@@ -177,6 +182,58 @@ describe("generated variance SQL ≡ variance.ts", () => {
           [reason, note],
         );
         expect(rows[0]!.problem, `${reason} ${note}`).toBe(varianceSignoffProblem(reason, note));
+      }
+    }
+  });
+
+  it("waiting-on text and refusal over every member that keeps a hold open (#93)", async () => {
+    for (const state of STATES.intake) {
+      for (const band of VARIANCE_BANDS) {
+        for (const [actualLb, variancePct] of [
+          [0, -100],
+          [0.004, null],
+          [0.01, -99.98],
+          [61, 22],
+          [40.5, -19],
+        ] as const) {
+          const waits = holdWaitingOn(
+            [
+              {
+                intakeId: "n",
+                number: "INT-0004",
+                state,
+                band,
+                actualLb,
+                variancePct,
+                signedOffAtCurrentWeight: false,
+              },
+            ],
+            "flagged",
+          );
+          if (!waits.length) continue;
+          const { rows } = await pool.query<{ t: string }>(
+            "select app.variance_hold_wait_text($1, $2, $3, $4) as t",
+            ["INT-0004", state, actualLb, variancePct],
+          );
+          expect(rows[0]!.t, `${state} ${band} ${actualLb}`).toBe(holdWaitText(waits[0]!));
+        }
+      }
+    }
+    const all: HoldWait[] = [
+      { number: "INT-0001", reason: "over_limit", variancePct: 22 },
+      { number: "INT-0003", reason: "not_at_reconcile", variancePct: null },
+      { number: "INT-0005", reason: "not_weighed", variancePct: -100 },
+    ];
+    for (const band of VARIANCE_BANDS) {
+      for (let n = 0; n <= all.length; n++) {
+        const waits = all.slice(0, n);
+        const texts = waits.map(holdWaitText);
+        const { rows } = await pool.query<{ m: string | null; l: string }>(
+          "select app.variance_hold_waiting_message('INT-0002', $1, $2) as m, app.variance_hold_wait_list($2) as l",
+          [band, texts],
+        );
+        expect(rows[0]!.l, `${n}`).toBe(joinWaitTexts(texts));
+        expect(rows[0]!.m, `${band} ${n}`).toBe(holdWaitingMessage("INT-0002", band, waits));
       }
     }
   });

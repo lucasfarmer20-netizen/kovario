@@ -6,6 +6,12 @@
 import {
   AWAITING_RECONCILE_STATES,
   HOLD_BLOCKED_STATES,
+  HOLD_WAIT_CLEARS,
+  HOLD_WAIT_NO_ESTIMATE,
+  HOLD_WAIT_NOT_AT_RECONCILE,
+  HOLD_WAIT_NOT_WEIGHED,
+  HOLD_WAIT_NOTHING_LEFT,
+  HOLD_WAIT_WITHIN,
   HOLD_GROUP_AFTER,
   HOLD_GROUP_BEFORE,
   NEAR_LIMIT_DENOMINATOR,
@@ -28,6 +34,8 @@ import {
 } from "./variance.ts";
 
 export const VARIANCE_SQL_PATH = "supabase/migrations/20261030000000_variance_rules_sql.sql";
+/** The waiting-on list (#93), added after VARIANCE_SQL_PATH was applied, so its own migration. */
+export const HOLD_WAIT_SQL_PATH = "supabase/migrations/20261102000000_hold_wait_rules_sql.sql";
 
 function literal(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
@@ -222,6 +230,71 @@ export function renderVarianceSql(): string {
     "  app.variance_member_keeps_open(public.intake_state, text, boolean) to authenticated, service_role;",
     "grant execute on function app.variance_hold_setting_problem(jsonb),",
     "  app.variance_signoff_problem(text, text) to service_role;",
+    "",
+  ].join("\n");
+}
+
+/** The SQL forms of holdWaitingOn's reason, holdWaitText, joinWaitTexts, holdWaitingMessage (#93). */
+export function renderHoldWaitSql(): string {
+  return [
+    "-- GENERATED from packages/rules/src/variance-sql.ts — do not edit by hand.",
+    "-- Regenerate with `pnpm --filter rules gen:sql`; a rules test fails when this is stale.",
+    "-- What a variance hold waits on (#93, docs/08 DECISION-27, variance.ts):",
+    "--   app.variance_hold_wait_text        — holdWaitingOn's reason + holdWaitText, one member;",
+    "--   app.variance_hold_wait_list        — joinWaitTexts;",
+    "--   app.variance_hold_waiting_message  — holdWaitingMessage.",
+    "",
+    '-- One member keeping the hold open: "INT-0003 (not at reconcile yet)", "INT-0004 (+22%)".',
+    "create or replace function app.variance_hold_wait_text(",
+    "  p_number text, p_state public.intake_state, p_actual numeric, p_variance_pct numeric",
+    ")",
+    "returns text",
+    "language sql",
+    "immutable",
+    "set search_path = ''",
+    "as $$",
+    "  select p_number || ' (' || case",
+    `    when p_state in (${states(AWAITING_RECONCILE_STATES)}) then ${literal(HOLD_WAIT_NOT_AT_RECONCILE)}`,
+    `    when round(coalesce(p_actual, 0), 2) = 0 then ${literal(HOLD_WAIT_NOT_WEIGHED)}`,
+    "    else app.format_variance(p_variance_pct)",
+    "  end || ')'",
+    "$$;",
+    "",
+    '-- "A", "A and B", "A, B and C".',
+    "create or replace function app.variance_hold_wait_list(p_texts text[])",
+    "returns text",
+    "language sql",
+    "immutable",
+    "set search_path = ''",
+    "as $$",
+    "  select case when coalesce(cardinality(p_texts), 0) <= 1 then coalesce(p_texts[1], '')",
+    "    else array_to_string(p_texts[1:cardinality(p_texts) - 1], ', ') || ' and '",
+    "      || p_texts[cardinality(p_texts)]",
+    "  end",
+    "$$;",
+    "",
+    "-- Why an order whose own hold is active, though it is not over the limit, is refused; null",
+    "-- when it is over (that refusal names its own variance).",
+    "create or replace function app.variance_hold_waiting_message(p_number text, p_band text, p_waits text[])",
+    "returns text",
+    "language sql",
+    "immutable",
+    "set search_path = ''",
+    "as $$",
+    "  select case when p_band = 'over' then null else",
+    "    p_number || ' ' || case when p_band = 'unknown'",
+    `      then ${literal(HOLD_WAIT_NO_ESTIMATE)} else ${literal(HOLD_WAIT_WITHIN)} end || '.' ||`,
+    `    case when coalesce(cardinality(p_waits), 0) = 0 then ${literal(` ${HOLD_WAIT_NOTHING_LEFT}`)}`,
+    `      else ' Hold waits on ' || app.variance_hold_wait_list(p_waits) || ${literal(`. ${HOLD_WAIT_CLEARS}`)} end`,
+    "  end",
+    "$$;",
+    "",
+    "revoke all on function app.variance_hold_wait_text(text, public.intake_state, numeric, numeric),",
+    "  app.variance_hold_wait_list(text[]), app.variance_hold_waiting_message(text, text, text[])",
+    "  from public;",
+    "grant execute on function app.variance_hold_wait_text(text, public.intake_state, numeric, numeric),",
+    "  app.variance_hold_wait_list(text[]), app.variance_hold_waiting_message(text, text, text[])",
+    "  to authenticated, service_role;",
     "",
   ].join("\n");
 }

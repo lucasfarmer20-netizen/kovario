@@ -172,6 +172,89 @@ export function memberKeepsHoldOpen(
   );
 }
 
+/** One member of a hold's group, as the waiting-on list judges it. */
+export type HoldGroupMember = {
+  intakeId: string;
+  number: string;
+  state: IntakeState;
+  band: VarianceBand;
+  actualLb: number;
+  variancePct: number | null;
+  signedOffAtCurrentWeight: boolean;
+};
+
+/** Why a neighbour keeps the hold open (#93). */
+export type HoldWaitReason = "not_at_reconcile" | "not_weighed" | "over_limit";
+export type HoldWait = { number: string; reason: HoldWaitReason; variancePct: number | null };
+
+export const HOLD_WAIT_NOT_AT_RECONCILE = "not at reconcile yet";
+/** At reconcile with nothing weighed: no verdict without data (docs/11-FLOOR-WORDING.md). */
+export const HOLD_WAIT_NOT_WEIGHED = "not weighed yet";
+
+/**
+ * What the hold on `flaggedId` is waiting on (#93, DECISION-27): the other members of its group
+ * that keep it open, in the group's (rollstock) order, each with why.
+ */
+export function holdWaitingOn(group: readonly HoldGroupMember[], flaggedId: string): HoldWait[] {
+  return group
+    .filter(
+      (m) =>
+        m.intakeId !== flaggedId &&
+        memberKeepsHoldOpen(m.state, m.band, m.signedOffAtCurrentWeight),
+    )
+    .map((m) => ({
+      number: m.number,
+      reason: AWAITING_RECONCILE_STATES.includes(m.state)
+        ? "not_at_reconcile"
+        : cents(m.actualLb) === 0
+          ? "not_weighed"
+          : "over_limit",
+      variancePct: m.variancePct,
+    }));
+}
+
+/** "INT-0003 (not at reconcile yet)", "INT-0004 (+22%)". */
+export function holdWaitText(wait: HoldWait): string {
+  const why =
+    wait.reason === "not_at_reconcile"
+      ? HOLD_WAIT_NOT_AT_RECONCILE
+      : wait.reason === "not_weighed"
+        ? HOLD_WAIT_NOT_WEIGHED
+        : formatVariance(wait.variancePct);
+  return `${wait.number} (${why})`;
+}
+
+/** "A", "A and B", "A, B and C". */
+export function joinWaitTexts(texts: readonly string[]): string {
+  if (texts.length <= 1) return texts.join("");
+  return `${texts.slice(0, -1).join(", ")} and ${texts[texts.length - 1]}`;
+}
+
+export const HOLD_WAIT_WITHIN = "is within the limit";
+export const HOLD_WAIT_NO_ESTIMATE = "has no expected yield to compare";
+export const HOLD_WAIT_CLEARS =
+  "It clears when they are at reconcile within the limit, or a manager signs off.";
+export const HOLD_WAIT_NOTHING_LEFT =
+  "The rest of its hold group is within the limit too. Send to Blast clears the hold.";
+
+/**
+ * Why an order whose own hold is still active may not go to blast although it is no longer over
+ * the limit (#93): "INT-0002 is within the limit. Hold waits on INT-0003 (not at reconcile yet)
+ * and INT-0004 (+22%). It clears when …". The Send to Blast refusal (app.variance_hold_waiting_
+ * message) and the reconcile screen both show this. Null when the order itself is over the limit:
+ * that refusal names its own variance instead.
+ */
+export function holdWaitingMessage(
+  number: string,
+  band: VarianceBand,
+  waits: readonly HoldWait[],
+): string | null {
+  if (band === "over") return null;
+  const head = `${number} ${band === "unknown" ? HOLD_WAIT_NO_ESTIMATE : HOLD_WAIT_WITHIN}.`;
+  if (!waits.length) return `${head} ${HOLD_WAIT_NOTHING_LEFT}`;
+  return `${head} Hold waits on ${joinWaitTexts(waits.map(holdWaitText))}. ${HOLD_WAIT_CLEARS}`;
+}
+
 /** Manager sign-off reasons (public.variance_signoff_reason). */
 export const VARIANCE_SIGNOFF_REASONS = [
   "estimate_wrong",
