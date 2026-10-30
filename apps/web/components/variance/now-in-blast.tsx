@@ -6,7 +6,8 @@ import { formatVariance, VARIANCE_BANDS, type VarianceBand } from "rules";
 /**
  * "Now in blast" lines (#87): every intake sent to blast while any of its vessels is not yet on
  * a shelf, with its live variance, from public.now_in_blast. Shared by the blast and reconcile
- * stations; the suspect picker (#88) ranks from the same lines and opens on `onSelect`.
+ * stations; the suspect picker (#88) ranks from the same lines and opens on `onSelect`. The view
+ * scopes a paired station to its own site (#96); a signed-in manager sees every site.
  */
 export type NowInBlastLine = Pick<
   Database["public"]["Views"]["now_in_blast"]["Row"],
