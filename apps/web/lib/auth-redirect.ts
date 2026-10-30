@@ -27,18 +27,26 @@ export function defaultNext(type: EmailLinkType | null): string {
  * `next` as a same-origin path (path + query + hash), or `fallback`. Absolute URLs,
  * protocol-relative (`//evil`), backslash tricks (`/\evil`) and anything that resolves to
  * another origin are refused, so an email link can never bounce a session off-site.
+ * The check runs on the normalized result too: dot segments can turn `/a/..//evil` into the
+ * protocol-relative `//evil`, which a browser would follow off-site as a Location.
  */
 export function safeNextPath(next: string | null, origin: string, fallback: string): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) {
-    return fallback;
-  }
+  if (!next || !isLocalPath(next)) return fallback;
   // Control characters (tab, newline) are stripped by URL parsing and can hide a `//`.
   if ([...next].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f)) return fallback;
   try {
+    const own = new URL(origin).origin;
     const url = new URL(next, origin);
-    if (url.origin !== new URL(origin).origin) return fallback;
-    return `${url.pathname}${url.search}${url.hash}`;
+    if (url.origin !== own) return fallback;
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    // The exact string we return is the Location header; it must resolve back to us.
+    return isLocalPath(path) && new URL(path, origin).origin === own ? path : fallback;
   } catch {
     return fallback;
   }
+}
+
+/** Starts with one `/` and is not protocol-relative (`//`, `/\`). */
+function isLocalPath(path: string): boolean {
+  return path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\");
 }

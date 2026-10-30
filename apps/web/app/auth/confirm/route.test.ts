@@ -49,7 +49,7 @@ describe("GET /auth/confirm", () => {
     expect(auth.verifyOtp).not.toHaveBeenCalled();
   });
 
-  it.each(["https://evil.test/x", "//evil.test/x", "/\\evil.test"])(
+  it.each(["https://evil.test/x", "//evil.test/x", "/\\evil.test", "/a/..//evil.test"])(
     "refuses off-origin next %s and lands on the type's own page",
     async (next) => {
       const res = await get(`token_hash=h1&type=recovery&next=${encodeURIComponent(next)}`);

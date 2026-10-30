@@ -9,6 +9,10 @@ describe("safeNextPath", () => {
     expect(safeNextPath("/admin/users?tab=2#top", origin, "/x")).toBe("/admin/users?tab=2#top");
   });
 
+  it("keeps a dot-segment path that normalizes to a local one", () => {
+    expect(safeNextPath("/admin/../reset-password", origin, "/x")).toBe("/reset-password");
+  });
+
   it.each([
     ["missing", null],
     ["empty", ""],
@@ -20,6 +24,10 @@ describe("safeNextPath", () => {
     ["newline", "/\nevil"],
     ["javascript:", "javascript:alert(1)"],
     ["relative", "stations"],
+    ["dot segments normalizing to //", "/a/..//evil.test"],
+    ["dot segments normalizing to // (deeper)", "/a/b/../..//evil.test/x"],
+    ["encoded dot segments normalizing to //", "/a/%2e%2e//evil.test"],
+    ["dot segments with a backslash", "/a/..\\/evil.test"],
   ])("refuses %s next", (_label, next) => {
     expect(safeNextPath(next, origin, "/fallback")).toBe("/fallback");
   });
