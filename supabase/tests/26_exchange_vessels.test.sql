@@ -10,6 +10,8 @@ select no_plan();
 insert into public.org(id,slug,name,timezone) values
  ('a2600000-0000-4000-8000-00000000000a','exchange-a','Exchange A','UTC'),
  ('b2600000-0000-4000-8000-00000000000b','exchange-b','Exchange B','UTC');
+-- An org from before v1.1 (#85): 3-digit asset tags; new orgs default to 4.
+update public.org set settings = jsonb_set(settings, '{scanner,tag_digits}', '3') where id in ('a2600000-0000-4000-8000-00000000000a', 'b2600000-0000-4000-8000-00000000000b');
 insert into public.site(id,org_id,name) values ('a2600000-0000-4000-8000-000000000001','a2600000-0000-4000-8000-00000000000a','Main');
 insert into public.customer(id,org_id,name) values ('a2600000-0000-4000-8000-000000000002','a2600000-0000-4000-8000-00000000000a','Exchange customer');
 insert into auth.users(id,email) values ('a2600000-0000-4000-8000-0000000000a1','exchange-test@example.test');
