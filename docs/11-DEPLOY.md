@@ -177,9 +177,13 @@ rely on the deploy itself.
    project's team members and is rate-limited: fine for staging; **prod needs custom SMTP**
    (Resend, `docs/07-INTEGRATIONS.md`) configured in the dashboard before real tenants sign up.
 
-   **Known gap (#57):** the confirmation link redirects to `/onboarding?code=…` (PKCE), but no
-   route in `apps/web` exchanges the code for a session yet, so a newly confirmed user lands on
-   `/login` and has to sign in once before onboarding. A `/auth/callback` route fixes it.
+   **Auth email links (#116, closes the #57 gap):** the templates in `supabase/templates/`
+   (confirmation, recovery, invite, email change; wired in `config.toml`, pushed by
+   `config push`) link to `{{ .SiteURL }}/auth/confirm?token_hash=…&type=…&next=…`. That route
+   verifies the token (`verifyOtp`; a PKCE `code` from a default link goes through
+   `exchangeCodeForSession`), sets the session cookie and redirects to the same-origin `next`
+   (`/onboarding`, `/reset-password`, `/auth/accept`); a bad or used link goes to `/login`. Links
+   use the project's `site_url`, so Vercel preview deploys get links to the staging URL.
 
    **Email rate limit:** `config push` sends `auth.rate_limit.email_sent` only when
    `[auth.email.smtp]` is enabled in `config.toml` (CLI 2.122.0 `pkg/config/auth.go`); it is not,

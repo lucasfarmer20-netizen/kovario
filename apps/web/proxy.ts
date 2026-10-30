@@ -27,6 +27,8 @@ export const config = {
     "/login",
     "/auth/:path*",
     "/signup",
+    "/forgot-password",
+    "/reset-password",
     "/onboarding",
   ],
 };
