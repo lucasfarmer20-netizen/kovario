@@ -238,14 +238,32 @@ $$;
 -- signed off at its current weight. Members past reconcile (sent within the limit or signed
 -- off, actual frozen at send; #88 pulls one back to reconcile to move fish) and cancelled
 -- members are not judged.
+-- A member that keeps its hold open: not yet at reconcile, or at reconcile over the limit and
+-- not signed off at its current weight.
+create or replace function app.variance_member_open(p_iv public.intake_variance)
+returns boolean language sql stable set search_path = '' as $$
+  select p_iv.state in ('draft', 'holding', 'processing', 'rollstock')
+    or (p_iv.state = 'reconcile' and p_iv.band = 'over'
+      and not app.variance_signed_off(p_iv.org_id, p_iv.intake_id, p_iv.actual_lb))
+$$;
+
 create or replace function app.variance_group_within(p_org_id uuid, p_group uuid[])
 returns boolean language sql stable set search_path = '' as $$
   select not exists (
     select 1 from public.intake_variance iv
-    where iv.org_id = p_org_id and iv.intake_id = any (p_group)
-      and (iv.state in ('draft', 'holding', 'processing', 'rollstock')
-        or (iv.state = 'reconcile' and iv.band = 'over'
-          and not app.variance_signed_off(iv.org_id, iv.intake_id, iv.actual_lb))))
+    where iv.org_id = p_org_id and iv.intake_id = any (p_group) and app.variance_member_open(iv))
+$$;
+
+-- The members keeping a hold open, in rollstock order, for the refusal message:
+-- "INT-0005 (not yet at reconcile), INT-0004 (−20%)".
+create or replace function app.variance_hold_waiting_on(p_hold public.variance_hold)
+returns text language sql stable set search_path = '' as $$
+  select string_agg(iv.number || case when iv.state = 'reconcile'
+      then ' (' || app.format_variance(iv.variance_pct) || ')' else ' (not yet at reconcile)' end,
+    ', ' order by g.ord)
+  from unnest(app.variance_hold_group_of(p_hold)) with ordinality g(intake_id, ord)
+  join public.intake_variance iv on iv.intake_id = g.intake_id and iv.org_id = p_hold.org_id
+  where app.variance_member_open(iv)
 $$;
 
 -- Auto-clear: every active hold whose group contains one of p_intake_ids (all of them when
@@ -343,8 +361,12 @@ begin
    blocking:=app.variance_hold_blocking(i.id);
    if blocking.id is not null then
     hold_id:=blocking.id;
-    if blocking.intake_id=i.id then
-     reason:=format('Variance hold: %s is %s%% (limit ±%s%%). Fix the bins or get a manager sign-off',i.number,to_char(iv.variance_pct,'FMSG9999990.0'),iv.limit_pct);
+    if blocking.intake_id=i.id and iv.band='over' then
+     reason:=format('Variance hold: %s is %s (limit ±%s%%). Fix the bins or get a manager sign-off',i.number,app.format_variance(iv.variance_pct),iv.limit_pct);
+    elsif blocking.intake_id=i.id then
+     -- Back within the limit, but the hold waits on neighbours (docs/08 DECISION-27).
+     reason:=format('Variance hold: %s is back within the limit (%s); waiting on %s. The hold clears when they are within the limit, or a manager signs off',
+       i.number,app.format_variance(iv.variance_pct),app.variance_hold_waiting_on(blocking));
     else
      select * into flagged from public.intake where id=blocking.intake_id;
      reason:=format('Variance hold on %s: %s is its rollstock neighbour and waits for the hold to clear',flagged.number,i.number);
@@ -354,7 +376,7 @@ begin
     values(app.org_id(),i.id,iv.limit_pct,iv.expected_lb,iv.actual_lb,iv.variance_pct,op) returning id into hold_id;
     perform app.emit_event(app.org_id(),'variance_hold_flagged',i.id,jsonb_build_object('hold_id',hold_id,
       'variance_pct',iv.variance_pct,'limit_pct',iv.limit_pct,'actual_lb',iv.actual_lb,'expected_lb',iv.expected_lb));
-    reason:=format('Variance hold: %s is %s%% (limit ±%s%%). Held with its rollstock neighbours until fixed or signed off',i.number,to_char(iv.variance_pct,'FMSG9999990.0'),iv.limit_pct);
+    reason:=format('Variance hold: %s is %s (limit ±%s%%). Held with its rollstock neighbours until fixed or signed off',i.number,app.format_variance(iv.variance_pct),iv.limit_pct);
    else
     update public.intake set state='blast_freezer' where id=i.id;
     insert into public.intake_blast_send(org_id,intake_id,actual_lb,expected_lb,sent_by)
@@ -456,7 +478,8 @@ grant select on public.rollstock_open, public.intake_variance, public.variance_h
   public.now_in_blast, public.report_variance_holds to authenticated, service_role;
 
 revoke all on function app.rollstock_sequence(uuid, uuid, timestamptz), app.variance_hold_group_of(public.variance_hold),
-  app.variance_signed_off(uuid, uuid, numeric),
+  app.variance_signed_off(uuid, uuid, numeric), app.variance_member_open(public.intake_variance),
+  app.variance_hold_waiting_on(public.variance_hold),
   app.variance_hold_blocks(public.intake_state), app.variance_group_within(uuid, uuid[]),
   app.variance_holds_reevaluate(uuid[]), app.variance_hold_blocking(uuid) from public;
 grant execute on function app.rollstock_sequence(uuid, uuid, timestamptz), app.variance_hold_group_of(public.variance_hold),

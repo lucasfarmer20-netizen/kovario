@@ -68,12 +68,16 @@ export function exceedsVarianceHold(
   return varianceBand(actualLb, expectedLb, limitPct) === "over";
 }
 
-/** "+14%", "−3.5%", "0%"; "—" when there is no variance. One decimal at most. */
+/**
+ * "+14%", "−3.5%", "0%"; "—" when there is no variance. One decimal at most, halves away from
+ * zero. Rounds to hundredths first (variance_pct has 2 decimals) so float noise such as
+ * 1.15 × 10 = 11.4999… cannot differ from the SQL form, app.format_variance.
+ */
 export function formatVariance(pct: number | null): string {
   if (pct === null || !Number.isFinite(pct)) return "—";
-  const rounded = Math.sign(pct) * Math.round(Math.abs(pct) * 10);
-  const text = String(Math.abs(rounded) / 10);
-  return rounded > 0 ? `+${text}%` : rounded < 0 ? `−${text}%` : "0%";
+  const tenths = Math.round(Math.round(Math.abs(pct) * 100) / 10);
+  const text = String(tenths / 10);
+  return tenths === 0 ? "0%" : pct > 0 ? `+${text}%` : `−${text}%`;
 }
 
 /** One rollstock scan_log row (station = rollstock). */

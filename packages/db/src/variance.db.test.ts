@@ -6,6 +6,7 @@
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  formatVariance,
   holdGroup,
   variancePercent,
   varianceBand,
@@ -46,6 +47,32 @@ describe("generated variance SQL ≡ variance.ts", () => {
           expect(pct, where).toBe(variancePercent(actual, expected));
         }
       }
+    }
+  });
+
+  it("variance format over a grid (refusal messages ≡ station lines)", async () => {
+    const values = [
+      null,
+      0,
+      0.04,
+      0.05,
+      -0.05,
+      1.15,
+      -1.15,
+      1.25,
+      3.54,
+      -3.55,
+      14,
+      40,
+      33.33,
+      1900,
+      -100,
+    ];
+    for (const pct of values) {
+      const { rows } = await pool.query<{ f: string }>("select app.format_variance($1) as f", [
+        pct,
+      ]);
+      expect(rows[0]!.f, String(pct)).toBe(formatVariance(pct));
     }
   });
 

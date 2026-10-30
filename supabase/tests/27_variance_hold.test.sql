@@ -99,14 +99,14 @@ select is(pg_temp.send('INT-0001','v87-send-0001')->>'ok','true','V1 within the 
 select pg_temp.weigh('INT-0003',70);
 create temp table flag as select pg_temp.send('INT-0003','v87-send-0003') r;
 select is((select r->>'ok' from flag),'false','V1 Send to Blast at +40% (limit ±15%) is refused');
-select is((select r->>'reason' from flag),'Variance hold: INT-0003 is +40.0% (limit ±15%). Held with its rollstock neighbours until fixed or signed off','V1 refusal names the intake, its variance and the limit');
+select is((select r->>'reason' from flag),'Variance hold: INT-0003 is +40% (limit ±15%). Held with its rollstock neighbours until fixed or signed off','V1 refusal names the intake, its variance and the limit');
 select is(pg_temp.state('INT-0003'),'reconcile','V1 the refused intake stays at reconcile');
 select ok((select state='active' and intake_id=pg_temp.intake('INT-0003') and limit_pct=15 and variance_pct=40
   and actual_lb=70 and expected_lb=50 and flagged_by='a2700000-0000-4000-8000-0000000000b1'
   and id=((select r from flag)->>'variance_hold_id')::uuid from public.variance_hold),'V1 the intake is flagged with its variance, the limit and who');
 select ok(exists(select 1 from public.domain_event where kind='variance_hold_flagged' and subject_id=pg_temp.intake('INT-0003')),'V1 flag recorded as a domain event');
 select is(pg_temp.send('INT-0003','v87-send-0003'),(select r from flag),'V1 replaying the refused send returns the stored result');
-select is(pg_temp.send('INT-0003','v87-send-0003-again')->>'reason','Variance hold: INT-0003 is +40.0% (limit ±15%). Fix the bins or get a manager sign-off','V1 sending again is still refused');
+select is(pg_temp.send('INT-0003','v87-send-0003-again')->>'reason','Variance hold: INT-0003 is +40% (limit ±15%). Fix the bins or get a manager sign-off','V1 sending again is still refused');
 select is((select count(*)::int from public.variance_hold),1,'V1 one hold per flagged intake (replay and retry flag nothing new)');
 
 -- V2: the hold group follows rollstock order across the wave boundary ---------------------------
@@ -190,6 +190,9 @@ select is((select array_agg(intake_number order by position) from public.varianc
   '{INT-0006,INT-0011,INT-0012,INT-0013}'::text[],'V7 group of INT-0011');
 select is(pg_temp.send('INT-0012','v87-send-0012')->>'reason','Variance hold on INT-0011: INT-0012 is its rollstock neighbour and waits for the hold to clear','V7 INT-0012 is blocked by its neighbour''s hold, not flagged itself');
 select pg_temp.reweigh('INT-0011',50,'v87-move-1');
+select is(pg_temp.send('INT-0011','v87-send-0011-within')->>'reason',
+  'Variance hold: INT-0011 is back within the limit (0%); waiting on INT-0012 (+20%), INT-0013 (−100%). The hold clears when they are within the limit, or a manager signs off',
+  'V7 a flagged intake back within the limit is told which neighbours its hold waits on');
 select pg_temp.reweigh('INT-0012',50,'v87-move-2');
 select is((select state::text from public.variance_hold where intake_id=pg_temp.intake('INT-0011')),'active','V7 the hold stays while a member (INT-0013) is unreconciled');
 select pg_temp.weigh('INT-0013',50);

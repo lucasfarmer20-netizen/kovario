@@ -3,6 +3,7 @@
 -- Variance hold at reconcile (#87, docs/04-BUSINESS-RULES.md §6a, variance.ts):
 --   app.variance_pct                   — variancePercent (reconcile.ts);
 --   app.variance_band                  — varianceBand: within | near | over | unknown;
+--   app.format_variance                — formatVariance (refusal messages);
 --   app.variance_hold_group            — holdGroup over the rollstock sequence;
 --   app.variance_rollstock_window      — ROLLSTOCK_NEIGHBOUR_WINDOW_DAYS;
 --   app.variance_hold_limit            — varianceHoldLimit (org settings, with default);
@@ -22,6 +23,21 @@ immutable
 set search_path = ''
 as $$
   select case when p_expected > 0 then round((p_actual - p_expected) / p_expected * 100, 2) end
+$$;
+
+-- "+14%", "−3.5%", "0%", "—": one decimal at most, halves away from zero, via hundredths.
+create or replace function app.format_variance(p_pct numeric)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when p_pct is null then '—'
+    when t.tenths = 0 then '0%'
+    else case when p_pct > 0 then '+' else '−' end || trim_scale(t.tenths / 10)::text || '%'
+  end
+  from (select round(round(abs(p_pct) * 100) / 10) as tenths) t
 $$;
 
 -- Compared exactly at 2 decimals: |actual − expected| × 100 against limit × expected.
@@ -116,9 +132,11 @@ $$;
 revoke all on function app.variance_pct(numeric, numeric),
   app.variance_band(numeric, numeric, int), app.variance_hold_group(uuid[], uuid),
   app.variance_hold_limit(jsonb), app.variance_hold_setting_problem(jsonb),
-  app.variance_signoff_problem(text, text), app.variance_rollstock_window() from public;
+  app.variance_signoff_problem(text, text), app.variance_rollstock_window(),
+  app.format_variance(numeric) from public;
 grant execute on function app.variance_pct(numeric, numeric),
   app.variance_band(numeric, numeric, int), app.variance_hold_group(uuid[], uuid),
-  app.variance_hold_limit(jsonb), app.variance_rollstock_window() to authenticated, service_role;
+  app.variance_hold_limit(jsonb), app.variance_rollstock_window(), app.format_variance(numeric)
+  to authenticated, service_role;
 grant execute on function app.variance_hold_setting_problem(jsonb),
   app.variance_signoff_problem(text, text) to service_role;
