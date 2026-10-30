@@ -14,6 +14,7 @@ export function StationShell({
   paused,
   manual,
   manualLabel,
+  hideManual = false,
   next,
   steps,
   step,
@@ -31,6 +32,11 @@ export function StationShell({
   manual?: ManualOptions;
   /** The "Enter manually" field's label: what is expected now, e.g. "Basket number". */
   manualLabel?: string;
+  /**
+   * The station renders its own "Enter manually" where the operator is looking (Reconcile's
+   * order card, #97), so the shell leaves it out rather than showing two.
+   */
+  hideManual?: boolean;
   /** The next step line (docs/11-FLOOR-WORDING.md): what the operator does now. */
   next: string;
   /** The station's steps, in order, with `step` the current one (multi-step stations). */
@@ -39,7 +45,15 @@ export function StationShell({
   status: ReactNode;
   children: ReactNode;
 }) {
-  const [typing, setTyping] = useState(false);
+  const [open, setOpen] = useState(false);
+  // A hidden field is closed: the scanner must not stay paused behind it, nor the field reopen
+  // (and take focus) when it shows again.
+  const [wasHidden, setWasHidden] = useState(hideManual);
+  if (wasHidden !== hideManual) {
+    setWasHidden(hideManual);
+    if (hideManual) setOpen(false);
+  }
+  const typing = open && !hideManual;
   return (
     <main className="station">
       <header>
@@ -56,14 +70,16 @@ export function StationShell({
         </div>
       </header>
       <NextStep next={next} steps={steps} step={step} />
-      <ManualEntry
-        open={typing}
-        onOpenChange={setTyping}
-        disabled={paused}
-        options={manual}
-        label={manualLabel}
-        onSubmit={(text, parsed) => onScan(text, parsed, "manual")}
-      />
+      {!hideManual && (
+        <ManualEntry
+          open={typing}
+          onOpenChange={setOpen}
+          disabled={paused}
+          options={manual}
+          label={manualLabel}
+          onSubmit={(text, parsed) => onScan(text, parsed, "manual")}
+        />
+      )}
       {status}
       <ScanInput onScan={(raw, parsed) => onScan(raw, parsed, "scan")} paused={paused || typing} />
       {children}

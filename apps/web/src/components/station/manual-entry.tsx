@@ -54,6 +54,7 @@ export function ManualEntry({
   disabled = false,
   options,
   label = "Code printed beside the QR",
+  placeholder = "INT-0001-3 · 042 · IF-A-01-1-F",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,6 +63,8 @@ export function ManualEntry({
   options?: ManualOptions;
   /** Names what's expected (docs/11-FLOOR-WORDING.md): "Basket number", "Tote number (INT-0002-1)". */
   label?: string;
+  /** An example of what to type, e.g. "042" for a basket number. */
+  placeholder?: string;
 }) {
   const [value, setValue] = useState("");
   const field = useRef<HTMLInputElement>(null);
@@ -98,7 +101,7 @@ export function ManualEntry({
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
-          placeholder="INT-0001-3 · 042 · IF-A-01-1-F"
+          placeholder={placeholder}
         />
       </label>
       <div className="station-actions">
