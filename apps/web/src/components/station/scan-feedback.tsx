@@ -1,9 +1,66 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { Check, Keyboard, ScanLine, X } from "lucide-react";
 import { stationMessage } from "./messages";
+import { useShownScannerPaused } from "./scanner-context";
 import type { ScanReply } from "./scan-queue";
 
-export function ScanFeedback({ feedback }: { feedback: (ScanReply & { event: number }) | null }) {
+export type FeedbackTone = "ok" | "rejected" | "idle" | "paused";
+
+/**
+ * The scan tile: one fixed-height place for what the last scan did. Accepted is green with a
+ * check and a short pop; rejected is red with a cross and a shake (both read without colour:
+ * icon + words). Between scans it says whether the scanner is listening, so the operator never
+ * wonders if a scan will land. Presentational; `ScanFeedback` drives it from scan replies.
+ */
+export function FeedbackBanner({
+  tone,
+  text,
+  event,
+}: {
+  tone: FeedbackTone | null;
+  text: string;
+  /** Changes on every scan, so the same message twice still animates. */
+  event?: number;
+}) {
+  const live = tone === "ok" || tone === "rejected";
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-tone={tone ?? undefined}
+      className={`station-feedback ${tone === "ok" ? "station-ok" : tone === "rejected" ? "station-rejected" : ""}`}
+    >
+      {tone && (
+        <span key={live ? event : tone} className="st-feedback-body">
+          <span className="st-feedback-icon" aria-hidden>
+            {tone === "ok" ? (
+              <Check size={30} strokeWidth={3.2} />
+            ) : tone === "rejected" ? (
+              <X size={30} strokeWidth={3.2} />
+            ) : tone === "paused" ? (
+              <Keyboard size={22} />
+            ) : (
+              <ScanLine size={22} />
+            )}
+          </span>
+          {tone === "idle" && <span className="st-pulse" aria-hidden />}
+          <span>{text}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function ScanFeedback({
+  feedback,
+  idle,
+}: {
+  feedback: (ScanReply & { event: number }) | null;
+  /** Between scans, say whether the scanner is listening ("Scanner ready"). Omitted: empty. */
+  idle?: boolean;
+}) {
+  const paused = useShownScannerPaused();
   const audio = useRef<AudioContext | null>(null);
   const [expiredEvent, setExpiredEvent] = useState<number | null>(null);
   const visible = feedback !== null && feedback.event !== expiredEvent;
@@ -44,13 +101,20 @@ export function ScanFeedback({ feedback }: { feedback: (ScanReply & { event: num
     const timer = setTimeout(() => setExpiredEvent(feedback.event), 3000);
     return () => clearTimeout(timer);
   }, [feedback]);
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={`station-feedback ${visible && feedback ? (feedback.ok ? "station-ok" : "station-rejected") : ""}`}
-    >
-      {visible && feedback ? `${feedback.ok ? "✓" : "✕"} ${stationMessage(feedback.reason)}` : ""}
-    </div>
-  );
+  if (visible && feedback)
+    return (
+      <FeedbackBanner
+        tone={feedback.ok ? "ok" : "rejected"}
+        text={stationMessage(feedback.reason)}
+        event={feedback.event}
+      />
+    );
+  if (idle)
+    return (
+      <FeedbackBanner
+        tone={paused ? "paused" : "idle"}
+        text={paused ? "Scanner paused while a field is open" : "Scanner ready"}
+      />
+    );
+  return <FeedbackBanner tone={null} text="" />;
 }

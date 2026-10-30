@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { FilletryClient } from "db";
+import { Keyboard, ScanLine } from "lucide-react";
 import { parseManual, type ManualOptions, type ParseResult } from "rules";
 
 export { ENTRY_METHOD_HEADER, withEntryMethod, type EntryMethod } from "./entry-method";
@@ -72,6 +73,7 @@ export function ManualEntry({
     return (
       <div className="station-manual">
         <button type="button" onClick={() => onOpenChange(true)}>
+          <Keyboard size={22} aria-hidden />
           Enter manually
         </button>
       </div>
@@ -115,6 +117,7 @@ export function ManualEntry({
             onOpenChange(false);
           }}
         >
+          <ScanLine size={22} aria-hidden />
           Close — back to scanner
         </button>
       </div>

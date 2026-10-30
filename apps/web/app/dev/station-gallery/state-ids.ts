@@ -1,0 +1,21 @@
+/** The gallery's Reconcile states, in the order the index shows them (reconcile-states.tsx). */
+export const GALLERY_STATE_IDS = [
+  "loading",
+  "pin",
+  "no-order",
+  "empty-queue",
+  "empty-order",
+  "added",
+  "weighing",
+  "saving",
+  "scale-offline",
+  "manual-weight",
+  "rejected",
+  "typed-basket",
+  "ready",
+  "over-limit",
+  "held",
+  "suspects",
+  "signed-off",
+  "offline",
+];
