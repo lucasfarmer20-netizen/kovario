@@ -12,12 +12,7 @@ import type { IntakeState } from "./variance.ts";
  * back) or **stored** (a vessel is on a shelf: past pulling back).
  */
 export type SuspectStatus =
-  | "upstream"
-  | "at_reconcile"
-  | "reconciled"
-  | "in_blast"
-  | "stored"
-  | "cancelled";
+  "upstream" | "at_reconcile" | "reconciled" | "in_blast" | "stored" | "cancelled";
 export const SUSPECT_STATUSES: readonly SuspectStatus[] = [
   "upstream",
   "at_reconcile",
@@ -38,7 +33,11 @@ export const SUSPECT_STATUS_LABELS: Record<SuspectStatus, string> = {
 export const SUSPECT_WAITING: readonly SuspectStatus[] = ["upstream", "at_reconcile"];
 
 /** `vessels` occupied vessels, `unweighed` of them with no positive weight. */
-export function suspectStatus(state: IntakeState, vessels: number, unweighed: number): SuspectStatus {
+export function suspectStatus(
+  state: IntakeState,
+  vessels: number,
+  unweighed: number,
+): SuspectStatus {
   switch (state) {
     case "reconcile":
       return vessels > 0 && unweighed === 0 ? "reconciled" : "at_reconcile";
@@ -133,9 +132,7 @@ export function rankSuspects(flagged: Suspect, members: readonly Suspect[]): Ran
 export function suspectsWaiting<T extends Pick<Suspect, "status" | "position">>(
   members: readonly T[],
 ): T[] {
-  return members
-    .filter((m) => suspectWaiting(m.status))
-    .sort((a, b) => a.position - b.position);
+  return members.filter((m) => suspectWaiting(m.status)).sort((a, b) => a.position - b.position);
 }
 
 /** An occupied vessel of a group member: the bin the manager can move. */
@@ -237,7 +234,10 @@ export const PULL_BACK_NOT_IN_BLAST = "Only an intake in the blast freezer can b
 export function pullBackProblem(state: IntakeState, reason: string | null): string | null {
   if (!/\S/.test(reason ?? "")) return PULL_BACK_NEEDS_REASON;
   if ((reason ?? "").length > PULL_BACK_REASON_MAX) return PULL_BACK_REASON_TOO_LONG;
-  if (state !== PULL_BACK_FROM || !canTransition("intake", state, PULL_BACK_TO, { isManager: true }))
+  if (
+    state !== PULL_BACK_FROM ||
+    !canTransition("intake", state, PULL_BACK_TO, { isManager: true })
+  )
     return PULL_BACK_NOT_IN_BLAST;
   return null;
 }

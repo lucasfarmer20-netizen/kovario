@@ -42,6 +42,7 @@ export function VarianceHoldPanel({
   editingNote,
   onEditNote,
   onSignOff,
+  onFindSuspects,
 }: {
   group: readonly HoldMember[];
   openIntakeId: string;
@@ -49,6 +50,8 @@ export function VarianceHoldPanel({
   editingNote: boolean;
   onEditNote: (open: boolean) => void;
   onSignOff: (reason: VarianceSignoffReason, note: string) => void;
+  /** Opens the suspect picker (#88) on this hold. */
+  onFindSuspects?: () => void;
 }) {
   const [reason, setReason] = useState<VarianceSignoffReason | null>(null);
   const [note, setNote] = useState("");
@@ -77,6 +80,11 @@ export function VarianceHoldPanel({
           );
         })}
       </ul>
+      {onFindSuspects && (
+        <button type="button" disabled={disabled} onClick={onFindSuspects}>
+          Find the fish (suspects)
+        </button>
+      )}
       <fieldset>
         <legend>Manager sign-off reason</legend>
         {VARIANCE_SIGNOFF_REASONS.map((r) => (

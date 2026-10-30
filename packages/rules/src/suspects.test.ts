@@ -72,7 +72,10 @@ describe("suspect ranking (#88)", () => {
   it("PK4 then the smaller order (estimated yield) ranks first", () => {
     // Both cancel the flagged +10 lb exactly; INT-C is the small order a missed tote fits.
     const flagged = member("INT-A", 0, 60);
-    const ranked = rankSuspects(flagged, [member("INT-B", -1, 190, 200), member("INT-C", 1, 20, 30)]);
+    const ranked = rankSuspects(flagged, [
+      member("INT-B", -1, 190, 200),
+      member("INT-C", 1, 20, 30),
+    ]);
     expect(numbers(ranked)).toEqual(["INT-C", "INT-B"]);
   });
 
@@ -196,7 +199,11 @@ describe("move suggestions (#88)", () => {
   it("PK-M2 once all are reconciled, the over intake's best bin goes to the best suspect", () => {
     // INT-A +20, INT-B −18: the 18 lb bin leaves A +2 and B 0.
     const flagged = member("INT-A", 0, 70);
-    const moves = suggestMoves(flagged, [flagged, member("INT-B", 1, 32), member("INT-C", 2, 50)], bins);
+    const moves = suggestMoves(
+      flagged,
+      [flagged, member("INT-B", 1, 32), member("INT-C", 2, 50)],
+      bins,
+    );
     expect(moves).toEqual([
       {
         vesselId: "v-a2",
@@ -213,7 +220,11 @@ describe("move suggestions (#88)", () => {
   it("PK-M3 an under-weight flagged intake takes a bin from the over suspect", () => {
     const flagged = member("INT-A", 0, 20); // −30
     const moves = suggestMoves(flagged, [member("INT-B", 1, 82)], bins); // +32
-    expect(moves[0]).toMatchObject({ vesselId: "v-b1", fromIntakeId: "INT-B", toIntakeId: "INT-A" });
+    expect(moves[0]).toMatchObject({
+      vesselId: "v-b1",
+      fromIntakeId: "INT-B",
+      toIntakeId: "INT-A",
+    });
   });
 
   it("PK-M4 a suspect in blast is suggested with a pull back; a stored one is not suggested", () => {

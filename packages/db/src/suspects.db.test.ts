@@ -157,7 +157,10 @@ function move(c: pg.PoolClient, vesselId: string, to: string, center: string) {
 
 function send(c: pg.PoolClient, intakeId: string) {
   return c
-    .query<{ r: Reply }>("select public.send_to_blast($1, $2) as r", [crypto.randomUUID(), intakeId])
+    .query<{ r: Reply }>("select public.send_to_blast($1, $2) as r", [
+      crypto.randomUUID(),
+      intakeId,
+    ])
     .then((q) => q.rows[0]!.r);
 }
 
