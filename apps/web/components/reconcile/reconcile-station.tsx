@@ -65,9 +65,13 @@ export function reconcileNextStep(input: {
   if (rows.length === 0) return { next: "Scan basket", step: 0 };
   const unweighed = rows.filter((v) => !(v.weight_lb > 0));
   if (unweighed.length) {
-    const target = unweighed.find((v) => v.id === selected) ?? unweighed[0]!;
-    const name = basketName(target);
-    return { next: `Weigh ${name[0]!.toLowerCase()}${name.slice(1)}`, step: 1 };
+    // Accept / Enter weight write to the selected basket, so the line only says "Weigh" for
+    // that one; otherwise it asks for the tap first (never auto-selected: the scale may still
+    // hold the previous basket's stable reading).
+    const current = unweighed.find((v) => v.id === selected);
+    const name = basketName(current ?? unweighed[0]!);
+    const lower = `${name[0]!.toLowerCase()}${name.slice(1)}`;
+    return { next: current ? `Weigh ${lower}` : `Tap ${lower}, then weigh it`, step: 1 };
   }
   if (held) return { next: "Check weights or get a manager sign-off", step: 2 };
   if (over && variance !== null)

@@ -524,14 +524,57 @@ it("#98 next step: an open order with no baskets → Scan basket; Send says why 
   expect(next()).toBe("Scan basket");
   expect(screen.getByText("Add a basket first")).toBeTruthy();
 });
-it("#98 next step: an unweighed basket → Weigh basket 042; weight buttons say why", async () => {
+it("#98 next step: an unweighed basket asks for the tap, then Weigh basket 042", async () => {
   setup();
   render(<ReconcileStation />);
   await screen.findByRole("button", { name: /Basket 042/ });
-  expect(next()).toBe("Weigh basket 042");
+  expect(next()).toBe("Tap basket 042, then weigh it");
   expect(screen.getByText("2 Weigh").getAttribute("aria-current")).toBe("step");
   expect(screen.getAllByText("Tap a basket first").length).toBeGreaterThan(0);
   expect(screen.getByText("Weigh every basket first")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /Basket 042/ }));
+  expect(next()).toBe("Weigh basket 042");
+});
+it("#98 with several unweighed baskets the prompt never names a basket the weight buttons won't write", async () => {
+  const vessel = [
+    { id: "v1", intake_id: "i1", asset_tag_id: "t1", asset_tag: { code: "042" }, weight_lb: 0 },
+    { id: "v2", intake_id: "i1", asset_tag_id: "t2", asset_tag: { code: "043" }, weight_lb: 0 },
+  ].map((v) => ({ ...v, manual: false, is_exchange: false }));
+  const rpc = setup(0, { vessel });
+  rpc.mockImplementation((async (
+    _name: string,
+    args: { p_vessel_id?: string; p_weight?: number },
+  ) => {
+    const row = vessel.find((v) => v.id === args.p_vessel_id);
+    if (row && args.p_weight) row.weight_lb = args.p_weight;
+    return {
+      data: { ok: true, reason: "Weighed", intake_id: "i1", vessel_id: row?.id },
+      error: null,
+    };
+  }) as never);
+  render(<ReconcileStation />);
+  fireEvent.click(await screen.findByRole("button", { name: /Basket 042/ }));
+  expect(next()).toBe("Weigh basket 042");
+  const weigh = async (lb: string) => {
+    fireEvent.click(screen.getByRole("button", { name: "Enter weight manually" }));
+    fireEvent.change(screen.getByLabelText("Manual weight (lb)"), { target: { value: lb } });
+    fireEvent.click(screen.getByRole("button", { name: "Save manual weight" }));
+  };
+  await weigh("9");
+  // 042 is weighed and still selected: the line asks for the tap on 043, not "Weigh basket 043".
+  await waitFor(() => expect(next()).toBe("Tap basket 043, then weigh it"));
+  expect(
+    screen.getByRole("button", { name: /Basket 042 · 9 lb/ }).getAttribute("aria-pressed"),
+  ).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: /Basket 043/ }));
+  expect(next()).toBe("Weigh basket 043");
+  await weigh("11");
+  await waitFor(() => expect(next()).toBe("Send to Blast"));
+  const calls = rpc.mock.calls as unknown as Array<
+    [string, { p_operation?: string; p_vessel_id?: string }]
+  >;
+  const weighed = calls.filter(([, a]) => a.p_operation === "manual").map(([, a]) => a.p_vessel_id);
+  expect(weighed).toEqual(["v1", "v2"]);
 });
 it("#98 next step: every basket weighed within the limit → Send to Blast", async () => {
   setup(20);
@@ -556,5 +599,5 @@ it("#98 next step over the limit asks to check weights, with a true minus sign",
       over: true,
       held: false,
     }).next,
-  ).toBe("Weigh exchange basket");
+  ).toBe("Tap exchange basket, then weigh it");
 });

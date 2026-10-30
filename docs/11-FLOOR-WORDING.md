@@ -46,7 +46,9 @@ say "basket tags" for the printable tag pool (not "asset tag pool").
 - **Wave:** "Tap orders to add to the wave" → "Scan each tote (3 of 5)" → "Complete wave".
 - **Rollstock:** "Scan the next tote" · open panel: "Order INT-0002 · tote 1 of 2".
 - **Reconcile:** "Scan a tote or tap an order" → "Scan basket" → "Weigh basket 005" → "Send to
-  Blast" (over the limit: "Over the limit (−18%). Check weights before sending.").
+  Blast" (over the limit: "Over the limit (−18%). Check weights before sending."). "Weigh" names only the
+  selected basket (the one Accept / Enter weight write to); with another basket still unweighed it
+  reads "Tap basket 006, then weigh it".
 - **Blast:** "Scan a basket going into the blast" · exchange baskets: "Tap Blast in for an
   exchange basket".
 - **Locate:** "Scan basket" (or "Tap an exchange basket") → "Scan location for basket 005".
