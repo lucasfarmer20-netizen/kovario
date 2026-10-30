@@ -12,6 +12,7 @@ const data: ReportData = {
   revenue: [],
   variance: [],
   manual: [],
+  holds: [],
 };
 const filters = { from: "2026-10-01", to: "2026-10-28", site: "site" };
 it("WP21 dashboard renders date/site controls, five empty states and filtered CSV links", () => {
@@ -26,8 +27,8 @@ it("WP21 dashboard renders date/site controls, five empty states and filtered CS
   expect((screen.getByLabelText("From") as HTMLInputElement).value).toBe(filters.from);
   expect((screen.getByLabelText("To") as HTMLInputElement).value).toBe(filters.to);
   expect((screen.getByLabelText("Site") as HTMLSelectElement).value).toBe("site");
-  expect(screen.getAllByText("No data for this selection.")).toHaveLength(6);
-  expect(screen.getAllByRole("link", { name: /Export CSV/ })).toHaveLength(6);
+  expect(screen.getAllByText("No data for this selection.")).toHaveLength(7);
+  expect(screen.getAllByRole("link", { name: /Export CSV/ })).toHaveLength(7);
   expect(
     screen.getByRole("link", { name: /Export CSV — Daily volume/ }).getAttribute("href"),
   ).toContain("from=2026-10-01&to=2026-10-28&site=site&report=volume");
@@ -157,4 +158,44 @@ it("#84 manual entries: typed codes by station and manual weights, beside the to
   expect(
     screen.getByRole("link", { name: /Export CSV — Manual entries/ }).getAttribute("href"),
   ).toContain("report=manual");
+});
+
+it("#87 variance holds: who signed off, when, why and the variance, counted by outcome", () => {
+  const row = (intake: string, outcome: string, by: string | null, reason: string | null) => ({
+    org_id: "org",
+    site_id: null,
+    day: "2026-10-27",
+    intake_number: intake,
+    variance_pct: 40,
+    limit_pct: 15,
+    outcome,
+    signed_off_by: by,
+    cleared_at: by ? "2026-10-27T10:00:00+00:00" : null,
+    reason,
+    note: reason === "other" ? "Bled fish" : null,
+    cleared_variance_pct: 40,
+  });
+  render(
+    <ReportsDashboard
+      filters={filters}
+      sites={[]}
+      timezone="UTC"
+      data={{
+        ...data,
+        holds: [
+          row("INT-0003", "signoff", "Variance manager", "trim_heavy"),
+          row("INT-0004", "signoff", "Variance manager", "other"),
+          row("INT-0011", "auto", null, null),
+        ],
+      }}
+    />,
+  );
+  const chart = screen.getByRole("figure", { name: "Variance holds chart" });
+  expect(within(chart).getByText("signoff")).toBeTruthy();
+  expect(within(chart).getByText("2")).toBeTruthy();
+  const table = screen.getByRole("table", { name: "Variance holds daily detail" });
+  for (const header of ["Signed off by", "Cleared at", "Reason", "Variance %"])
+    expect(within(table).getByText(header)).toBeTruthy();
+  expect(within(table).getAllByText("Variance manager")).toHaveLength(2);
+  expect(within(table).getByText("trim_heavy")).toBeTruthy();
 });

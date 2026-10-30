@@ -73,9 +73,11 @@ test("sport intake: intake → wave → rollstock → reconcile → blast → lo
     const vessel = page.getByRole("button", { name: new RegExp(`^${tag} · `) });
     await expect(vessel).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "Manual entry" }).click();
-    await page.getByLabel("Manual weight (lb)").fill("17.5");
+    // 20 lb halibut H&G → portions expects 15 lb; 15.5 lb (+3.3%) is within the ±15% variance
+    // hold (#87), so Send to Blast goes through.
+    await page.getByLabel("Manual weight (lb)").fill("15.5");
     await page.getByRole("button", { name: "Save manual weight" }).click();
-    await expect(vessel).toContainText("17.5 lb");
+    await expect(vessel).toContainText("15.5 lb");
     await page.getByRole("button", { name: "Send to Blast Freezer" }).click();
     await expect(
       page.getByRole("heading", { name: "Scan a tote or choose an intake" }),
@@ -87,6 +89,11 @@ test("sport intake: intake → wave → rollstock → reconcile → blast → lo
     await scan(page, qr.tag(ORG_SLUG, tag));
     await expect(
       page.getByRole("region", { name: "In blast" }).getByText(`${tag} · ${number}`),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("region", { name: "Now in blast" })
+        .getByText(`${number} is in the blast · variance +3.3% · within limit`),
     ).toBeVisible();
   });
 

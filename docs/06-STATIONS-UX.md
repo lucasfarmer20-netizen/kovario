@@ -59,8 +59,14 @@ Queue (FIFO by `rollstock_done_at`); tap or scan a tote to open. Form: expected 
 line, vessel table (rows added by scanning a tag), live scale reading widget (latest
 stable weight; **Accept** writes it to the highlighted vessel row; **Manual entry** types a
 weight > 0 when the scale or its link is down, flagged MANUAL WEIGHT and counted in reports),
-variance %,
+variance % with its band (within / near / over the org's limit),
 exchange-vessel row type (no tag), **Send to Blast Freezer** when complete.
+**Variance hold** (v1.1, #87; `04-BUSINESS-RULES.md §6a`): a send over the limit is refused
+and the intake is held with its rollstock neighbours (1 before, 2 after). Held intakes carry a
+HELD badge in the queue. Opening a held intake shows the hold group in rollstock order (each
+member's variance, band and where it is) and the **manager sign-off**: tap a reason (≥ 56 px
+buttons; "Other" needs a note), then a manager PIN (a manager account signs off directly). The
+"now in blast" lines are listed below.
 
 ## Blast (scan only)
 Scan vessel tag → `blast_in_at`; list shows vessels in blast with time-in.
@@ -70,6 +76,9 @@ Scan vessel tag → `blast_in_at`; list shows vessels in blast with time-in.
 are blasted in by scan; an exchange (untagged) vessel has a **Blast in** button (≥ 56 px) that
 calls `blast_vessel_by_id` (same operator proof, locking, `action_log`, `scan_log`). A tagged
 vessel is never accepted by id. "Blast freezer empty" shows only when both lists are empty.
+**Now in blast** (v1.1, #87): one line per intake sent to blast while any of its vessels is not
+yet on a shelf, in rollstock order: "INT-2120 is in the blast · variance +14% · near limit",
+coloured within (green) / near (amber, ≥ 2/3 of the limit) / over (red), with the band in words.
 
 ## Locate (scan only)
 Two-step loop: scan vessel tag (shows intake, species) → scan location → placement

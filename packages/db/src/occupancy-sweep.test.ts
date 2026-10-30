@@ -46,6 +46,11 @@ const ALLOWLIST: Allowed[] = [
     why: "identity: send-to-blast requires every non-exchange vessel to carry a tag",
   },
   {
+    file: "supabase/migrations/20261030000100_variance_hold.sql",
+    line: "(not is_exchange and asset_tag_id is null)",
+    why: "identity (#87): the same send-to-blast tag check, carried into reconcile_action's redefinition",
+  },
+  {
     file: "supabase/tests/12_reconcile.test.sql",
     line: "is_exchange and asset_tag_id is null and lifecycle_state='occupied'",
     why: "test: an untagged exchange basket is still occupied",

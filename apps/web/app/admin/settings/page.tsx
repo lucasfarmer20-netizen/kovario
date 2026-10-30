@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
-import { MAX_TAG_DIGITS, maxTagNumber } from "rules";
+import {
+  MAX_TAG_DIGITS,
+  maxTagNumber,
+  VARIANCE_HOLD_PCT_DEFAULT,
+  VARIANCE_HOLD_PCT_MAX,
+  VARIANCE_HOLD_PCT_MIN,
+} from "rules";
 import { ActionForm } from "@/components/admin/action-form";
 import { TimezoneSelect } from "@/components/admin/timezone-select";
 import { Input, Label, Select } from "@/components/ui/form";
@@ -105,6 +111,22 @@ export default async function SettingsPage() {
               step="any"
               defaultValue={s.wave_tolerance_lb}
             />
+          </Label>
+          <Label>
+            Reconcile variance hold (± %)
+            <Input
+              name="variance_hold_pct"
+              type="number"
+              min={VARIANCE_HOLD_PCT_MIN}
+              max={VARIANCE_HOLD_PCT_MAX}
+              step={1}
+              required
+              defaultValue={s.reconcile?.variance_hold_pct ?? VARIANCE_HOLD_PCT_DEFAULT}
+            />
+            <span className="text-xs text-muted-foreground">
+              Send to Blast is refused past this variance, and the intake is held with the order
+              before it and the two after it at rollstock until a manager signs off.
+            </span>
           </Label>
           <Label>
             Asset tag digits (raise only)

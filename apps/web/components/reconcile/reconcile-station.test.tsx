@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ScanReply, ScanRequest } from "@/src/components/station/scan-queue";
 import { ReconcileStation } from "./reconcile-station";
 const mocks = vi.hoisted(() => ({
@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/components/intake/use-station-session", () => ({
   useStationSession: () => ({ session: mocks.session, loaded: true }),
+  managerElevation: async (_client: unknown, pin: string) =>
+    pin === "1234" ? { token: "elevation-token" } : { reason: "invalid_pin" },
 }));
 vi.mock("@/src/components/station/use-scan-action", () => ({
   useScanAction: (_: string, send: (r: ScanRequest) => Promise<ScanReply>) => {
@@ -26,7 +28,7 @@ afterEach(() => {
   mocks.pending = 0;
   mocks.vesselFilters = [];
 });
-function setup(weight = 0) {
+function setup(weight = 0, extra: Record<string, unknown> = {}, appRole = "staff") {
   localStorage.setItem("org:staff:reconcile", "i1");
   const tables: Record<string, unknown> = {
     intake: [
@@ -48,6 +50,7 @@ function setup(weight = 0) {
         is_exchange: false,
       },
     ],
+    ...extra,
   };
   const from = (name: string) => {
     const q = {
@@ -69,7 +72,7 @@ function setup(weight = 0) {
   }));
   mocks.session = {
     client: { from, rpc, channel: () => channel, removeChannel: vi.fn() },
-    claims: { orgId: "org", userId: "staff", appRole: "staff" },
+    claims: { orgId: "org", userId: "staff", appRole },
     siteName: "Main",
   };
   return rpc;
@@ -245,4 +248,138 @@ it("#84 manual weight uses a visible decimal field and is flagged on the vessel 
   const field = screen.getByLabelText("Manual weight (lb)");
   expect(field.getAttribute("inputmode")).toBe("decimal");
   expect(screen.getByText("MANUAL WEIGHT")).toBeTruthy();
+});
+
+// #87 variance hold ------------------------------------------------------------------------------
+const member = (n: number, position: number, pct: number, band: string, state: string) => ({
+  hold_id: "h1",
+  flagged_intake_id: "i1",
+  intake_id: n === 1 ? "i1" : `i${n}`,
+  intake_number: `INT-000${n}`,
+  position,
+  state,
+  variance_pct: pct,
+  band,
+  blocked: state === "reconcile",
+  limit_pct: 15,
+});
+const held = {
+  variance_hold_member: [
+    member(4, -1, 2, "within", "blast_freezer"),
+    member(1, 0, 40, "over", "reconcile"),
+    member(2, 1, -30, "over", "reconcile"),
+  ],
+  org: [{ settings: { reconcile: { variance_hold_pct: 15 } } }],
+};
+it("#87 a flagged intake shows its hold group in rollstock order, banded, and a HELD badge", async () => {
+  setup(28, held);
+  render(<ReconcileStation />);
+  const panel = await screen.findByRole("region", { name: "Variance hold" });
+  expect(panel.textContent).toContain("VARIANCE HOLD · INT-0001 +40% (limit ±15%)");
+  expect([...panel.querySelectorAll("li")].map((li) => li.textContent)).toEqual([
+    "INT-0004 · +2% · within limit · in blast",
+    "INT-0001 · +40% · over limit · waiting at reconcile",
+    "INT-0002 · −30% · over limit · waiting at reconcile",
+  ]);
+  expect(screen.getByRole("button", { name: /INT-0001.*HELD/ })).toBeTruthy();
+  expect(screen.getByText(/over limit \(limit ±15%\)/).className).toContain("station-band-over");
+});
+it("#87 staff sign-off needs a reason and a manager PIN, then calls the single SQL function", async () => {
+  const rpc = setup(28, held);
+  render(<ReconcileStation />);
+  await screen.findByRole("region", { name: "Variance hold" });
+  const signOff = screen.getByRole("button", { name: "Manager sign-off" }) as HTMLButtonElement;
+  expect(signOff.disabled).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Other" }));
+  expect(screen.getByRole("alert").textContent).toBe("Other needs a note");
+  fireEvent.click(screen.getByRole("button", { name: "Add note (required)" }));
+  fireEvent.change(screen.getByLabelText(/Sign-off note/), { target: { value: "Bled fish" } });
+  expect(signOff.disabled).toBe(true); // finish the note first
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  fireEvent.click(signOff);
+  fireEvent.change(await screen.findByLabelText("Manager PIN PIN"), { target: { value: "1234" } });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await waitFor(() =>
+    expect(rpc).toHaveBeenCalledWith("variance_hold_signoff", {
+      p_client_action_id: expect.any(String),
+      p_hold_id: "h1",
+      p_reason: "other",
+      p_note: "Bled fish",
+      p_elevation_token: "elevation-token",
+    }),
+  );
+});
+it("#87 typing a sign-off note pauses the scanner; Done hands focus back", async () => {
+  setup(28, held);
+  render(<ReconcileStation />);
+  const panel = await screen.findByRole("region", { name: "Variance hold" });
+  const scanner = screen.getByLabelText("Station scanner") as HTMLInputElement;
+  await waitFor(() => expect(document.activeElement).toBe(scanner));
+  fireEvent.click(within(panel).getByRole("button", { name: "Other" }));
+  fireEvent.click(within(panel).getByRole("button", { name: "Add note (required)" }));
+  const note = within(panel).getByLabelText(/Sign-off note/) as HTMLInputElement;
+  await waitFor(() => expect(document.activeElement).toBe(note));
+  expect(scanner.disabled).toBe(true);
+  // The scanner's focus capture is off while editing: a tap (pointerup) and the re-render after
+  // each keystroke leave focus in the note.
+  fireEvent.pointerUp(document);
+  fireEvent.change(note, { target: { value: "Bled fish" } });
+  await new Promise((r) => requestAnimationFrame(r));
+  expect(document.activeElement).toBe(note);
+  fireEvent.click(within(panel).getByRole("button", { name: "Done" }));
+  await waitFor(() => expect(document.activeElement).toBe(scanner));
+  expect(scanner.disabled).toBe(false);
+  expect(panel.textContent).toContain("Note: Bled fish");
+  expect(within(panel).getByRole("button", { name: "Edit note (required)" })).toBeTruthy();
+});
+it("#87 a failed sign-off keeps the manager PIN overlay open with the reason", async () => {
+  const rpc = setup(28, held);
+  rpc.mockImplementation((async (name: string) =>
+    name === "variance_hold_signoff"
+      ? { data: null, error: { message: "manager approval required" } }
+      : { data: { ok: true, reason: "Accepted" }, error: null }) as never);
+  render(<ReconcileStation />);
+  await screen.findByRole("region", { name: "Variance hold" });
+  fireEvent.click(screen.getByRole("button", { name: "Spoilage" }));
+  fireEvent.click(screen.getByRole("button", { name: "Manager sign-off" }));
+  fireEvent.change(await screen.findByLabelText("Manager PIN PIN"), { target: { value: "1234" } });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  const overlay = screen.getByRole("dialog", { name: "Manager PIN" });
+  await waitFor(() =>
+    expect(within(overlay).getByRole("alert").textContent).toBe("manager approval required"),
+  );
+  expect(screen.getByRole("dialog", { name: "Manager PIN" })).toBeTruthy();
+});
+it("#87 a manager account signs off without a PIN", async () => {
+  const rpc = setup(28, held, "manager");
+  render(<ReconcileStation />);
+  await screen.findByRole("region", { name: "Variance hold" });
+  fireEvent.click(screen.getByRole("button", { name: "Trim-heavy" }));
+  fireEvent.click(screen.getByRole("button", { name: "Manager sign-off" }));
+  await waitFor(() =>
+    expect(rpc).toHaveBeenCalledWith(
+      "variance_hold_signoff",
+      expect.objectContaining({ p_reason: "trim_heavy", p_elevation_token: undefined }),
+    ),
+  );
+  expect(screen.queryByLabelText("Manager PIN PIN")).toBeNull();
+});
+it("#87 reconcile lists the 'now in blast' lines", async () => {
+  setup(20, {
+    now_in_blast: [
+      {
+        intake_id: "i9",
+        intake_number: "INT-2120",
+        variance_pct: 14,
+        band: "near",
+        limit_pct: 15,
+        rollstock_opened_at: "2026-07-20T08:00:00+00:00",
+        rollstock_scan_id: "s1",
+      },
+    ],
+  });
+  render(<ReconcileStation />);
+  expect(
+    await screen.findByText("INT-2120 is in the blast · variance +14% · near limit"),
+  ).toBeTruthy();
 });

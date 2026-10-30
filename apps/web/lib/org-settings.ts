@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VARIANCE_HOLD_PCT_MAX, VARIANCE_HOLD_PCT_MIN } from "rules";
 
 // org.settings (docs/02-DOMAIN-MODEL.md §12). public.admin_update_org re-validates the whole
 // object (app.org_settings_problem); this module turns the settings form into that object.
@@ -16,6 +17,8 @@ export type OrgSettings = {
   tax: { mode: "exclusive"; rate: number; cap_amount: number | null };
   shipping: { carrier_allowlist: "*" | string[]; buy_window_days: number };
   scanner: { tag_digits: number };
+  /** Optional on orgs from before v1.1 (#87): absent reads as the default, 15. */
+  reconcile?: { variance_hold_pct: number };
 };
 
 const formSchema = z.object({
@@ -33,6 +36,7 @@ const formSchema = z.object({
   carrier_allowlist: z.string().trim().max(400),
   buy_window_days: z.coerce.number().int().min(0).max(30),
   tag_digits: z.coerce.number().int().min(3).max(6),
+  variance_hold_pct: z.coerce.number().int().min(VARIANCE_HOLD_PCT_MIN).max(VARIANCE_HOLD_PCT_MAX),
 });
 
 const CARRIER = /^[a-z0-9_]{2,40}$/;
@@ -84,6 +88,7 @@ export function settingsFromForm(form: FormData): { settings: OrgSettings } | { 
       },
       shipping: { carrier_allowlist: allowlist, buy_window_days: d.buy_window_days },
       scanner: { tag_digits: d.tag_digits },
+      reconcile: { variance_hold_pct: d.variance_hold_pct },
     },
   };
 }

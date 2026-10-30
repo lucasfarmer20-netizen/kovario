@@ -186,6 +186,25 @@
   background: var(--station-ok);
   color: #052e16;
 }
+/* Variance bands (#87): colour plus a text label, never colour alone. */
+.station-band {
+  border-radius: 0.5rem;
+  margin-block: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 1.5rem;
+}
+.station-band-within {
+  background: var(--station-ok);
+}
+.station-band-near {
+  background: #fde68a;
+}
+.station-band-over {
+  background: var(--station-error);
+}
+.station-band-unknown {
+  background: #e5e7eb;
+}
 .station-rejected {
   background: var(--station-error);
   color: #450a0a;

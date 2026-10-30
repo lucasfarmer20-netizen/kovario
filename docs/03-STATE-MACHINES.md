@@ -31,6 +31,14 @@ Notes:
   `emptied` or `void`; (d) every non-cancelled allocation session pooling it has zero
   `planned` boxes. Zero-vessel intakes never auto-close.
 
+## Variance hold (v1.1, #87)
+```
+(send over the limit) ──▶ active ──group back within the limit──▶ cleared (auto)
+                          active ──manager sign-off + reason──▶ cleared (signoff)
+```
+While `active`, the hold's group members not yet sent to blast cannot leave `reconcile` for
+`blast_freezer` (`04-BUSINESS-RULES.md §6a`). `cleared` is terminal; a new flag is a new row.
+
 ## Storage intake
 ```
 draft ──confirm──▶ stored ──batch released (some boxes left)──▶ partial ──▶ partial …

@@ -71,6 +71,24 @@ isOneToOne: false
       foreignKeyName: "allocation_intake_intake_id_fkey"
       columns: ["intake_id"]
 isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "allocation_intake_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "allocation_intake_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "allocation_intake_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
       referencedRelation: "rollstock_tote_progress"
       referencedColumns: ["intake_id"]
     },{
@@ -537,6 +555,24 @@ isOneToOne: false
       foreignKeyName: "intake_split_from_id_fkey"
       columns: ["split_from_id"]
 isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_split_from_id_fkey"
+      columns: ["split_from_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_split_from_id_fkey"
+      columns: ["split_from_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_split_from_id_fkey"
+      columns: ["split_from_id"]
+isOneToOne: false
       referencedRelation: "rollstock_tote_progress"
       referencedColumns: ["intake_id"]
     },{
@@ -544,6 +580,62 @@ isOneToOne: false
       columns: ["wave_id"]
 isOneToOne: false
       referencedRelation: "wave"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"intake_blast_send": {
+                  Row: {
+                    "actual_lb": number,"created_at": string,"expected_lb": number,"id": string,"intake_id": string,"org_id": string,"sent_at": string,"sent_by": string | null,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actual_lb": number,"created_at"?: string,"expected_lb": number,"id"?: string,"intake_id": string,"org_id": string,"sent_at"?: string,"sent_by"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "actual_lb"?: number,"created_at"?: string,"expected_lb"?: number,"id"?: string,"intake_id"?: string,"org_id"?: string,"sent_at"?: string,"sent_by"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_blast_send_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: true
+      referencedRelation: "intake"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_blast_send_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: true
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_blast_send_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: true
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_blast_send_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: true
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_blast_send_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: true
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_blast_send_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_blast_send_sent_by_fkey"
+      columns: ["sent_by"]
+isOneToOne: false
+      referencedRelation: "org_member"
       referencedColumns: ["id"]
     }
                   ]
@@ -565,6 +657,24 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "intake_line_intake_id_fkey"
       columns: ["intake_id"]
@@ -1041,6 +1151,24 @@ isOneToOne: false
       foreignKeyName: "reconcile_line_intake_id_fkey"
       columns: ["intake_id"]
 isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "reconcile_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "reconcile_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "reconcile_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
       referencedRelation: "rollstock_tote_progress"
       referencedColumns: ["intake_id"]
     },{
@@ -1169,6 +1297,24 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "release_audit_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "release_audit_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "release_audit_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "release_audit_intake_id_fkey"
       columns: ["intake_id"]
@@ -1321,6 +1467,24 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "scan_log_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "scan_log_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "scan_log_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "scan_log_intake_id_fkey"
       columns: ["intake_id"]
@@ -1771,6 +1935,24 @@ isOneToOne: false
       foreignKeyName: "tote_tag_intake_id_fkey"
       columns: ["intake_id"]
 isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "tote_tag_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "tote_tag_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "tote_tag_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
       referencedRelation: "rollstock_tote_progress"
       referencedColumns: ["intake_id"]
     },{
@@ -1784,6 +1966,68 @@ isOneToOne: false
       columns: ["print_job_id"]
 isOneToOne: false
       referencedRelation: "print_job"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"variance_hold": {
+                  Row: {
+                    "actual_lb": number,"clear_kind": Database["public"]['Enums']["variance_hold_clear_kind"] | null,"cleared_actual_lb": number | null,"cleared_at": string | null,"cleared_by": string | null,"cleared_variance_pct": number | null,"created_at": string,"expected_lb": number,"flagged_at": string,"flagged_by": string | null,"id": string,"intake_id": string,"limit_pct": number,"note": string | null,"org_id": string,"reason": Database["public"]['Enums']["variance_signoff_reason"] | null,"state": Database["public"]['Enums']["variance_hold_state"],"updated_at": string,"variance_pct": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actual_lb": number,"clear_kind"?: Database["public"]['Enums']["variance_hold_clear_kind"] | null,"cleared_actual_lb"?: number | null,"cleared_at"?: string | null,"cleared_by"?: string | null,"cleared_variance_pct"?: number | null,"created_at"?: string,"expected_lb": number,"flagged_at"?: string,"flagged_by"?: string | null,"id"?: string,"intake_id": string,"limit_pct": number,"note"?: string | null,"org_id": string,"reason"?: Database["public"]['Enums']["variance_signoff_reason"] | null,"state"?: Database["public"]['Enums']["variance_hold_state"],"updated_at"?: string,"variance_pct"?: number | null
+                  }
+                  Update: {
+                    "actual_lb"?: number,"clear_kind"?: Database["public"]['Enums']["variance_hold_clear_kind"] | null,"cleared_actual_lb"?: number | null,"cleared_at"?: string | null,"cleared_by"?: string | null,"cleared_variance_pct"?: number | null,"created_at"?: string,"expected_lb"?: number,"flagged_at"?: string,"flagged_by"?: string | null,"id"?: string,"intake_id"?: string,"limit_pct"?: number,"note"?: string | null,"org_id"?: string,"reason"?: Database["public"]['Enums']["variance_signoff_reason"] | null,"state"?: Database["public"]['Enums']["variance_hold_state"],"updated_at"?: string,"variance_pct"?: number | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "variance_hold_cleared_by_fkey"
+      columns: ["cleared_by"]
+isOneToOne: false
+      referencedRelation: "org_member"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "variance_hold_flagged_by_fkey"
+      columns: ["flagged_by"]
+isOneToOne: false
+      referencedRelation: "org_member"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "variance_hold_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "variance_hold_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "variance_hold_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "variance_hold_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "variance_hold_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "variance_hold_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
       referencedColumns: ["id"]
     }
                   ]
@@ -1817,6 +2061,24 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "vessel_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "vessel_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "vessel_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "vessel_intake_id_fkey"
       columns: ["intake_id"]
@@ -1891,6 +2153,24 @@ isOneToOne: false
       foreignKeyName: "wave_intake_intake_id_fkey"
       columns: ["intake_id"]
 isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "wave_intake_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "wave_intake_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "wave_intake_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
       referencedRelation: "rollstock_tote_progress"
       referencedColumns: ["intake_id"]
     },{
@@ -1925,6 +2205,24 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "wave_scan_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "wave_scan_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "wave_scan_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "wave_scan_intake_id_fkey"
       columns: ["intake_id"]
@@ -2026,6 +2324,46 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"intake_variance": {
+                  Row: {
+                    "actual_frozen": boolean | null,"actual_lb": number | null,"band": string | null,"expected_lb": number,"intake_id": string,"limit_pct": number | null,"number": string,"org_id": string,"site_id": string | null,"state": Database["public"]['Enums']["intake_state"],"variance_pct": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"now_in_blast": {
+                  Row: {
+                    "actual_lb": number | null,"band": string | null,"blast_at": string | null,"expected_lb": number,"intake_id": string,"intake_number": string,"limit_pct": number | null,"org_id": string,"rollstock_opened_at": string | null,"rollstock_scan_id": string | null,"site_id": string | null,"state": Database["public"]['Enums']["intake_state"],"variance_pct": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"reconcile_variance": {
                   Row: {
                     "actual_lb": number,"expected_lb": number,"intake_id": string,"intake_line_id": string,"org_id": string,"reconcile_line_id": string,"variance_pct": number | null
@@ -2044,6 +2382,24 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "reconcile_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "reconcile_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "reconcile_line_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "reconcile_line_intake_id_fkey"
       columns: ["intake_id"]
@@ -2166,6 +2522,46 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"report_variance_holds": {
+                  Row: {
+                    "cleared_at": string | null,"cleared_variance_pct": number | null,"day": string | null,"intake_number": string,"limit_pct": number,"note": string | null,"org_id": string,"outcome": string | null,"reason": string | null,"signed_off_by": string | null,"site_id": string | null,"variance_pct": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "variance_hold_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"rollstock_open": {
+                  Row: {
+                    "intake_id": string,"opened_at": string,"org_id": string,"scan_id": string,"site_id": string | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_site_id_fkey"
+      columns: ["site_id"]
+isOneToOne: false
+      referencedRelation: "site"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"rollstock_tote_progress": {
                   Row: {
                     "intake_id": string,"org_id": string,"scanned": number | null,"tote_count": number
@@ -2212,6 +2608,50 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"variance_hold_member": {
+                  Row: {
+                    "actual_lb": number | null,"band": string | null,"blocked": boolean | null,"expected_lb": number,"flagged_intake_id": string,"hold_id": string,"hold_state": Database["public"]['Enums']["variance_hold_state"],"intake_id": string | null,"intake_number": string,"limit_pct": number | null,"org_id": string,"position": number | null,"state": Database["public"]['Enums']["intake_state"],"variance_pct": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "variance_hold_intake_id_fkey"
+      columns: ["flagged_intake_id"]
+isOneToOne: false
+      referencedRelation: "intake"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "variance_hold_intake_id_fkey"
+      columns: ["flagged_intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "variance_hold_intake_id_fkey"
+      columns: ["flagged_intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "variance_hold_intake_id_fkey"
+      columns: ["flagged_intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "variance_hold_intake_id_fkey"
+      columns: ["flagged_intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "variance_hold_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"vessel_walk_order": {
                   Row: {
                     "intake_id": string,"intake_number": string,"is_exchange": boolean,"location_code": string | null,"location_id": string | null,"org_id": string,"session_id": string,"sort_key": string | null,"species_summary": string | null,"tag_code": string | null,"vessel_id": string,"walk_seq": number | null,"weight_lb": number
@@ -2242,6 +2682,24 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "intake"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "vessel_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "vessel_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "vessel_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: false
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
     },{
       foreignKeyName: "vessel_intake_id_fkey"
       columns: ["intake_id"]
@@ -2702,10 +3160,13 @@ isOneToOne: false
                            },
 "update_shipment":
 { Args: { "p_client_action_id": string,"p_ship_date": string,"p_ship_to": Json,"p_shipment_id": string }; Returns: Json
+                           },
+"variance_hold_signoff":
+{ Args: { "p_client_action_id": string,"p_elevation_token"?: string,"p_hold_id": string,"p_note"?: string,"p_reason": string }; Returns: Json
                            }
           }
           Enums: {
-            "allocation_session_fulfillment_status": "none"|"pending"|"partial"|"released","allocation_session_split_method": "weight"|"even","allocation_session_state": "draft"|"priced"|"done"|"cancelled","asset_tag_state": "available"|"in_use"|"retired","box_plan_fulfillment_state": "planned"|"packed"|"shipped"|"picked_up","box_plan_method": "air"|"ship"|"willcall","charge_kind": "processing"|"ribbing"|"storage"|"box_fee"|"freight"|"retail"|"adjustment","charge_source_type": "intake"|"storage_batch"|"settlement"|"manual","charge_state": "open"|"settled"|"voided"|"comped","device_station": "intake"|"storage"|"wave"|"rollstock"|"reconcile"|"blast"|"locate"|"allocate"|"boxing"|"register"|"shipping","intake_state": "draft"|"holding"|"processing"|"rollstock"|"reconcile"|"blast_freezer"|"stored"|"done"|"cancelled","location_depth": "F"|"R","location_kind": "rack"|"pallet","org_member_role": "owner"|"manager"|"staff"|"cashier","payment_entry_mode": "chip"|"contactless"|"swipe"|"manual"|"keyed","payment_event_kind": "sale_requested"|"sale_result"|"status_check"|"abort"|"reverse_requested"|"reverse_result"|"refund_requested"|"refund_result"|"error"|"paid_hook"|"manual_resolve","payment_state": "pending"|"approved"|"declined"|"cancelled"|"indeterminate"|"voided"|"refunded"|"error","payment_tender": "card"|"cash"|"check"|"external"|"comp","payment_terminal_provider": "manual"|"dejavoo_spin"|"stripe_terminal","print_job_kind": "tote_tag"|"receipt"|"storage_label"|"box_label"|"pick_list"|"location_tag"|"shipping_label"|"asset_tag_sheet","print_job_payload_type": "zpl"|"pdf_url","print_job_state": "queued"|"printing"|"done"|"failed","printer_kind": "label_zpl"|"receipt_pdf","processing_method_kind": "service"|"virtual","register_order_kind": "sale"|"refund","register_order_state": "open"|"paid"|"void","release_audit_event_kind": "moved"|"finalized"|"restored","scale_protocol": "toledo_8217"|"manual","scan_entry_method": "scan"|"manual","scan_log_result": "ok"|"rejected","settlement_state": "draft"|"paid","shipment_state": "draft"|"held"|"label_bought"|"shipped"|"cancelled","species_group": "salmon"|"whitefish"|"other"|"byproduct","storage_box_state": "stored"|"released","storage_intake_state": "draft"|"stored"|"partial"|"released"|"cancelled","storage_pickup_batch_state": "pending"|"released"|"void","vessel_lifecycle_state": "occupied"|"emptied"|"void","wave_state": "draft"|"verifying"|"done"|"cancelled"
+            "allocation_session_fulfillment_status": "none"|"pending"|"partial"|"released","allocation_session_split_method": "weight"|"even","allocation_session_state": "draft"|"priced"|"done"|"cancelled","asset_tag_state": "available"|"in_use"|"retired","box_plan_fulfillment_state": "planned"|"packed"|"shipped"|"picked_up","box_plan_method": "air"|"ship"|"willcall","charge_kind": "processing"|"ribbing"|"storage"|"box_fee"|"freight"|"retail"|"adjustment","charge_source_type": "intake"|"storage_batch"|"settlement"|"manual","charge_state": "open"|"settled"|"voided"|"comped","device_station": "intake"|"storage"|"wave"|"rollstock"|"reconcile"|"blast"|"locate"|"allocate"|"boxing"|"register"|"shipping","intake_state": "draft"|"holding"|"processing"|"rollstock"|"reconcile"|"blast_freezer"|"stored"|"done"|"cancelled","location_depth": "F"|"R","location_kind": "rack"|"pallet","org_member_role": "owner"|"manager"|"staff"|"cashier","payment_entry_mode": "chip"|"contactless"|"swipe"|"manual"|"keyed","payment_event_kind": "sale_requested"|"sale_result"|"status_check"|"abort"|"reverse_requested"|"reverse_result"|"refund_requested"|"refund_result"|"error"|"paid_hook"|"manual_resolve","payment_state": "pending"|"approved"|"declined"|"cancelled"|"indeterminate"|"voided"|"refunded"|"error","payment_tender": "card"|"cash"|"check"|"external"|"comp","payment_terminal_provider": "manual"|"dejavoo_spin"|"stripe_terminal","print_job_kind": "tote_tag"|"receipt"|"storage_label"|"box_label"|"pick_list"|"location_tag"|"shipping_label"|"asset_tag_sheet","print_job_payload_type": "zpl"|"pdf_url","print_job_state": "queued"|"printing"|"done"|"failed","printer_kind": "label_zpl"|"receipt_pdf","processing_method_kind": "service"|"virtual","register_order_kind": "sale"|"refund","register_order_state": "open"|"paid"|"void","release_audit_event_kind": "moved"|"finalized"|"restored","scale_protocol": "toledo_8217"|"manual","scan_entry_method": "scan"|"manual","scan_log_result": "ok"|"rejected","settlement_state": "draft"|"paid","shipment_state": "draft"|"held"|"label_bought"|"shipped"|"cancelled","species_group": "salmon"|"whitefish"|"other"|"byproduct","storage_box_state": "stored"|"released","storage_intake_state": "draft"|"stored"|"partial"|"released"|"cancelled","storage_pickup_batch_state": "pending"|"released"|"void","variance_hold_clear_kind": "auto"|"signoff","variance_hold_state": "active"|"cleared","variance_signoff_reason": "estimate_wrong"|"mixed_species"|"spoilage"|"trim_heavy"|"other","vessel_lifecycle_state": "occupied"|"emptied"|"void","wave_state": "draft"|"verifying"|"done"|"cancelled"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -2825,7 +3286,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "allocation_session_fulfillment_status": ["none", "pending", "partial", "released"],"allocation_session_split_method": ["weight", "even"],"allocation_session_state": ["draft", "priced", "done", "cancelled"],"asset_tag_state": ["available", "in_use", "retired"],"box_plan_fulfillment_state": ["planned", "packed", "shipped", "picked_up"],"box_plan_method": ["air", "ship", "willcall"],"charge_kind": ["processing", "ribbing", "storage", "box_fee", "freight", "retail", "adjustment"],"charge_source_type": ["intake", "storage_batch", "settlement", "manual"],"charge_state": ["open", "settled", "voided", "comped"],"device_station": ["intake", "storage", "wave", "rollstock", "reconcile", "blast", "locate", "allocate", "boxing", "register", "shipping"],"intake_state": ["draft", "holding", "processing", "rollstock", "reconcile", "blast_freezer", "stored", "done", "cancelled"],"location_depth": ["F", "R"],"location_kind": ["rack", "pallet"],"org_member_role": ["owner", "manager", "staff", "cashier"],"payment_entry_mode": ["chip", "contactless", "swipe", "manual", "keyed"],"payment_event_kind": ["sale_requested", "sale_result", "status_check", "abort", "reverse_requested", "reverse_result", "refund_requested", "refund_result", "error", "paid_hook", "manual_resolve"],"payment_state": ["pending", "approved", "declined", "cancelled", "indeterminate", "voided", "refunded", "error"],"payment_tender": ["card", "cash", "check", "external", "comp"],"payment_terminal_provider": ["manual", "dejavoo_spin", "stripe_terminal"],"print_job_kind": ["tote_tag", "receipt", "storage_label", "box_label", "pick_list", "location_tag", "shipping_label", "asset_tag_sheet"],"print_job_payload_type": ["zpl", "pdf_url"],"print_job_state": ["queued", "printing", "done", "failed"],"printer_kind": ["label_zpl", "receipt_pdf"],"processing_method_kind": ["service", "virtual"],"register_order_kind": ["sale", "refund"],"register_order_state": ["open", "paid", "void"],"release_audit_event_kind": ["moved", "finalized", "restored"],"scale_protocol": ["toledo_8217", "manual"],"scan_entry_method": ["scan", "manual"],"scan_log_result": ["ok", "rejected"],"settlement_state": ["draft", "paid"],"shipment_state": ["draft", "held", "label_bought", "shipped", "cancelled"],"species_group": ["salmon", "whitefish", "other", "byproduct"],"storage_box_state": ["stored", "released"],"storage_intake_state": ["draft", "stored", "partial", "released", "cancelled"],"storage_pickup_batch_state": ["pending", "released", "void"],"vessel_lifecycle_state": ["occupied", "emptied", "void"],"wave_state": ["draft", "verifying", "done", "cancelled"]
+            "allocation_session_fulfillment_status": ["none", "pending", "partial", "released"],"allocation_session_split_method": ["weight", "even"],"allocation_session_state": ["draft", "priced", "done", "cancelled"],"asset_tag_state": ["available", "in_use", "retired"],"box_plan_fulfillment_state": ["planned", "packed", "shipped", "picked_up"],"box_plan_method": ["air", "ship", "willcall"],"charge_kind": ["processing", "ribbing", "storage", "box_fee", "freight", "retail", "adjustment"],"charge_source_type": ["intake", "storage_batch", "settlement", "manual"],"charge_state": ["open", "settled", "voided", "comped"],"device_station": ["intake", "storage", "wave", "rollstock", "reconcile", "blast", "locate", "allocate", "boxing", "register", "shipping"],"intake_state": ["draft", "holding", "processing", "rollstock", "reconcile", "blast_freezer", "stored", "done", "cancelled"],"location_depth": ["F", "R"],"location_kind": ["rack", "pallet"],"org_member_role": ["owner", "manager", "staff", "cashier"],"payment_entry_mode": ["chip", "contactless", "swipe", "manual", "keyed"],"payment_event_kind": ["sale_requested", "sale_result", "status_check", "abort", "reverse_requested", "reverse_result", "refund_requested", "refund_result", "error", "paid_hook", "manual_resolve"],"payment_state": ["pending", "approved", "declined", "cancelled", "indeterminate", "voided", "refunded", "error"],"payment_tender": ["card", "cash", "check", "external", "comp"],"payment_terminal_provider": ["manual", "dejavoo_spin", "stripe_terminal"],"print_job_kind": ["tote_tag", "receipt", "storage_label", "box_label", "pick_list", "location_tag", "shipping_label", "asset_tag_sheet"],"print_job_payload_type": ["zpl", "pdf_url"],"print_job_state": ["queued", "printing", "done", "failed"],"printer_kind": ["label_zpl", "receipt_pdf"],"processing_method_kind": ["service", "virtual"],"register_order_kind": ["sale", "refund"],"register_order_state": ["open", "paid", "void"],"release_audit_event_kind": ["moved", "finalized", "restored"],"scale_protocol": ["toledo_8217", "manual"],"scan_entry_method": ["scan", "manual"],"scan_log_result": ["ok", "rejected"],"settlement_state": ["draft", "paid"],"shipment_state": ["draft", "held", "label_bought", "shipped", "cancelled"],"species_group": ["salmon", "whitefish", "other", "byproduct"],"storage_box_state": ["stored", "released"],"storage_intake_state": ["draft", "stored", "partial", "released", "cancelled"],"storage_pickup_batch_state": ["pending", "released", "void"],"variance_hold_clear_kind": ["auto", "signoff"],"variance_hold_state": ["active", "cleared"],"variance_signoff_reason": ["estimate_wrong", "mixed_species", "spoilage", "trim_heavy", "other"],"vessel_lifecycle_state": ["occupied", "emptied", "void"],"wave_state": ["draft", "verifying", "done", "cancelled"]
           }
         }
 } as const

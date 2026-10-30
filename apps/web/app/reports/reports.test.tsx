@@ -34,6 +34,7 @@ beforeEach(() => {
     revenue: [],
     variance: [],
     manual: [],
+    holds: [],
   });
 });
 it("WP21 access: non-managers cannot load report pages or export CSV", async () => {
