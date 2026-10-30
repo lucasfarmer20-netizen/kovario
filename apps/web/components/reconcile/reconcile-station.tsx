@@ -361,7 +361,12 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
           {intakes.map((i) => (
             <button key={i.id} disabled={disabled} onClick={() => remember(i.id)}>
               {i.number}
-              {blocked.has(i.id) && <span className="station-badge">HELD</span>}
+              {blocked.has(i.id) && (
+                <>
+                  {" "}
+                  <span className="station-badge">HELD</span>
+                </>
+              )}
             </button>
           ))}
           {!intakes.length && <p>Queue empty</p>}
