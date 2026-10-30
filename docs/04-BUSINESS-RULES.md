@@ -148,7 +148,9 @@ A large variance usually means fish went into the wrong order, typically a rolls
 - **"Now in blast" line**: every intake sent to blast (flagged or not), while any of its
   vessels is not yet on a shelf: "INT-2120 is in the blast · variance +14%", in rollstock
   order, coloured by band. Shown on the blast and reconcile screens; #88's suspect picker ranks
-  from the same lines (`public.now_in_blast`).
+  from the same lines (`public.now_in_blast`). A station sees only its own site's lines (v1.2,
+  #96: a paired device bound to a site; DECISION-25 keeps rollstock order per site); managers in
+  Admin, and a device with no site, see every site.
 
 ### 6b. Suspect picker, move bin, pull back from blast (v1.1, #88)
 Once a hold flags an intake, the manager finds the order its fish went into and fixes it, without
