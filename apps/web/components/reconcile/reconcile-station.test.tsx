@@ -151,7 +151,7 @@ it("WP12 tag without an open intake is audited with Scan a tote or tap an order 
   const rpc = setup();
   localStorage.clear();
   render(<ReconcileStation />);
-  await screen.findByRole("button", { name: /^INT-0001/ });
+  await screen.findByRole("button", { name: "INT-0001" });
   rpc.mockResolvedValueOnce({
     data: { ok: false, reason: "Scan a tote or tap an order first", intake_id: "", vessel_id: "" },
     error: null,
@@ -177,7 +177,7 @@ it("WP12 vessel query is scoped to the open intake and reloads on selection", as
   setup();
   localStorage.clear();
   render(<ReconcileStation />);
-  const intake = await screen.findByRole("button", { name: /^INT-0001/ });
+  const intake = await screen.findByRole("button", { name: "INT-0001" });
   expect(mocks.vesselFilters).toEqual([]);
   fireEvent.click(intake);
   await screen.findByRole("button", { name: /042/ });

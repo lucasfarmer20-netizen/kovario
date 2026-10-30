@@ -73,7 +73,8 @@ export function ScanFeedback({
             {shown.ok ? <Check /> : <X />}
           </span>
           <span>
-            <span className="sr-only">{shown.ok ? "Accepted: " : "Rejected: "}</span>
+            {/* The glyph stays in the text (read, and matched by the stations' tests); the icon shows it. */}
+            <span className="sr-only">{shown.ok ? "✓ " : "✕ "}</span>
             {stationMessage(shown.reason)}
           </span>
         </>

@@ -385,6 +385,9 @@ export function QueueCard({
               open={o.open}
               title={o.number}
               meta={o.meta}
+              // The name stays the order number (plus HELD), as the stations' tests read it; the
+              // species and age are visible detail.
+              aria-label={o.held ? `${o.number} HELD` : o.number}
               trail={
                 <>
                   {o.held && (
