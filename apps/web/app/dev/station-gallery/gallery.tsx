@@ -259,7 +259,7 @@ export function StationGallery() {
 
       <Section
         title="Variance"
-        note="Band = colour + shape + words. The meter runs −2× to +2× the limit; over is hatched; a needle past the end turns red."
+        note="Band = colour + shape + words. The meter runs the full range, −100% to +100%; near is striped, over is hatched; a needle past ±100% turns red."
       >
         <div className="st-gallery-grid">
           <Specimen label="Within">
@@ -274,9 +274,13 @@ export function StationGallery() {
             <BandChip band="over">over limit</BandChip>
             <VarianceMeter variancePct={22} limitPct={15} band="over" />
           </Specimen>
-          <Specimen label="Over, off the scale">
+          <Specimen label="Over, at the end of the scale">
             <BandChip band="over">over limit</BandChip>
             <VarianceMeter variancePct={-100} limitPct={15} band="over" />
+          </Specimen>
+          <Specimen label="Over, past the scale">
+            <BandChip band="over">over limit</BandChip>
+            <VarianceMeter variancePct={140} limitPct={15} band="over" />
           </Specimen>
           <Specimen label="No estimate">
             <BandChip band="unknown">no estimate</BandChip>

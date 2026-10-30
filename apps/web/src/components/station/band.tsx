@@ -9,10 +9,21 @@ export function BandChip({ band, children }: { band: VarianceBand; children: Rea
   return <span className={`station-band station-band-${band} st-band-chip`}>{children}</span>;
 }
 
+/** The meter's full range, ± percent: every variance up to an order of twice its estimate. */
+export const METER_RANGE_PCT = 100;
+
+/** Where `pct` sits on the meter, 0–100 (% of its width); beyond ±100% it is pinned to the end. */
+export function meterPosition(pct: number): number {
+  const range = METER_RANGE_PCT;
+  return ((Math.max(-range, Math.min(range, pct)) + range) / (2 * range)) * 100;
+}
+
 /**
- * The variance meter: a track from −2×limit to +2×limit with the within / near / over zones
- * (over is hatched, so the zones differ without colour) and a needle at the order's variance.
- * Decorative: the numbers and the band chip beside it say the same thing in words.
+ * The variance meter: a track over the full range, −100% to +100%, with the within / near / over
+ * zones of the org's limit (near is striped and over is hatched, so the zones differ without
+ * colour), the limit marked on the scale, a tick at 0 and a needle at the order's variance (red
+ * when pinned past ±100%). Decorative: the numbers and the band chip beside it say the same
+ * thing in words.
  */
 export function VarianceMeter({
   variancePct,
@@ -23,9 +34,7 @@ export function VarianceMeter({
   limitPct: number;
   band: VarianceBand;
 }) {
-  const range = Math.max(limitPct * 2, 10);
-  const at = (pct: number) =>
-    ((Math.max(-range, Math.min(range, pct)) + range) / (2 * range)) * 100;
+  const at = meterPosition;
   const near = (limitPct * NEAR_LIMIT_NUMERATOR) / NEAR_LIMIT_DENOMINATOR;
   const zones: Array<[VarianceBand, number, number]> = [
     ["over", 0, at(-limitPct)],
@@ -34,7 +43,7 @@ export function VarianceMeter({
     ["near", at(near), at(limitPct)],
     ["over", at(limitPct), 100],
   ];
-  const clipped = variancePct !== null && Math.abs(variancePct) > range;
+  const clipped = variancePct !== null && Math.abs(variancePct) > METER_RANGE_PCT;
   return (
     <div className="st-meter" aria-hidden data-band={band}>
       <div className="st-meter-track">
@@ -46,6 +55,7 @@ export function VarianceMeter({
             style={{ left: `${from}%`, width: `${to - from}%` }}
           />
         ))}
+        <span className="st-meter-zero" style={{ left: "50%" }} />
         {variancePct !== null && (
           <span
             className="st-meter-needle"
@@ -55,9 +65,14 @@ export function VarianceMeter({
         )}
       </div>
       <div className="st-meter-scale">
+        <span data-edge="start" style={{ left: "0%" }}>
+          −{METER_RANGE_PCT}%
+        </span>
         <span style={{ left: `${at(-limitPct)}%` }}>−{limitPct}%</span>
-        <span style={{ left: "50%" }}>0</span>
         <span style={{ left: `${at(limitPct)}%` }}>+{limitPct}%</span>
+        <span data-edge="end" style={{ left: "100%" }}>
+          +{METER_RANGE_PCT}%
+        </span>
       </div>
     </div>
   );

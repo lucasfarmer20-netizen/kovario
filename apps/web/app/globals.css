@@ -1391,8 +1391,12 @@ form.station-manual .station-actions > button[type="button"] {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-within-edge) 40%, transparent);
 }
 .st-meter-zone[data-band="near"] {
-  background: var(--st-near-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-near-edge) 50%, transparent);
+  background: repeating-linear-gradient(
+    90deg,
+    var(--st-near-soft) 0 3px,
+    color-mix(in srgb, var(--st-near-edge) 55%, white) 3px 5px
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-near-edge) 60%, transparent);
 }
 .st-meter-zone[data-band="over"] {
   background: repeating-linear-gradient(
@@ -1400,6 +1404,14 @@ form.station-manual .station-actions > button[type="button"] {
     var(--st-over-soft) 0 5px,
     color-mix(in srgb, var(--st-over-edge) 35%, white) 5px 8px
   );
+}
+.st-meter-zero {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--st-line-strong);
 }
 .st-meter-needle {
   position: absolute;
@@ -1428,6 +1440,14 @@ form.station-manual .station-actions > button[type="button"] {
   position: absolute;
   transform: translateX(-50%);
   line-height: 1;
+  white-space: nowrap;
+}
+/* The range ends sit inside the track, so the scale never overflows the card. */
+.st-meter-scale span[data-edge="start"] {
+  transform: none;
+}
+.st-meter-scale span[data-edge="end"] {
+  transform: translateX(-100%);
 }
 
 /* ---- Reconcile ---------------------------------------------------------------------------- */
@@ -1900,6 +1920,29 @@ form.station-manual .station-actions > button[type="button"] {
 }
 .rc-suspect .rc-suspect-line {
   flex: 1 1 220px;
+}
+/* Pull back keeps its width and wraps under the line on a phone, never squeezed. */
+.station .rc-suspect > button {
+  flex: 0 0 auto;
+}
+/* "Same direction: unlikely source": a rule with its words, so it reads without colour. */
+.rc-suspects h4.rc-suspect-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--st-3);
+  margin-top: var(--st-3);
+}
+.rc-suspect-divider::before,
+.rc-suspect-divider::after {
+  content: "";
+  flex: 1 1 var(--st-4);
+  border-top: 2px dashed var(--st-line-strong);
+}
+.rc-suspect-divider::before {
+  flex: 0 0 var(--st-4);
+}
+.rc-suspect-unlikely .rc-suspect {
+  opacity: 0.85;
 }
 .rc-suspect-other {
   color: var(--st-ink-2);
