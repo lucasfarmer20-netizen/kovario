@@ -3,8 +3,12 @@
 // reconcile, move bin and pull back take it, and reads the intake's state under it. Whichever runs
 // second waits on that lock (asserted: the waiter is blocked on an advisory lock, not an intake
 // row), then a move or pull back is refused, or the save pools the intake back at reconcile
-// (DECISION-32: an intake not yet in blast stays poolable). The release paths (sessions → vessels
-// → intakes, I16) take no reconcile lock; racing them against a pooling save never deadlocks.
+// (DECISION-32: an intake not yet in blast stays poolable). The release paths (billing lock →
+// sessions → vessels → intakes, I16) take no reconcile lock; racing them against a pooling save
+// never deadlocks. #112: a save that pools an intake reprices the other priced sessions sharing it
+// after it key-shares the intake, so a release of one of those sessions that holds it while it
+// waits for the intake used to deadlock with the save; the release paths now take the billing lock
+// first, so the two serialise on it.
 // The interleavings are forced: the second transaction is let go only once it blocks on a lock.
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -426,4 +430,152 @@ describe("A pooling save never deadlocks with the release paths (I16)", () => {
       await release(saver, releaser);
     }
   });
+});
+
+type ReleasePath = "Complete" | "Release-by-Tag" | "Restore";
+const releasePaths: ReleasePath[] = ["Complete", "Release-by-Tag", "Restore"];
+
+const restore = (c: pg.PoolClient, vesselId: string) =>
+  call<{ restored: boolean }>(c, "public.restore_vessel($1, $2, 'Counted wrong')", [vesselId]);
+
+/** releaseFixture("priced") (ALC-0001) plus a draft ALC-0002 with one angler that pools nothing
+ * yet: saving it to pool the intake reprices ALC-0001, which shares the intake (#112). For
+ * Restore, the first basket is released by tag beforehand (attributed to ALC-0001). */
+async function sharingFixture(path: ReleasePath) {
+  const f = await releaseFixture("priced");
+  const other = await insertId(
+    `insert into public.allocation_session (org_id, number, party_customer_id, state, split_method)
+     select org_id, 'ALC-0002', party_customer_id, 'draft', 'even'
+     from public.allocation_session where id = $1 returning id`,
+    [f.session],
+  );
+  const angler = await insertId(
+    `insert into public.settlement (org_id, number, session_id, angler_name)
+     values ($1, 'STL-0002', $2, 'Bo') returning id`,
+    [f.org.id, other],
+  );
+  if (path === "Restore") {
+    const c = await pool.connect();
+    try {
+      await begin(c, f.org);
+      expect((await byTag(c, f.tags[0]!)).noop).toBe(false);
+      await c.query("commit");
+    } finally {
+      c.release();
+    }
+  }
+  return { ...f, other, angler };
+}
+
+type SharingFixture = Awaited<ReturnType<typeof sharingFixture>>;
+
+/** Saves ALC-0002 pooling the intake (keeping its angler): key-shares the intake, then reprices
+ * ALC-0001. */
+const saveSharing = (c: pg.PoolClient, f: SharingFixture) =>
+  call<{ session_id: string }>(c, "public.save_allocation_session($1, $2::jsonb)", [
+    JSON.stringify({
+      session_id: f.other,
+      intake_ids: [f.intake],
+      settlements: [{ id: f.angler, angler_name: "Bo" }],
+    }),
+  ]);
+
+/** Releases (or restores) the first basket by `path`: each locks ALC-0001, then the basket, and
+ * the intake last. */
+function releaseBy(c: pg.PoolClient, f: SharingFixture, path: ReleasePath): Promise<unknown> {
+  if (path === "Complete") return complete(c, f.session, f.box, f.vessels[0]!);
+  if (path === "Release-by-Tag") return byTag(c, f.tags[0]!);
+  return restore(c, f.vessels[0]!);
+}
+
+/** Takes `lockSql`'s row lock on a third connection; the returned function lets it go. */
+async function gate(lockSql: string, id: string): Promise<() => Promise<void>> {
+  const c = await pool.connect();
+  await c.query("begin");
+  await c.query(lockSql, [id]);
+  return async () => {
+    await c.query("rollback");
+    c.release();
+  };
+}
+
+const failures = (...outcomes: unknown[]) =>
+  outcomes.filter((o): o is Error => o instanceof Error).map((e) => e.message);
+
+describe("A save repricing a session never deadlocks with a release of it (I16, #112)", () => {
+  it.each(releasePaths)(
+    "I16 %s first, held after locking ALC-0001; a save pooling the intake reprices ALC-0001 inside that window: no deadlock, both apply",
+    async (path) => {
+      const f = await sharingFixture(path);
+      // The release locks ALC-0001, then waits here for the basket.
+      const letGo = await gate(
+        "select 1 from public.vessel where id = $1 for update",
+        f.vessels[0]!,
+      );
+      const releaser = await pool.connect();
+      const saver = await pool.connect();
+      try {
+        await begin(releaser, f.org);
+        const releaserPid = await pid(releaser);
+        const releasing = attempt(releaser, () => releaseBy(releaser, f, path));
+        await blockedOn(releaserPid);
+
+        await begin(saver, f.org);
+        const saverPid = await pid(saver);
+        const saving = attempt(saver, () => saveSharing(saver, f));
+        await blockedOn(saverPid);
+        await letGo(); // the release goes on to lock the intake the save key-shares
+        const released = await releasing;
+        await releaser.query("commit");
+        const saved = await saving;
+        await saver.query("commit");
+
+        expect(failures(released, saved)).toEqual([]);
+        expect([await vesselState(f.vessels[0]!), await pooling(f.intake)]).toEqual([
+          path === "Restore" ? "occupied" : "emptied",
+          2,
+        ]);
+      } finally {
+        await release(releaser, saver);
+      }
+    },
+  );
+
+  it.each(releasePaths)(
+    "I16 a save pooling the intake first, held after key-sharing it; %s locks ALC-0001 and then the intake inside that window, before the save reprices ALC-0001: no deadlock, both apply",
+    async (path) => {
+      const f = await sharingFixture(path);
+      // The save pools the intake, then waits here for its angler, before it reprices.
+      const letGo = await gate(
+        "select 1 from public.settlement where id = $1 for update",
+        f.angler,
+      );
+      const saver = await pool.connect();
+      const releaser = await pool.connect();
+      try {
+        await begin(saver, f.org);
+        const saverPid = await pid(saver);
+        const saving = attempt(saver, () => saveSharing(saver, f));
+        await blockedOn(saverPid);
+
+        await begin(releaser, f.org);
+        const releaserPid = await pid(releaser);
+        const releasing = attempt(releaser, () => releaseBy(releaser, f, path));
+        await blockedOn(releaserPid);
+        await letGo(); // the save goes on to reprice ALC-0001
+        const saved = await saving;
+        await saver.query("commit");
+        const released = await releasing;
+        await releaser.query("commit");
+
+        expect(failures(saved, released)).toEqual([]);
+        expect([await vesselState(f.vessels[0]!), await pooling(f.intake)]).toEqual([
+          path === "Restore" ? "occupied" : "emptied",
+          2,
+        ]);
+      } finally {
+        await release(saver, releaser);
+      }
+    },
+  );
 });
