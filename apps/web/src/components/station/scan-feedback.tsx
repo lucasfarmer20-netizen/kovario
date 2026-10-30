@@ -45,7 +45,11 @@ export function FeedbackBanner({
             )}
           </span>
           {tone === "idle" && <span className="st-pulse" aria-hidden />}
-          <span>{text}</span>
+          <span>
+            {/* The glyph stays in the text, "✓ …" / "✕ …", as before the icons (e2e reads it). */}
+            {live && <span className="st-sr">{tone === "ok" ? "✓ " : "✕ "}</span>}
+            {text}
+          </span>
         </span>
       )}
     </div>
