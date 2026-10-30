@@ -779,3 +779,37 @@ it("Accept moves to the next unweighed basket and waits for a new stable reading
   expect(isDisabled("Accept scale weight")).toBe(true);
   expect(screen.getByText("Put the basket on the scale for a new reading")).toBeTruthy();
 });
+it("Accept guards the reading the server wrote, even when it is newer than the one shown", async () => {
+  const vessel: Array<Record<string, unknown>> = [
+    { id: "v1", intake_id: "i1", asset_tag_id: "t1", asset_tag: { code: "042" }, weight_lb: 0 },
+    { id: "v2", intake_id: "i1", asset_tag_id: "t2", asset_tag: { code: "043" }, weight_lb: 0 },
+  ].map((v) => ({ ...v, manual: false, is_exchange: false, scale_reading_id: null }));
+  const readings = [{ id: "r1", weight_lb: 9.5 }];
+  const rpc = setup(
+    0,
+    { vessel, device: { scale_id: "s1" }, scale_reading: readings },
+    "staff",
+    "d1",
+  );
+  // Reading r2 reaches the database before Accept runs: reconcile_action writes r2 (its own
+  // latest stable reading), not the r1 the screen showed.
+  rpc.mockImplementation((async (_name: string, args: { p_vessel_id?: string }) => {
+    readings.splice(0, readings.length, { id: "r2", weight_lb: 11.25 });
+    const row = vessel.find((v) => v.id === args.p_vessel_id);
+    if (row) Object.assign(row, { weight_lb: 11.25, scale_reading_id: "r2" });
+    return {
+      data: { ok: true, reason: "Weighed", intake_id: "i1", vessel_id: row?.id },
+      error: null,
+    };
+  }) as never);
+  render(<ReconcileStation />);
+  fireEvent.click(await screen.findByRole("button", { name: /Basket 042/ }));
+  await waitFor(() => expect(isDisabled("Accept scale weight")).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: "Accept scale weight" }));
+  await waitFor(() => expect(next()).toBe("Weigh basket 043"));
+  // The refresh shows r2 as the latest reading; it is on basket 042, so basket 043 waits.
+  await waitFor(() => expect(screen.getAllByText(/11\.25/).length).toBeGreaterThan(0));
+  expect(isDisabled("Accept scale weight")).toBe(true);
+  expect(screen.getByText("Put the basket on the scale for a new reading")).toBeTruthy();
+  expect(rpc).toHaveBeenCalledTimes(1);
+});

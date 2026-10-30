@@ -379,7 +379,8 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
         if (operation === "exchange") setWeight("");
         if (operation === "accept") {
           // Auto-advance: the next unweighed basket is selected, and Accept waits for a new
-          // stable reading so this one is never written to two baskets.
+          // stable reading so this one is never written to two baskets. The reading shown is
+          // held as used until the refresh brings the one written (readingUsed).
           if (reading) setUsedReading(reading.id);
           const following = rows.find((v) => v.id !== target && !(v.weight_lb > 0));
           if (following) {
@@ -544,9 +545,15 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       ? holdWaitingMessage(open.number, band, holdWaitingOn(holdGroupMembers(group), open.id))
       : null;
   const pickWhy = empty ? "Add a basket first" : !selected ? "Tap a basket first" : null;
-  // Accept writes the latest stable reading; one already written waits for a new one.
+  // Accept writes the latest stable reading; one already written waits for a new one. The server
+  // picks that reading itself, so it may be newer than the one shown when Accept was tapped: the
+  // reading actually written is the one on a basket (vessel.scale_reading_id, after the refresh).
+  // The one shown is held as used until then.
+  const readingUsed =
+    reading !== null &&
+    (reading.id === usedReading || rows.some((v) => v.scale_reading_id === reading.id));
   const scaleState: ScaleState =
-    reading === null || reading.lb <= 0 ? "none" : reading.id === usedReading ? "used" : "stable";
+    reading === null || reading.lb <= 0 ? "none" : readingUsed ? "used" : "stable";
   const scaleWhy =
     pickWhy ??
     (scaleState === "none"
