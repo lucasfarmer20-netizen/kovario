@@ -51,7 +51,7 @@ it("WP20 saved intake browser receipt prints org notice, hours and canonical sta
     ],
   } as unknown as Awaited<ReturnType<typeof loadIntake>>);
   render(<IntakeReceipt intakeId="intake-a" />);
-  await screen.findByText("Plant A · INT-0001");
+  await screen.findByText("Plant A · Order INT-0001");
   expect(QRCode.toDataURL).toHaveBeenCalledWith("https://app.filletry.com/s/plant-a", {
     width: 200,
   });

@@ -89,17 +89,26 @@ function setup() {
 it("WP11 OPEN panel shows tote progress species notes and NEXT UP", async () => {
   setup();
   render(<RollstockStation />);
-  expect(await screen.findByText("Totes 1/2")).toBeTruthy();
+  expect(await screen.findByText("Order INT-0001 · tote 1 of 2")).toBeTruthy();
   expect(screen.getByText("salmon_reds")).toBeTruthy();
   expect(screen.getByText("Keep skin on")).toBeTruthy();
   expect(screen.getByText("NEXT UP")).toBeTruthy();
   expect(screen.getByText(/INT-0002/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Finish queue" }).className).toContain("opacity-70");
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan the next tote");
+});
+it("#98 with no order open the next step is Scan a tote, and Finish says why it is disabled", async () => {
+  setup();
+  localStorage.setItem("org:staff:rollstock", "");
+  render(<RollstockStation />);
+  await screen.findByText("Scan a tote to open an order.");
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan a tote");
+  expect(screen.getByText("Scan a tote first")).toBeTruthy();
 });
 it("WP11 finish sends current intake with idempotency key and blocks pending scans", async () => {
   const rpc = setup();
   const view = render(<RollstockStation />);
-  await screen.findByText("Totes 1/2");
+  await screen.findByText("Order INT-0001 · tote 1 of 2");
   mocks.pending = 1;
   view.rerender(<RollstockStation />);
   expect((screen.getByRole("button", { name: "Finish queue" }) as HTMLButtonElement).disabled).toBe(
@@ -122,7 +131,7 @@ it("WP11 finish sends current intake with idempotency key and blocks pending sca
 it("WP11 FIFO two-scan delivery uses previous server response without waiting for a render", async () => {
   const rpc = setup();
   render(<RollstockStation />);
-  await screen.findByText("Totes 1/2");
+  await screen.findByText("Order INT-0001 · tote 1 of 2");
   const send = mocks.send!;
   await send({
     raw: "FL:TOTE:INT-0002:1",
@@ -149,7 +158,7 @@ it("WP11 FIFO two-scan delivery uses previous server response without waiting fo
 it("WP11 Finish reads shared open intake after acquiring the delivery lock", async () => {
   const rpc = setup();
   render(<RollstockStation />);
-  await screen.findByText("Totes 1/2");
+  await screen.findByText("Order INT-0001 · tote 1 of 2");
   const requestLock = vi.fn(async (_name: string, work: () => unknown) => {
     // Another consumer has advanced the selection while Finish waited for its lock.
     localStorage.setItem("org:staff:rollstock", "i2");
@@ -264,19 +273,19 @@ it("WP11 two queue consumers share open intake before storage events and synchro
   act(() =>
     window.dispatchEvent(new StorageEvent("storage", { key: null, storageArea: localStorage })),
   );
-  expect(within(first.container).getByText("Scan a numbered tote to open an intake.")).toBeTruthy();
-  expect(
-    within(second.container).getByText("Scan a numbered tote to open an intake."),
-  ).toBeTruthy();
+  expect(within(first.container).getByText("Scan a tote to open an order.")).toBeTruthy();
+  expect(within(second.container).getByText("Scan a tote to open an order.")).toBeTruthy();
 });
 
-it("#84 Type code: a typed tote short code takes the rollstock scan path, flagged manual", async () => {
+it("#84 Enter manually: a typed tote short code takes the rollstock scan path, flagged manual", async () => {
   const rpc = setup();
   render(<RollstockStation />);
-  await screen.findByText("Totes 1/2");
-  fireEvent.click(screen.getByRole("button", { name: "Type code" }));
-  fireEvent.change(screen.getByLabelText(/Type the code/), { target: { value: "INT-0002-1" } });
-  fireEvent.click(screen.getByRole("button", { name: "Enter code" }));
+  await screen.findByText("Order INT-0001 · tote 1 of 2");
+  fireEvent.click(screen.getByRole("button", { name: "Enter manually" }));
+  fireEvent.change(screen.getByLabelText("Tote number (INT-0002-1)"), {
+    target: { value: "INT-0002-1" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Enter" }));
   await waitFor(() =>
     expect(mocks.scan).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -44,10 +44,10 @@ select is(public.boxing_scan('bx-queue-phantom','FL:BOX:nosuchtoken')->>'reason'
 select is(public.boxing_scan('bx-party-tag','FL:TAG:boxing-scan:042','a2400000-0000-4000-8000-000000000061')->>'vessel_id','a2400000-0000-4000-8000-000000000041','B2 party: a scanned tag on the pick list is accepted');
 select set_config('request.headers','{"x-filletry-entry-method":"manual"}',true);
 select is(public.boxing_scan('bx-party-typed','42','a2400000-0000-4000-8000-000000000061')->>'ok','true','B2 party: a typed tag (bare, unpadded) is accepted');
-select is(public.boxing_scan('bx-party-phantom','999','a2400000-0000-4000-8000-000000000061')->>'reason','Tag 999 is not on ALC-0001''s pick list','B3 party: a typed phantom tag is rejected');
-select is(public.boxing_scan('bx-party-free','077','a2400000-0000-4000-8000-000000000061')->>'reason','Tag 077 is not on ALC-0001''s pick list','B3 party: a real tag with no vessel in scope is rejected');
+select is(public.boxing_scan('bx-party-phantom','999','a2400000-0000-4000-8000-000000000061')->>'reason','Basket 999 is not on ALC-0001''s pick list','B3 party: a typed phantom tag is rejected');
+select is(public.boxing_scan('bx-party-free','077','a2400000-0000-4000-8000-000000000061')->>'reason','Basket 077 is not on ALC-0001''s pick list','B3 party: a real tag with no vessel in scope is rejected');
 select is(public.boxing_scan('bx-party-other','FL:BOX:othertoken','a2400000-0000-4000-8000-000000000061')->>'reason','That receipt belongs to another party; one party per Complete. Finish ALC-0001 first.','B3 party: another party''s receipt is refused (I11)');
-select is(public.boxing_scan('bx-party-junk','hello','a2400000-0000-4000-8000-000000000061')->>'reason','Scan a basket tag or a boxing QR','B3 party: junk is refused');
+select is(public.boxing_scan('bx-party-junk','hello','a2400000-0000-4000-8000-000000000061')->>'reason','Scan a basket or the boxing QR','B3 party: junk is refused');
 select is(public.boxing_scan('bx-party-same','FL:BOX:partytoken','a2400000-0000-4000-8000-000000000061')->>'kind','BOX','B2 party: its own receipt re-projects');
 
 -- Every entry is logged at station boxing, with result and entry method.

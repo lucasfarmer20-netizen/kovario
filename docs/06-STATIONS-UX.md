@@ -1,5 +1,8 @@
 # Filletry — Station UX
 
+Floor wording (order / tote / basket / location / box), the next-step line, the step row and
+"Enter manually" are decided in [`11-FLOOR-WORDING.md`](11-FLOOR-WORDING.md) (v1.2, #98).
+
 ## Shared primitives (`apps/web/src/components/station/`)
 
 - **`<StationShell>`** — full-screen, no top nav, station name + site + operator chip,
@@ -9,8 +12,13 @@
   Enter submits; input cleared; re-focused after every render and every dialog close
   (dialogs are non-modal overlays, never trap focus). Emits parsed `{kind, …}` via
   `packages/rules/qr.parse`; unknown → red flash + buzz + `scan_log(rejected)`.
-- **Type code** (v1.1, #84) — every scan station (and the storage pickup wizard, `/pair`) has a
-  "Type code" button (≥ 56 px) that opens a visible field with the normal on-screen keyboard.
+- **Next step line** (v1.2, #98) — the largest text on screen, in the status area: what to do
+  next ("Scan basket", "Weigh basket 005"), with a step row on multi-step stations. See
+  `11-FLOOR-WORDING.md`.
+- **Enter manually** (v1.1, #84; renamed v1.2, #98) — every scan station (and the storage pickup
+  wizard, `/pair`) has an "Enter manually" button (≥ 56 px), directly under the next step line,
+  that opens a visible field (labelled with what's expected, e.g. "Basket number") with the
+  normal on-screen keyboard.
   It reads the short code printed beside each QR (`INT-0001-3`, `042`, `IF-A-01-1-F`,
   `STG-0001-2`, the pairing code) or full QR text via `packages/rules/qr.parseManual`, and
   submits the text a scan of that label would send through the **same** scan RPC (same
@@ -57,7 +65,7 @@ and NEXT UP list. Scan loop per `04-BUSINESS-RULES.md §5`. One de-emphasised
 ## Reconcile (scan + scale)
 Queue (FIFO by `rollstock_done_at`); tap or scan a tote to open. Form: expected yield per
 line, vessel table (rows added by scanning a tag), live scale reading widget (latest
-stable weight; **Accept** writes it to the highlighted vessel row; **Manual entry** types a
+stable weight; **Accept** writes it to the highlighted vessel row; **Enter weight manually** types a
 weight > 0 when the scale or its link is down, flagged MANUAL WEIGHT and counted in reports),
 variance % with its band (within / near / over the org's limit),
 exchange-vessel row type (no tag), **Send to Blast Freezer** when complete.

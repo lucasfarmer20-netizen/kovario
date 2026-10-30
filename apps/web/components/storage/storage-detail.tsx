@@ -28,6 +28,7 @@ import {
   daysLabel,
   toggleBox,
 } from "./storage-state";
+import { NextStep } from "@/src/components/station/next-step";
 
 type Batch = LoadedStorageIntake["batches"][number];
 type Release = { batch: Batch; mode: "manual" | "comp"; reason: string };
@@ -68,7 +69,7 @@ export function StorageDetail({
     let live = true;
     loadStorageIntake(client, storageIntakeId).then(
       (loaded) => live && setData(loaded),
-      () => live && setError("Storage intake unavailable; reload."),
+      () => live && setError("Storage order unavailable; reload."),
     );
     return () => {
       live = false;
@@ -107,15 +108,22 @@ export function StorageDetail({
       ? "Labels: no label printer is set up for this site."
       : `Labels: ${r.label_jobs_queued} queued.`;
 
-  if (!data) return <p>{error || "Loading storage intake…"}</p>;
+  if (!data) return <p>{error || "Loading storage order…"}</p>;
   const { intake, boxes, batches } = data;
-  if (!intake) return <p role="alert">Storage intake not found.</p>;
+  if (!intake) return <p role="alert">Storage order not found.</p>;
   const boxLabel = new Map(boxes.map((b) => [b.storage_box_id, b.label]));
   const quote = priced?.key === selected.join() ? priced.quote : null;
+  // Pickup next step (docs/11-FLOOR-WORDING.md): tick → create the batch → charge at the register.
+  const charging = selected.length === 0 && batches.some((b) => b.state === "pending");
+  const pickup = selected.length
+    ? { next: "Tap Create Pickup Batch", step: 1 }
+    : charging
+      ? { next: "Charge the pickup at the register", step: 2 }
+      : { next: "Tick each box going home", step: 0 };
 
   return (
     <>
-      <section className="station-card intake-header" aria-label="Storage intake header">
+      <section className="station-card intake-header" aria-label="Storage order header">
         <div>
           <p className="intake-number">{intake.number}</p>
           <p>
@@ -170,12 +178,17 @@ export function StorageDetail({
           <h2>Boxes</h2>
           {/* Freezer pickups: a box code typed into this field is checked against the storage
               master and logged in scan_log (issue #84); an accepted box joins the selection. */}
+          <NextStep
+            next={pickup.next}
+            steps={["Tick boxes", "Create pickup batch", "Charge at the register"]}
+            step={pickup.step}
+          />
           <ManualEntry
             open={typing}
             onOpenChange={setTyping}
             disabled={busy}
             options={{ ...manual, accept: ["SBOX"] }}
-            label="Type the box code printed on its label (STG-0001-2)"
+            label="Box (STG-0001-2)"
             onSubmit={(text, parsed) => {
               void scanStorageBox(client, intake.id, text, parsed, "manual").then(
                 (reply) => {

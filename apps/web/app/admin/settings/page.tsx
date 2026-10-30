@@ -129,7 +129,7 @@ export default async function SettingsPage() {
             </span>
           </Label>
           <Label>
-            Asset tag digits (raise only)
+            Basket tag digits (raise only)
             <Select name="tag_digits" defaultValue={s.scanner.tag_digits}>
               {tagDigitOptions(s.scanner.tag_digits).map((d) => (
                 <option key={d} value={d}>

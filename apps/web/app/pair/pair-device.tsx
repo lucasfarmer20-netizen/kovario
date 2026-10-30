@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { readPairingInput } from "@/lib/pairing";
 import { getDeviceClient } from "@/lib/supabase/device";
+import { NextStep } from "@/src/components/station/next-step";
 
 type PairResponse = {
   session?: { access_token: string; refresh_token: string };
@@ -25,7 +26,7 @@ export function PairDevice({ initialCode }: { initialCode: string }) {
   async function pair(raw: string) {
     const normalised = readPairingInput(raw);
     if (normalised === null) {
-      setError("That is not a pairing code. Scan the pairing QR or type its 8 characters.");
+      setError("That is not a pairing code. Scan the pairing QR or enter its 8 characters.");
       return;
     }
     setPending(true);
@@ -67,8 +68,9 @@ export function PairDevice({ initialCode }: { initialCode: string }) {
 
   return (
     <form onSubmit={onSubmit} className="flex w-full max-w-md flex-col gap-4 text-lg">
+      <NextStep next={pending ? "Pairing this tablet…" : "Scan the pairing QR or enter the code"} />
       <label className="flex flex-col gap-2 font-medium">
-        Scan the pairing QR or type the code
+        Pairing code (8 characters)
         <input
           autoFocus
           value={code}

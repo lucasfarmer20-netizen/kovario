@@ -62,33 +62,31 @@ test("sport intake: intake → wave → rollstock → reconcile → blast → lo
     await scan(page, qr.tote(number, 1));
     await expect(open.getByRole("heading", { name: number })).toBeVisible();
     await open.getByRole("button", { name: "Finish queue" }).click();
-    await expect(open.getByText("Scan a numbered tote to open an intake.")).toBeVisible();
+    await expect(open.getByText("Scan a tote to open an order.")).toBeVisible();
   });
 
   await test.step(`reconcile: scan tote, scan tag ${tag}, weigh, Send to Blast Freezer`, async () => {
     await page.goto("/reconcile");
     await scan(page, qr.tote(number, 1));
-    await expect(page.getByRole("heading", { name: number, level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: `Order ${number}`, level: 2 })).toBeVisible();
     await scan(page, qr.tag(ORG_SLUG, tag));
-    const vessel = page.getByRole("button", { name: new RegExp(`^${tag} · `) });
+    const vessel = page.getByRole("button", { name: new RegExp(`^Basket ${tag} · `) });
     await expect(vessel).toHaveAttribute("aria-pressed", "true");
-    await page.getByRole("button", { name: "Manual entry" }).click();
+    await page.getByRole("button", { name: "Enter weight manually" }).click();
     // 20 lb halibut H&G → portions expects 15 lb; 15.5 lb (+3.3%) is within the ±15% variance
     // hold (#87), so Send to Blast goes through.
     await page.getByLabel("Manual weight (lb)").fill("15.5");
     await page.getByRole("button", { name: "Save manual weight" }).click();
     await expect(vessel).toContainText("15.5 lb");
     await page.getByRole("button", { name: "Send to Blast Freezer" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Scan a tote or choose an intake" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No order open" })).toBeVisible();
   });
 
   await test.step("blast: scan the basket tag in", async () => {
     await page.goto("/freezer/blast");
     await scan(page, qr.tag(ORG_SLUG, tag));
     await expect(
-      page.getByRole("region", { name: "In blast" }).getByText(`${tag} · ${number}`),
+      page.getByRole("region", { name: "In blast" }).getByText(`Basket ${tag} · ${number}`),
     ).toBeVisible();
     await expect(
       page
@@ -104,14 +102,14 @@ test("sport intake: intake → wave → rollstock → reconcile → blast → lo
     await expect(step.getByRole("heading", { name: "STEP 2 — SCAN LOCATION" })).toBeVisible();
     await expect(step).toContainText(number);
     await scan(page, qr.location(ORG_SLUG, LOCATION_CODE));
-    await expect(step.getByRole("heading", { name: "STEP 1 — SCAN VESSEL TAG" })).toBeVisible();
+    await expect(step.getByRole("heading", { name: "STEP 1 — SCAN BASKET" })).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: "✓" })).toBeVisible();
   });
 
   await test.step("status page: the stored intake reads Ready for pickup", async () => {
     const status = await statusPage(browser, customer.digits);
     await expect(
-      status.getByRole("heading", { name: `${number} · Ready for pickup` }),
+      status.getByRole("heading", { name: `Order ${number} · Ready for pickup` }),
     ).toBeVisible();
     await status.context().close();
   });
@@ -146,11 +144,13 @@ test("sport intake: intake → wave → rollstock → reconcile → blast → lo
     await page.waitForURL(/\/boxing\/[0-9a-f-]{36}$/);
     await page.getByRole("checkbox", { name: /will-call · 25 lb box · 17\.5 lb/ }).check();
     await scan(page, qr.tag(ORG_SLUG, tag));
-    await expect(page.getByRole("checkbox", { name: `Tick Tag ${tag} (${number})` })).toBeChecked();
+    await expect(
+      page.getByRole("checkbox", { name: `Tick Basket ${tag} (${number})` }),
+    ).toBeChecked();
     await page.getByRole("button", { name: "Complete", exact: true }).click();
     const last = page.getByRole("list", { name: "Last Complete" });
     await expect(last).toContainText("picked up");
-    await expect(last).toContainText(`Tag ${tag} (${number}) → emptied`);
+    await expect(last).toContainText(`Basket ${tag} (${number}) → emptied`);
     await expect(last).toContainText(`Closed: ${number}`);
   });
 
@@ -160,7 +160,7 @@ test("sport intake: intake → wave → rollstock → reconcile → blast → lo
 
   await test.step("picked up: the status page drops the intake; the intake shows Picked up", async () => {
     const status = await statusPage(browser, customer.digits);
-    await expect(status.getByText("No open intakes found for this number.")).toBeVisible();
+    await expect(status.getByText("No open orders found for this number.")).toBeVisible();
     await status.context().close();
     await page.goto(`/intake/${intakeId}`);
     await expect(page.locator(".intake-timeline")).toContainText("Picked up");

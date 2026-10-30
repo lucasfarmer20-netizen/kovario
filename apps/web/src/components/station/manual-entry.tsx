@@ -42,7 +42,7 @@ export function useManualOptions(client: FilletryClient, orgId: string): ManualO
 }
 
 /**
- * "Type code": a visible field with the normal on-screen keyboard for when the scanner is
+ * "Enter manually": a visible field with the normal on-screen keyboard for when the scanner is
  * dead (issue #84). Each entry goes to `onSubmit` like a scan; the field stays open for the
  * next code. No PIN or manager gate beyond the station's own. The station pauses its hidden
  * scanner input while this is open and refocuses it on close.
@@ -53,13 +53,14 @@ export function ManualEntry({
   onSubmit,
   disabled = false,
   options,
-  label = "Type the code printed beside the QR",
+  label = "Code printed beside the QR",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (text: string, parsed: ParseResult) => void;
   disabled?: boolean;
   options?: ManualOptions;
+  /** Names what's expected (docs/11-FLOOR-WORDING.md): "Basket number", "Tote number (INT-0002-1)". */
   label?: string;
 }) {
   const [value, setValue] = useState("");
@@ -68,14 +69,14 @@ export function ManualEntry({
     return (
       <div className="station-manual">
         <button type="button" onClick={() => onOpenChange(true)}>
-          Type code
+          Enter manually
         </button>
       </div>
     );
   return (
     <form
       className="station-manual station-card"
-      aria-label="Type code"
+      aria-label="Enter manually"
       onSubmit={(event) => {
         event.preventDefault();
         if (disabled || value.trim() === "") return;
@@ -102,7 +103,7 @@ export function ManualEntry({
       </label>
       <div className="station-actions">
         <button type="submit" disabled={disabled || value.trim() === ""}>
-          Enter code
+          Enter
         </button>
         <button
           type="button"

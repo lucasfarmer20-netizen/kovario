@@ -56,7 +56,7 @@ select is((select count(*)::int from public.scan_log),3,'M-SQL4 replay logs no s
 
 -- No header, another header, or an unreadable header → scan; the scan is never blocked.
 select set_config('request.headers','{"x-other":"manual"}',true);
-select is(public.blast_vessel('m-other-header','FL:TAG:manual-a:041')->>'reason','Already in blast: 041 · INT-0001','M-SQL5 other headers scan normally');
+select is(public.blast_vessel('m-other-header','FL:TAG:manual-a:041')->>'reason','Basket 041 already in blast · INT-0001','M-SQL5 other headers scan normally');
 select set_config('request.headers','not json',true);
 select is(public.blast_vessel('m-garbled','41')->>'ok','true','M-SQL5 an unreadable header never blocks a scan');
 select set_config('request.headers','',true);

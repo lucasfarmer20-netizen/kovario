@@ -20,7 +20,7 @@ it("WP20 phone lookup renders plain stage, amount due, hours and notice without 
   render(<StatusForm orgSlug="plant-a" />);
   fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "9075551234" } });
   fireEvent.submit(screen.getByRole("button", { name: "Check status" }).closest("form")!);
-  await screen.findByText("INT-0001 · Ready for pickup");
+  await screen.findByText("Order INT-0001 · Ready for pickup");
   expect(lookupStatus).toHaveBeenCalledWith("plant-a", "9075551234");
   expect(screen.getByText("Amount due: $42.50")).toBeTruthy();
   expect(screen.getByText("Pickup hours: 9–5")).toBeTruthy();

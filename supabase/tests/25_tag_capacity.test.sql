@@ -78,7 +78,7 @@ select is(pg_temp.save('tagcap-raise-4', 4), (select v from t where k = 'raise')
 
 -- Lowering is rejected -------------------------------------------------------------------------
 select throws_ok($$ select pg_temp.save('tagcap-lower-3', 3) $$, '22023',
-  'Asset tag digits can only be raised (now 4, asked for 3).', 'I85 lowering 4 → 3 is rejected');
+  'Basket tag digits can only be raised (now 4, asked for 3).', 'I85 lowering 4 → 3 is rejected');
 select is((select array_agg(code order by code) from public.asset_tag), array['0042', '0043', '0999'],
   'I85 a rejected lowering leaves the tags alone');
 select lives_ok($$ select pg_temp.save('tagcap-same-4', 4) $$,
@@ -93,16 +93,16 @@ select is((select t.code from public.vessel v join public.asset_tag t on t.id = 
 select is(public.bind_tag('tagcap-bind-bare', '43', 'a2300000-0000-4000-8000-000000000011') ->> 'ok',
   'true', 'I85 a bare code resolves at the new width');
 select is(public.bind_tag('tagcap-bind-foreign', 'FL:TAG:tagcap-b:0042',
-  'a2300000-0000-4000-8000-000000000011') ->> 'reason', 'Unknown tag',
+  'a2300000-0000-4000-8000-000000000011') ->> 'reason', 'Basket not found. Scan a different basket.',
   'I85 another org''s label never resolves');
 
 -- A further raise (4 → 5) still resolves labels printed at 3 and at 4 digits.
 select is((pg_temp.save('tagcap-raise-5', 5) -> 'repadded_tags'), '3'::jsonb, 'I85 raising 4 → 5');
 select is(public.bind_tag('tagcap-bind-again-3', 'FL:TAG:tagcap-a:042',
-  'a2300000-0000-4000-8000-000000000011') ->> 'reason', 'Tag 00042 in use by INT-0001',
+  'a2300000-0000-4000-8000-000000000011') ->> 'reason', 'Basket 00042 is already on INT-0001. Scan a different basket.',
   'I85 a 3-digit label resolves after two raises');
 select is(public.bind_tag('tagcap-bind-again-4', 'FL:TAG:tagcap-a:0043',
-  'a2300000-0000-4000-8000-000000000011') ->> 'reason', 'Tag 00043 in use by INT-0001',
+  'a2300000-0000-4000-8000-000000000011') ->> 'reason', 'Basket 00043 is already on INT-0001. Scan a different basket.',
   'I85 a 4-digit label resolves after a raise to 5');
 
 reset role;

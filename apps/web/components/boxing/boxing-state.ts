@@ -78,7 +78,7 @@ export const emptyTicks = (): Ticks => ({ boxes: [], vessels: {} });
 
 export function vesselLabel(v: Pick<WizardVessel, "tag_code" | "is_exchange" | "intake_number">) {
   const name = v.tag_code
-    ? `Tag ${v.tag_code}`
+    ? `Basket ${v.tag_code}`
     : v.is_exchange
       ? "Exchange basket"
       : "Untagged basket";
@@ -218,14 +218,14 @@ export function scanTick(wizard: Wizard, ticks: Ticks, raw: string): ScanOutcome
   if (!parsed.ok) return { kind: "rejected", message: "Unreadable scan" };
   if (parsed.value.kind === "BOX") return { kind: "box", token: parsed.value.token };
   if (parsed.value.kind !== "TAG")
-    return { kind: "rejected", message: "Scan a basket tag or a boxing QR" };
+    return { kind: "rejected", message: "Scan a basket or the boxing QR" };
   // Any padding: a label printed before the org raised tag_digits names the same tag.
   const { code } = parsed.value;
   const v = wizard.vessels.find((x) => x.tag_code !== null && sameTagCode(x.tag_code, code));
   if (!v)
     return {
       kind: "rejected",
-      message: `Tag ${code} is not on ${wizard.number}'s pick list`,
+      message: `Basket ${code} is not on ${wizard.number}'s pick list`,
     };
   if (ticks.vessels[v.vessel_id]?.ticked)
     return { kind: "ticked", ticks, message: `${vesselLabel(v)} already ticked` };

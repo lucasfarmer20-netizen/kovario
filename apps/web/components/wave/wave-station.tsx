@@ -5,6 +5,7 @@ import { type Database, type Json } from "db";
 import { suggestWave, hoursInCooler } from "rules";
 import { useStationSession, type StationSession } from "@/components/intake/use-station-session";
 import { StationShell } from "@/src/components/station/station-shell";
+import { DisabledReason } from "@/src/components/station/next-step";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
 import { OperatorPinOverlay } from "@/src/components/station/pin-overlay";
 import { useOperatorIdle } from "@/src/components/station/use-operator-idle";
@@ -17,6 +18,20 @@ type Intake = Database["public"]["Tables"]["intake"]["Row"] & {
   intake_line: { species_code: string }[];
 };
 type Wave = Database["public"]["Tables"]["wave"]["Row"];
+const STEPS = ["Add orders", "Scan totes", "Complete"] as const;
+/** The next step line and current step (docs/11-FLOOR-WORDING.md, Wave). */
+export function waveNextStep(
+  wave: Pick<Wave, "state"> | undefined,
+  chosen: number,
+  scanned: number,
+  expected: number,
+): { next: string; step: number } {
+  if (!wave) return { next: chosen ? "Tap Create wave" : "Tap orders to add to the wave", step: 0 };
+  if (wave.state === "draft") return { next: "Tap Start verification", step: 0 };
+  if (expected === 0 || scanned < expected)
+    return { next: `Scan each tote (${scanned} of ${expected})`, step: 1 };
+  return { next: "Complete wave", step: 2 };
+}
 function result(data: Json): ScanReply {
   if (
     !data ||
@@ -143,6 +158,11 @@ function LiveWave({ client, claims, siteName }: StationSession) {
   const expected = members.reduce((n, i) => n + i.tote_count, 0);
   const scanned = active ? (counts[active] ?? 0) : 0;
   const chosen = queue.filter((i) => selected.includes(i.id));
+  const prompt = waveNextStep(wave, chosen.length, scanned, expected);
+  const completeWhy =
+    wave?.state === "verifying" && (expected === 0 || scanned !== expected)
+      ? `Scan every tote first (${scanned} of ${expected})`
+      : null;
   const allowed = () => {
     if (claims.appRole === "station" && (!operator || idle.check())) {
       setPinOpen(true);
@@ -188,6 +208,10 @@ function LiveWave({ client, claims, siteName }: StationSession) {
       operator={operator}
       pending={pending}
       paused={pinOpen}
+      next={prompt.next}
+      steps={STEPS}
+      step={prompt.step}
+      manualLabel="Tote number (INT-0002-1)"
       status={
         <>
           <ScanFeedback feedback={feedback} />
@@ -244,13 +268,14 @@ function LiveWave({ client, claims, siteName }: StationSession) {
               </span>
             </button>
           ))}
-          {!queue.length && <p>No unassigned holding intakes</p>}
+          {!queue.length && <p>No orders waiting in the cooler</p>}
           <p>
             {chosen.length} selected · {chosen.reduce((sum, i) => sum + i.total_incoming_lb, 0)} lb
           </p>
           <button disabled={busy || pinOpen || !chosen.length} onClick={() => void mutate(true)}>
             Create wave
           </button>
+          <DisabledReason reason={!chosen.length && "Tap orders first"} />
         </section>
         <section className="station-card">
           <h2>Verify totes</h2>
@@ -273,16 +298,12 @@ function LiveWave({ client, claims, siteName }: StationSession) {
                 </p>
               ))}
               <button
-                disabled={
-                  busy ||
-                  pinOpen ||
-                  pending > 0 ||
-                  (wave.state === "verifying" && (expected === 0 || scanned !== expected))
-                }
+                disabled={busy || pinOpen || pending > 0 || completeWhy !== null}
                 onClick={() => void mutate(false)}
               >
                 {wave.state === "draft" ? "Start Verification" : "Complete — Start Processing"}
               </button>
+              <DisabledReason reason={completeWhy} />
               <button
                 disabled={busy || pinOpen || pending > 0}
                 onClick={() => void mutate(false, true)}
@@ -291,7 +312,7 @@ function LiveWave({ client, claims, siteName }: StationSession) {
               </button>
             </>
           ) : (
-            <p>Select or create a wave. Scan every numbered tote label before completing.</p>
+            <p>Tap a wave, or create one from the orders in the cooler.</p>
           )}
         </section>
       </div>

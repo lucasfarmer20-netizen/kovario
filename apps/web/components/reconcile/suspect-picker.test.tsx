@@ -85,7 +85,7 @@ it("#88 the picker shows the hold group with variance, species, size and state",
   const picker = screen.getByRole("region", { name: "Suspect picker" });
   expect(picker.textContent).toContain("SUSPECTS · INT-0002 +40% (limit ±15%) · HELD");
   expect(
-    within(screen.getByRole("list", { name: "Flagged intake" })).getByRole("listitem").textContent,
+    within(screen.getByRole("list", { name: "Flagged order" })).getByRole("listitem").textContent,
   ).toBe("Flagged: INT-0002 · +40% · over limit · halibut, salmon · 60 lb · reconciled");
   // Most likely first: INT-0003 (−20 lb cancels +24 lb), then INT-0001 (0), then INT-0004 (waiting).
   expect(
@@ -103,16 +103,16 @@ it("#88 the picker shows the hold group with variance, species, size and state",
 it("#88 no suggestions while any group intake is unreconciled; the waiting ones are named", () => {
   render(<Picker rows={group("upstream")} />);
   expect(
-    screen.getByText(/Suggestions appear once every intake in the group is reconciled/).textContent,
+    screen.getByText(/Suggestions appear once every order in the group is reconciled/).textContent,
   ).toBe(
-    "Suggestions appear once every intake in the group is reconciled. Waiting on: INT-0004 (not yet at reconcile)",
+    "Suggestions appear once every order in the group is reconciled. Waiting on: INT-0004 (not yet at reconcile)",
   );
   expect(screen.queryByRole("list", { name: "Suggested moves" })).toBeNull();
-  expect(screen.queryByRole("button", { name: "Move this bin" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Move this basket" })).toBeNull();
   cleanup();
   render(<Picker rows={group("at_reconcile")} />);
   expect(screen.getByText(/Waiting on: INT-0004 \(waiting at reconcile\)/)).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "Move this bin" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Move this basket" })).toBeNull();
 });
 
 it("#88 once every intake is reconciled the best move is suggested and moves the bin", () => {
@@ -121,9 +121,9 @@ it("#88 once every intake is reconciled the best move is suggested and moves the
   const moves = screen.getByRole("list", { name: "Suggested moves" });
   // +24 lb and −20 lb: tag 0042 (20 lb) leaves 4 lb off in total.
   expect(within(moves).getByRole("listitem").textContent).toContain(
-    "Move 0042 · 20 lb INT-0002 → INT-0003 (off by 44 lb → 4 lb)",
+    "Move basket 0042 · 20 lb INT-0002 → INT-0003 (off by 44 lb → 4 lb)",
   );
-  fireEvent.click(within(moves).getByRole("button", { name: "Move this bin" }));
+  fireEvent.click(within(moves).getByRole("button", { name: "Move this basket" }));
   expect(onMove).toHaveBeenCalledWith("v-tag", "i3", "i2");
 });
 
@@ -175,7 +175,7 @@ it("#88 a manager moves any bin between members at reconcile", () => {
   const onMove = vi.fn();
   render(<Picker rows={group()} onMove={onMove} />);
   expect(screen.queryByRole("button", { name: /to INT-0001/ })).toBeNull(); // in blast
-  fireEvent.click(screen.getByRole("button", { name: "Exchange · 30 lb" }));
-  fireEvent.click(screen.getByRole("button", { name: "Move Exchange · 30 lb to INT-0002" }));
+  fireEvent.click(screen.getByRole("button", { name: "Exchange basket · 30 lb" }));
+  fireEvent.click(screen.getByRole("button", { name: "Move exchange basket · 30 lb to INT-0002" }));
   expect(onMove).toHaveBeenCalledWith("v-3", "i2", "i2");
 });

@@ -58,21 +58,21 @@ select is((select array_agg(coalesce(t.code,'Exchange') order by t.code nulls fi
  '{Exchange,042}'::text[],'#86 released-not-blasted vessels are listed, exchange included');
 
 -- Blast in by id: rejections ------------------------------------------------------------
-select is(public.blast_vessel_by_id('x86-blast-tagged',pg_temp.id('tagged'))->>'reason','Vessel 042 has a tag; scan the tag','#86 a tagged vessel is never blasted in by id');
-select is(public.blast_vessel_by_id('x86-blast-recon',pg_temp.id('ex2'))->>'reason','Intake INT-0002 has not been sent to blast','#86 blast by id refuses an intake still at reconcile');
-select is(public.blast_vessel_by_id('x86-blast-unknown','a2600000-0000-4000-8000-0000000000ff')->>'reason','Unknown vessel','#86 blast by id refuses an unknown vessel');
+select is(public.blast_vessel_by_id('x86-blast-tagged',pg_temp.id('tagged'))->>'reason','Basket 042 has a tag. Scan it instead.','#86 a tagged vessel is never blasted in by id');
+select is(public.blast_vessel_by_id('x86-blast-recon',pg_temp.id('ex2'))->>'reason','Order INT-0002 has not been sent to blast. Scan a different basket.','#86 blast by id refuses an intake still at reconcile');
+select is(public.blast_vessel_by_id('x86-blast-unknown','a2600000-0000-4000-8000-0000000000ff')->>'reason','Basket not found','#86 blast by id refuses an unknown vessel');
 select ok((select blast_in_at is null from public.vessel where id=pg_temp.id('tagged')) and (select blast_in_at is null from public.vessel where id=pg_temp.id('ex2')),'#86 rejected blast-ins stamp nothing');
 
 -- Blast in by id: accepted and idempotent -----------------------------------------------
 create temp table blast as select public.blast_vessel_by_id('x86-blast',pg_temp.id('ex')) r;
-select is((select r->>'reason' from blast),'In blast: Exchange basket · INT-0001','#86 exchange basket blasted in by id');
+select is((select r->>'reason' from blast),'Exchange basket in blast · INT-0001','#86 exchange basket blasted in by id');
 select ok((select (r->>'is_exchange')::boolean and r->'tag_code'='null'::jsonb from blast),'#86 blast reply names the basket as exchange, no tag');
 create temp table first_in as select blast_in_at from public.vessel where id=pg_temp.id('ex');
 select isnt((select blast_in_at from first_in),null,'#86 blast by id stamps blast_in_at');
 create temp table scans_before as select count(*)::int n from public.scan_log;
 select is(public.blast_vessel_by_id('x86-blast',pg_temp.id('ex')),(select r from blast),'#86 blast by id replay returns the stored result');
 select is((select count(*)::int from public.scan_log),(select n from scans_before),'#86 replay writes no second scan_log row');
-select is(public.blast_vessel_by_id('x86-blast-again',pg_temp.id('ex'))->>'reason','Already in blast: Exchange basket · INT-0001','#86 repeat tap keeps the first time-in');
+select is(public.blast_vessel_by_id('x86-blast-again',pg_temp.id('ex'))->>'reason','Exchange basket already in blast · INT-0001','#86 repeat tap keeps the first time-in');
 select is((select blast_in_at from public.vessel where id=pg_temp.id('ex')),(select blast_in_at from first_in),'#86 blast_in_at unchanged by a repeat');
 select ok(exists(select 1 from public.scan_log where station='blast' and result='ok' and vessel_id=pg_temp.id('ex')
   and intake_id='a2600000-0000-4000-8000-000000000011' and parsed->>'kind'='TAP'),'#86 blast tap audited in scan_log');
@@ -81,9 +81,9 @@ select is((select action from public.action_log where client_action_id='x86-blas
 select throws_ok($q$select public.blast_vessel('x86-blast','042')$q$,null,null,'#86 a tap''s client_action_id cannot be replayed as a different action');
 
 -- Locate: step 1 by tap, step 2 by location scan ----------------------------------------
-select is(public.locate_vessel_by_id('x86-loc-tagged',pg_temp.id('tagged'))->>'reason','Vessel 042 has a tag; scan the tag','#86 a tagged vessel is never selected by id at locate');
+select is(public.locate_vessel_by_id('x86-loc-tagged',pg_temp.id('tagged'))->>'reason','Basket 042 has a tag. Scan it instead.','#86 a tagged vessel is never selected by id at locate');
 create temp table step1 as select public.locate_vessel_by_id('x86-loc-1',pg_temp.id('ex')) r;
-select is((select r->>'reason' from step1),'Exchange basket · INT-0001 — scan a location','#86 locate step 1 by tap names the basket and intake');
+select is((select r->>'reason' from step1),'Exchange basket · INT-0001. Scan a location.','#86 locate step 1 by tap names the basket and intake');
 select ok((select r->>'pending_vessel_id'=pg_temp.id('ex')::text and r->'pending_vessel_raw'='null'::jsonb and not (r->>'placed')::boolean from step1),'#86 locate step 1 holds the vessel by id, no tag text');
 select is(public.locate_vessel_by_id('x86-loc-1',pg_temp.id('ex')),(select r from step1),'#86 locate tap replay returns the stored result');
 create temp table archived as select public.locate_scan('x86-loc-archived','FL:LOC:exchange-a:IF-A-02-1-R',null,p_pending_vessel_id=>pg_temp.id('ex')) r;
@@ -94,7 +94,7 @@ create temp table skip as select public.locate_scan('x86-loc-skip','IF-A-01-1-F'
 select ok((select r->>'reason'='Selected basket changed since it was chosen; choose it again' and (r->>'reset')::boolean from skip),'#86 a tagged vessel cannot be placed by id alone');
 select is((select location_id from public.vessel where id=pg_temp.id('tagged')),null,'#86 the tagged vessel stays unplaced');
 create temp table step2 as select public.locate_scan('x86-loc-2','FL:LOC:exchange-a:IF-A-01-1-F',null,p_pending_vessel_id=>pg_temp.id('ex')) r;
-select is((select r->>'reason' from step2),'Placed Exchange basket → IF-A-01-1-F','#86 location scan places the exchange basket');
+select is((select r->>'reason' from step2),'Exchange basket placed at IF-A-01-1-F','#86 location scan places the exchange basket');
 select ok((select (r->>'placed')::boolean and (r->>'reset')::boolean and r->'pending_vessel_id'='null'::jsonb from step2),'#86 placement resets the loop');
 select is((select l.code from public.vessel v join public.location l on l.id=v.location_id where v.id=pg_temp.id('ex')),'IF-A-01-1-F','#86 vessel.location_id mirrors the placement');
 select ok((select stored_at is not null and blast_out_at is not null from public.vessel where id=pg_temp.id('ex')),'#86 placement stamps stored_at and blast_out_at');
@@ -103,8 +103,8 @@ select is(public.locate_scan('x86-loc-2','FL:LOC:exchange-a:IF-A-01-1-F',null,p_
 select is((select count(*)::int from public.location_placement),1,'#86 placement replay never duplicates history');
 select is(public.blast_vessel_by_id('x86-blast-after',pg_temp.id('ex'))->>'reason','Exchange basket already left blast','#86 a located exchange basket cannot re-enter blast');
 -- The tagged vessel still uses the tag scan path.
-select is(public.blast_vessel('x86-blast-tag','042')->>'reason','In blast: 042 · INT-0001','#86 tagged vessel blasts in by scan as before');
-select is(public.place_vessel('042','IF-A-01-1-R','x86-place-tag')->>'reason','Placed 042 → IF-A-01-1-R','#86 tagged vessel located by scan as before');
+select is(public.blast_vessel('x86-blast-tag','042')->>'reason','Basket 042 in blast · INT-0001','#86 tagged vessel blasts in by scan as before');
+select is(public.place_vessel('042','IF-A-01-1-R','x86-place-tag')->>'reason','Basket 042 placed at IF-A-01-1-R','#86 tagged vessel located by scan as before');
 
 -- Boxing: the exchange basket is on the pick list and released by tick -------------------
 reset role;
@@ -133,8 +133,8 @@ select is(public.locate_vessel_by_id('x86-loc-emptied',pg_temp.id('ex'))->>'reas
 reset role;
 select set_config('request.jwt.claims','{"sub":"a2600000-0000-4000-8000-0000000000a1","role":"authenticated","org_id":"b2600000-0000-4000-8000-00000000000b","app_role":"manager"}',true);
 set local role authenticated;
-select is(public.blast_vessel_by_id('x86-cross-blast',(select v from ids where k='ex2'))->>'reason','Unknown vessel','#86 another org''s vessel is refused at blast');
-select is(public.locate_vessel_by_id('x86-cross-locate',(select v from ids where k='ex2'))->>'reason','Unknown vessel','#86 another org''s vessel is refused at locate');
+select is(public.blast_vessel_by_id('x86-cross-blast',(select v from ids where k='ex2'))->>'reason','Basket not found','#86 another org''s vessel is refused at blast');
+select is(public.locate_vessel_by_id('x86-cross-locate',(select v from ids where k='ex2'))->>'reason','Basket not found','#86 another org''s vessel is refused at locate');
 reset role;
 select is((select blast_in_at from public.vessel where id=(select v from ids where k='ex2')),null,'#86 cross-org tap stamps nothing');
 select set_config('request.jwt.claims','{"sub":"a2600000-0000-4000-8000-0000000000a1","role":"authenticated","org_id":"a2600000-0000-4000-8000-00000000000a","app_role":"station"}',true);

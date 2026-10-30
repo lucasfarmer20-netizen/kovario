@@ -10,6 +10,7 @@ import {
 } from "rules";
 import { BAND_LABEL, lineBand } from "@/components/variance/now-in-blast";
 import type { HoldMember } from "@/components/variance/use-variance-holds";
+import { DisabledReason } from "@/src/components/station/next-step";
 
 /** Where a group member is, in the floor's words. */
 export function memberState(state: HoldMember["state"]): string {
@@ -66,8 +67,8 @@ export function VarianceHoldPanel({
       </h3>
       <p>
         {open?.position === 0
-          ? "Send to Blast is refused until the bins are fixed or a manager signs off."
-          : `${open?.intake_number ?? "This intake"} is a rollstock neighbour and waits for the hold to clear.`}
+          ? "Send to Blast is refused until the baskets are fixed or a manager signs off."
+          : `${open?.intake_number ?? "This order"} is a rollstock neighbour and waits for the hold to clear.`}
       </p>
       <ul>
         {group.map((m) => {
@@ -130,6 +131,7 @@ export function VarianceHoldPanel({
       >
         Manager sign-off
       </button>
+      <DisabledReason reason={reason === null && "Tap a reason first"} />
       {problem && <p role="alert">{problem}</p>}
     </section>
   );

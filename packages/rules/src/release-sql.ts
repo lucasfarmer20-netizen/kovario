@@ -13,7 +13,8 @@ import {
   LBS_LEFT_ON_UNTICKED,
 } from "./release.ts";
 
-export const RELEASE_SQL_PATH = "supabase/migrations/20261027230000_release_rules_sql.sql";
+// v1.2 floor wording (#98) moved the generated SQL to a new migration; the original stays as applied.
+export const RELEASE_SQL_PATH = "supabase/migrations/20261101000010_release_rules_wording.sql";
 
 function literal(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;

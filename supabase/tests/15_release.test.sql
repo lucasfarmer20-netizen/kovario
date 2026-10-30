@@ -617,13 +617,13 @@ select pg_temp.intake('i_left'); select pg_temp.vessel('v_left', 'i_left', 6, '7
 select pg_temp.session('s_left', '{i_left}'); select pg_temp.box('b_left', 's_left', 'Ann');
 set local role authenticated;
 select pg_temp.as_user('staff');
-select matches(pg_temp.err($$select pg_temp.release('s_left', '{b_left}')$$), '^55000 .*tick the totes being handed over before finalising boxes \(I8\)',
+select matches(pg_temp.err($$select pg_temp.release('s_left', '{b_left}')$$), '^55000 .*tick the baskets being handed over before finalising boxes \(I8\)',
   'I8 OVERRIDE — with a tote left, the refusal does not offer an override');
 select is(pg_temp.hint($$select pg_temp.release('s_left', '{b_left}')$$), 'i8_tote_left',
   'I8 OVERRIDE — the tote-left refusal carries its own hint (never i8_override_available)');
 select pg_temp.as_user('manager');
 select matches(pg_temp.err($$select pg_temp.override('s_left', '{b_left}', 'forgot to tick')$$),
-  '^55000 .*still has a tote to tick \(Tag 7401 .*DECISION-23',
+  '^55000 .*still has a basket to tick \(Basket 7401 .*DECISION-23',
   'I8 OVERRIDE — refused while the party still has an occupied tote');
 select is(pg_temp.hint($$select pg_temp.override('s_left', '{b_left}', 'forgot to tick')$$), 'i8_tote_left',
   'I8 OVERRIDE — a refused override carries the tote-left hint (the screen points at the freezer)');

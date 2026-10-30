@@ -33,8 +33,8 @@ select is((select (r->>'scan_id')::uuid from typed_ok),(select id from public.sc
 select is(public.storage_box_scan('sb-typed-other','FL:SBOX:STG-0002:1','a2500000-0000-4000-8000-000000000081','STG-0002',1)->>'reason','STG-0002-1 is not on STG-0001.','S-M2 another intake''s box is refused');
 select is(public.storage_box_scan('sb-typed-phantom','FL:SBOX:STG-0001:9','a2500000-0000-4000-8000-000000000081','STG-0001',9)->>'reason','No box 9 on STG-0001.','S-M2 a phantom box is refused (PRD rule 6)');
 select is(public.storage_box_scan('sb-typed-released','FL:SBOX:STG-0001:2','a2500000-0000-4000-8000-000000000081','STG-0001',2)->>'reason','Box 2 is already picked up.','S-M2 a picked-up box is refused');
-select is(public.storage_box_scan('sb-typed-junk','hello','a2500000-0000-4000-8000-000000000081')->>'reason','Not a storage box code. Type it as printed, e.g. STG-0001-2.','S-M2 an unreadable code is refused');
-select is(public.storage_box_scan('sb-typed-intake','FL:SBOX:STG-0001:1','c2500000-0000-4000-8000-000000000089','STG-0001',1)->>'reason','Storage intake not found.','S-M2 an unknown intake is refused');
+select is(public.storage_box_scan('sb-typed-junk','hello','a2500000-0000-4000-8000-000000000081')->>'reason','Not a box code. Enter it as printed, e.g. STG-0001-2.','S-M2 an unreadable code is refused');
+select is(public.storage_box_scan('sb-typed-intake','FL:SBOX:STG-0001:1','c2500000-0000-4000-8000-000000000089','STG-0001',1)->>'reason','Storage order not found.','S-M2 an unknown intake is refused');
 select set_config('request.headers','',true);
 select is(public.storage_box_scan('sb-scanned-ok','FL:SBOX:STG-0001:1','a2500000-0000-4000-8000-000000000081','STG-0001',1)->>'ok','true','S-M3 a scanned code takes the same path');
 
@@ -55,7 +55,7 @@ select is(public.storage_box_scan('sb-typed-ok','FL:SBOX:STG-0001:1','a2500000-0
 select is((select count(*)::int from public.scan_log where station='storage'),7,'S-M5 replay logs nothing new');
 -- Tenancy.
 select set_config('request.jwt.claims','{"role":"authenticated","org_id":"b2500000-0000-4000-8000-00000000000b","app_role":"manager"}',true);
-select is(public.storage_box_scan('sb-other-org','FL:SBOX:STG-0001:1','a2500000-0000-4000-8000-000000000081','STG-0001',1)->>'reason','Storage intake not found.','S-M6 another org cannot resolve this intake');
+select is(public.storage_box_scan('sb-other-org','FL:SBOX:STG-0001:1','a2500000-0000-4000-8000-000000000081','STG-0001',1)->>'reason','Storage order not found.','S-M6 another org cannot resolve this intake');
 reset role;
 set local role anon;
 select throws_ok($q$select public.storage_box_scan('sb-anon-01','x','a2500000-0000-4000-8000-000000000081')$q$,'42501',null,'S-M6 anonymous callers are denied');

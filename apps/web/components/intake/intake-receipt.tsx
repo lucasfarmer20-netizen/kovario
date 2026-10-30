@@ -81,7 +81,7 @@ export function IntakeReceipt({ intakeId }: { intakeId: string }) {
         Print receipt
       </button>
       <h1 className="text-2xl font-semibold">
-        {receipt.name} · {receipt.number}
+        {receipt.name} · Order {receipt.number}
       </h1>
       <p>
         Estimated pickup:{" "}

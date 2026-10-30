@@ -9,7 +9,9 @@ export default async function StatusPage({ params }: { params: Promise<{ orgSlug
       <header>
         <p className="text-sm text-muted-foreground">Filletry · Customer status</p>
         <h1 className="mt-2 text-3xl font-semibold">How’s your fish coming along?</h1>
-        <p className="mt-3">Enter the full phone number you gave us at intake.</p>
+        <p className="mt-3">
+          Enter the full phone number you gave us when you dropped off your fish.
+        </p>
       </header>
       <StatusForm orgSlug={orgSlug} />
     </main>

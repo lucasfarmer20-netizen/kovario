@@ -149,7 +149,7 @@ select throws_ok($q$select pg_temp.move('v88-m-blast','b2tag','INT-0001','INT-00
 select throws_ok($q$select pg_temp.move('v88-m-out','b2tag','INT-0005','INT-0002')$q$,'22023',
   'INT-0002 and INT-0005 are not in the same hold group','PK-M1 a bin moves only within the group');
 select throws_ok($q$select public.variance_move_vessel('v88-m-unknown',gen_random_uuid(),pg_temp.intake('INT-0003'),pg_temp.intake('INT-0002'))$q$,'22023',
-  'Unknown vessel','PK-M1 an unknown vessel is refused');
+  'Basket not found','PK-M1 an unknown vessel is refused');
 -- Review (#99): an unknown or other-org centre has no group; the move must fail closed, even
 -- between two otherwise valid intakes at reconcile in different groups (INT-0002, INT-0005).
 select throws_ok(format($q$select public.variance_move_vessel('v88-m-nocenter',%L,%L,%L)$q$,
@@ -169,7 +169,7 @@ select is((select state::text from public.variance_hold where id=pg_temp.id('hol
 
 -- PK-M2: tag 0042 (20 lb) INT-0002 → INT-0003 ----------------------------------------------------
 create temp table moved as select pg_temp.move('v88-move-1','b2tag','INT-0003','INT-0002') r;
-select is((select r->>'reason' from moved),'Moved 0042 (20.00 lb) from INT-0002 to INT-0003: INT-0002 now +6.7%, INT-0003 now 0%. Hold cleared',
+select is((select r->>'reason' from moved),'Moved basket 0042 (20.00 lb) from INT-0002 to INT-0003: INT-0002 now +6.7%, INT-0003 now 0%. Hold cleared',
   'PK-M2 the move reports both new variances and the cleared hold');
 select ok((select (r->>'ok')::boolean and (r->>'moved')::boolean and (r->>'holds_cleared')::int=1
   and (r#>>'{from,variance_pct}')::numeric=6.67 and (r#>>'{to,variance_pct}')::numeric=0 from moved),'PK-M2 the result carries both variances');
@@ -195,7 +195,7 @@ select ok((select state='cleared' and clear_kind='auto' and cleared_by is null a
 -- PK-M3: idempotent ---------------------------------------------------------------------------------
 select is(pg_temp.move('v88-move-1','b2tag','INT-0003','INT-0002'),(select r from moved),'PK-M3 replaying the move returns the stored result');
 select is((select count(*)::int from public.intake_history),2,'PK-M3 a replay writes nothing');
-select ok((select r->>'ok'='true' and r->>'moved'='false' and r->>'reason'='0042 is already in INT-0003'
+select ok((select r->>'ok'='true' and r->>'moved'='false' and r->>'reason'='Basket 0042 is already in INT-0003'
   from (select pg_temp.move('v88-move-again','b2tag','INT-0003','INT-0002') r) x),'PK-M3 moving a bin already there is a no-op');
 select is((select count(*)::int from public.intake_history),2,'PK-M3 the no-op writes nothing');
 
@@ -240,7 +240,7 @@ select pg_temp.as_manager();
 set local role authenticated;
 select throws_ok($q$select public.intake_pull_back('v88-pb-blank',pg_temp.intake('INT-0001'),'  ')$q$,'22023','Pull back needs a reason','PK-B1 a reason is required');
 select throws_ok($q$select public.intake_pull_back('v88-pb-rec',pg_temp.intake('INT-0003'),'Wrong bin')$q$,'22023',
-  'Only an intake in the blast freezer can be pulled back','PK-B1 only an intake in blast can be pulled back');
+  'Only an order in the blast freezer can be pulled back','PK-B1 only an intake in blast can be pulled back');
 select is(pg_temp.state('INT-0001'),'blast_freezer','PK-B1 refusals change nothing');
 
 create temp table pulled as select public.intake_pull_back('v88-pb-1',pg_temp.intake('INT-0001'),' Fish from INT-0002 in its bin ') r;
@@ -259,7 +259,7 @@ select ok((select status='reconciled' and not actual_frozen from public.variance
   join public.intake_variance iv using (intake_id) where intake_number='INT-0001'),'PK-B2 it is reconciled again, its actual live');
 select is(public.intake_pull_back('v88-pb-1',pg_temp.intake('INT-0001'),'Fish from INT-0002 in its bin'),(select r from pulled),'PK-B3 replaying the pull back returns the stored result');
 select throws_ok($q$select public.intake_pull_back('v88-pb-2',pg_temp.intake('INT-0001'),'Again')$q$,'22023',
-  'Only an intake in the blast freezer can be pulled back','PK-B3 a second pull back is refused');
+  'Only an order in the blast freezer can be pulled back','PK-B3 a second pull back is refused');
 select is((select count(*)::int from public.intake_history where kind='pulled_back'),1,'PK-B3 one history row');
 
 -- Pulled back, its bins move like any other at reconcile; then it is sent again.
@@ -303,7 +303,7 @@ update public.vessel set lifecycle_state='emptied',release_snapshot=jsonb_build_
 where id=pg_temp.id('b3x');
 set local role authenticated;
 select throws_ok($q$select public.intake_pull_back('v88-pb-released',pg_temp.intake('INT-0003'),'Wrong bin')$q$,'22023',
-  'Fish from this intake has already been released; it cannot be pulled back','PK-B8 an intake with a released vessel cannot be pulled back');
+  'Fish from this order has already been released; it cannot be pulled back','PK-B8 an intake with a released vessel cannot be pulled back');
 select is(pg_temp.state('INT-0003'),'blast_freezer','PK-B8 it stays in blast, where close gate I10 can still close it');
 
 -- PK-B9: pooled by an allocation session (its wizard projects the occupied vessels, I15/I17).
@@ -314,14 +314,14 @@ insert into public.allocation_intake(org_id,session_id,intake_id) values
  ('a2800000-0000-4000-8000-00000000000a','a2800000-0000-4000-8000-0000000000c1',pg_temp.intake('INT-0001'));
 set local role authenticated;
 select throws_ok($q$select public.intake_pull_back('v88-pb-pooled',pg_temp.intake('INT-0001'),'Wrong bin')$q$,'22023',
-  'This intake is in a counter allocation; it cannot be pulled back','PK-B9 a pooled intake cannot be pulled back');
+  'This order is in a counter allocation; it cannot be pulled back','PK-B9 a pooled intake cannot be pulled back');
 -- A bin move into or out of a pooled intake at reconcile is refused for the same reason.
 reset role;
 insert into public.allocation_intake(org_id,session_id,intake_id) values
  ('a2800000-0000-4000-8000-00000000000a','a2800000-0000-4000-8000-0000000000c1',pg_temp.intake('INT-0004'));
 set local role authenticated;
 select throws_ok($q$select pg_temp.move('v88-m-pooled','b4','INT-0002','INT-0002')$q$,'22023',
-  'INT-0004 is in a counter allocation; its bins cannot move','PK-B9 a bin cannot move out of a pooled intake');
+  'INT-0004 is in a counter allocation; its baskets cannot move','PK-B9 a bin cannot move out of a pooled intake');
 select ok((select intake_id=pg_temp.intake('INT-0004') from public.vessel where id=pg_temp.id('b4')),'PK-B9 the bin stays');
 reset role;
 update public.allocation_session set state='cancelled' where id='a2800000-0000-4000-8000-0000000000c1';
@@ -338,7 +338,7 @@ select throws_ok($q$update public.intake set state='reconcile' where id=pg_temp.
 select pg_temp.as_manager();
 set local role authenticated;
 select throws_ok($q$select public.intake_pull_back('v88-pb-stored',pg_temp.intake('INT-0005'),'Wrong bin')$q$,'22023',
-  'Only an intake in the blast freezer can be pulled back','PK-B5 a stored intake cannot be pulled back');
+  'Only an order in the blast freezer can be pulled back','PK-B5 a stored intake cannot be pulled back');
 
 -- History is append-only.
 reset role;
@@ -351,9 +351,9 @@ set local role authenticated;
 select is((select count(*)::int from public.intake_history),0,'PK-T1 another org sees no history');
 select is((select count(*)::int from public.variance_suspect_group('a2800000-0000-4000-8000-000000000002')),0,'PK-T1 another org gets no picker group');
 select throws_ok(format($q$select public.variance_move_vessel('v88-cross',%L,%L,%L)$q$,pg_temp.id('b3'),
-  'a2800000-0000-4000-8000-000000000004','a2800000-0000-4000-8000-000000000003'),'22023','Unknown vessel','PK-T1 another org''s vessel cannot be moved');
+  'a2800000-0000-4000-8000-000000000004','a2800000-0000-4000-8000-000000000003'),'22023','Basket not found','PK-T1 another org''s vessel cannot be moved');
 select throws_ok(format($q$select public.intake_pull_back('v88-cross-pb',%L,'Wrong bin')$q$,'a2800000-0000-4000-8000-000000000001'),
-  '22023','Unknown intake','PK-T1 another org''s intake cannot be pulled back');
+  '22023','Order not found','PK-T1 another org''s intake cannot be pulled back');
 
 select * from finish();
 rollback;
