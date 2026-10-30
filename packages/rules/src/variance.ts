@@ -71,16 +71,24 @@ export function exceedsVarianceHold(
   return varianceBand(actualLb, expectedLb, limitPct) === "over";
 }
 
+/** The text formatVariance (and the generated app.format_variance) is built from. */
+export const VARIANCE_NONE = "—";
+export const VARIANCE_PLUS = "+";
+/** U+2212 minus sign, not a hyphen. */
+export const VARIANCE_MINUS = "−";
+export const VARIANCE_SUFFIX = "%";
+
 /**
  * "+14%", "−3.5%", "0%"; "—" when there is no variance. One decimal at most, halves away from
  * zero. Rounds to hundredths first (variance_pct has 2 decimals) so float noise such as
- * 1.15 × 10 = 11.4999… cannot differ from the SQL form, app.format_variance.
+ * 1.15 × 10 = 11.4999… cannot differ from the SQL form, app.format_variance. The one variance
+ * text: reconcile, blast, refusal messages and reports all show this (#94).
  */
 export function formatVariance(pct: number | null): string {
-  if (pct === null || !Number.isFinite(pct)) return "—";
+  if (pct === null || !Number.isFinite(pct)) return VARIANCE_NONE;
   const tenths = Math.round(Math.round(Math.abs(pct) * 100) / 10);
-  const text = String(tenths / 10);
-  return tenths === 0 ? "0%" : pct > 0 ? `+${text}%` : `−${text}%`;
+  const text = `${tenths / 10}${VARIANCE_SUFFIX}`;
+  return tenths === 0 ? text : `${pct > 0 ? VARIANCE_PLUS : VARIANCE_MINUS}${text}`;
 }
 
 /** One rollstock scan_log row (station = rollstock). */

@@ -55,29 +55,60 @@ describe("generated variance SQL ≡ variance.ts", () => {
     }
   });
 
-  it("variance format over a grid (refusal messages ≡ station lines)", async () => {
+  it("variance format over a grid (refusal messages ≡ station lines ≡ reports, #94)", async () => {
     const values = [
+      // no variance
       null,
+      // zero, and values that round to zero either side
       0,
       0.04,
+      -0.04,
       0.05,
       -0.05,
+      // whole numbers: no ".0"
+      1,
+      -1,
+      14,
+      15,
+      40,
+      -40,
+      100,
+      -100,
+      1900,
+      // round up to a whole number
+      39.95,
+      39.96,
+      -39.96,
+      // one decimal, halves away from zero
       1.15,
       -1.15,
       1.25,
+      3.5,
+      -3.5,
       3.54,
       -3.55,
-      14,
-      40,
+      12.3,
+      -12.3,
       33.33,
-      1900,
-      -100,
     ];
     for (const pct of values) {
       const { rows } = await pool.query<{ f: string }>("select app.format_variance($1) as f", [
         pct,
       ]);
       expect(rows[0]!.f, String(pct)).toBe(formatVariance(pct));
+    }
+  });
+
+  it("variance text from weights, including no or null expected yield (#94)", async () => {
+    for (const expected of [null, 0, 0.01, 32, 50, 100]) {
+      for (const actual of [0, 0.01, 31, 32, 33, 42.5, 50, 57.5, 100, 140, 1000]) {
+        const { rows } = await pool.query<{ f: string }>(
+          "select app.format_variance(app.variance_pct($1, $2)) as f",
+          [actual, expected],
+        );
+        const ts = formatVariance(expected === null ? null : variancePercent(actual, expected));
+        expect(rows[0]!.f, `actual=${actual} expected=${expected}`).toBe(ts);
+      }
     }
   });
 

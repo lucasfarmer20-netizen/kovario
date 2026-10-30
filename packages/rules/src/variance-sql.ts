@@ -19,8 +19,12 @@ import {
   VARIANCE_HOLD_PCT_DEFAULT,
   VARIANCE_HOLD_PCT_MAX,
   VARIANCE_HOLD_PCT_MIN,
+  VARIANCE_MINUS,
+  VARIANCE_NONE,
+  VARIANCE_PLUS,
   VARIANCE_SETTING_PROBLEM,
   VARIANCE_SIGNOFF_REASONS,
+  VARIANCE_SUFFIX,
 } from "./variance.ts";
 
 export const VARIANCE_SQL_PATH = "supabase/migrations/20261030000000_variance_rules_sql.sql";
@@ -74,9 +78,9 @@ export function renderVarianceSql(): string {
     "set search_path = ''",
     "as $$",
     "  select case",
-    "    when p_pct is null then '—'",
-    "    when t.tenths = 0 then '0%'",
-    "    else case when p_pct > 0 then '+' else '−' end || trim_scale(t.tenths / 10)::text || '%'",
+    `    when p_pct is null then ${literal(VARIANCE_NONE)}`,
+    `    when t.tenths = 0 then ${literal(`0${VARIANCE_SUFFIX}`)}`,
+    `    else case when p_pct > 0 then ${literal(VARIANCE_PLUS)} else ${literal(VARIANCE_MINUS)} end || trim_scale(t.tenths / 10)::text || ${literal(VARIANCE_SUFFIX)}`,
     "  end",
     "  from (select round(round(abs(p_pct) * 100) / 10) as tenths) t",
     "$$;",
