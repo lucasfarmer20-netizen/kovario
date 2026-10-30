@@ -3,6 +3,10 @@
 Floor wording (order / tote / basket / location / box), the next-step line, the step row and
 "Enter manually" are decided in [`11-FLOOR-WORDING.md`](11-FLOOR-WORDING.md) (v1.2, #98).
 
+The look of every station (type, spacing, colour and the variance bands, motion, the shared
+components and the states each station must design) is set in
+[`12-DESIGN-SYSTEM.md`](12-DESIGN-SYSTEM.md) (UI pass 1, #125). Build new station screens from it.
+
 ## Shared primitives (`apps/web/src/components/station/`)
 
 - **`<StationShell>`** — full-screen, no top nav, station name + site + operator chip,
@@ -88,7 +92,9 @@ within the limit. Hold waits on INT-0004 (+22%) and INT-0003 (not at reconcile y
 **Suspect picker** (v1.1, #88; `04-BUSINESS-RULES.md §6b`): **Find the fish (suspects)** on the
 hold panel, or a tap on any "now in blast" line, opens a card (no modal) with the group: the
 flagged (or tapped) intake, then its suspects most likely first, each "INT-0003 · −40% · over
-limit · salmon · 50 lb · reconciled". Until every member is reconciled it reads "Suggestions
+limit · salmon · 50 lb · reconciled". Members whose variance has the flagged intake's direction
+follow below a divider, **Same direction: unlikely source**, with no suggested move
+(DECISION-33, #125; the rules engine groups them). Until every member is reconciled it reads "Suggestions
 appear once every intake in the group is reconciled. Waiting on: …"; then it lists suggested
 moves ("Move 0042 · 20 lb INT-0002 → INT-0003 (off by 44 lb → 4 lb)", **Move this bin**, or
 **Pull back INT-… first**). Any bin of a member at reconcile can be moved by tapping it, then

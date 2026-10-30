@@ -1,0 +1,179 @@
+# Filletry — Floor station design system
+
+UI pass 1 (#125), adopted from bake-off entry A (PR #123). This doc is the look and the
+behaviour every floor station is built from; later station issues build on it. Wording is set
+in [`11-FLOOR-WORDING.md`](11-FLOOR-WORDING.md), station flows in
+[`06-STATIONS-UX.md`](06-STATIONS-UX.md). Where this doc and the code disagree, fix one of them
+in the same PR.
+
+- **Tokens:** `apps/web/app/globals.css`, `:root --st-*`, exposed to Tailwind as `st-*`
+  colours (`bg-st-brand`, `text-st-ink-2`, …). shadcn `--primary` / `--ring` follow the brand.
+- **Components:** `apps/web/src/components/station/` (exported from `index.ts`).
+- **Gallery:** `/dev/station-gallery` shows the tokens, every component in every state, and
+  Reconcile in each of its states at 1280 × 800 and 400 px; each state is its own page
+  (`/dev/station-gallery/<state>`). Static props, no DB. A new station adds its states here.
+
+## Principles
+
+1. **The next step is the hero.** The step row and the next step line lead the screen; the scan
+   feedback tile sits beside them, so the eye never leaves the top band to find out what
+   happened. Steps tick off and advance as the operator goes (Reconcile:
+   `1 Add baskets · 2 Weigh · 3 Send to Blast`).
+2. **One place for scan feedback.** A fixed-height tile reads *Scanner ready*, then the result:
+   accepted (green, check, short pop) or rejected (red, cross, shake; why, then what to do, in
+   the docs/11 grammar). The layout never moves.
+3. **Instrument, not form.** An order reads like the equipment on the bench: a scale head (big
+   tabular figures, its state in words, which basket Accept writes to), a variance meter with
+   the org's limit marked, and baskets as large tiles whose right edge shows a scale, a spinner
+   or a check.
+4. **Readable without colour.** Every state is colour **and** shape **and** words. Bands use
+   icons (circle-check, triangle, octagon, dashed circle); the meter's near zone is striped and
+   its over zone hatched; selected controls show a frame, a label and `aria-pressed`.
+5. **The action that moves the order on is the only filled button.** Brand teal for Accept /
+   Send / sign-off. Alternatives are outlined, removal is a red outline placed away from Send,
+   disabled is a flat steel fill with the reason under it (`DisabledReason`, never a tooltip).
+6. **Speed you can feel.** Results land where you tapped, in the same frame (optimistic,
+   confirmed by the refresh). Buttons grey out only after 200 ms, so a fast save never flashes
+   the screen. First load shows placeholders in the final layout.
+7. **No verdict without data, no false alarms.** No variance until there is a basket; while
+   baskets are unweighed the band reads *… so far, N to weigh*, muted, with no refusal warning.
+   Red stays meaningful.
+8. **Wet-glove first** (AGENTS rule 6). Targets ≥ 56 px (hero actions 72 px), text ≥ 18 px,
+   nothing hover-only, one focused `ScanInput`; PIN and entry sheets are non-modal and hand
+   focus back.
+
+## Type
+
+One sans family (`--st-font`: Inter, then the system UI fonts) with tabular figures for weights.
+Label codes (`INT-2141`, `042`) use the mono family (`--st-mono`, class `st-code`) so the screen
+matches the printed label. Scale ~1.25 from an 18 px floor:
+
+| Token | Size | Use |
+| --- | --- | --- |
+| `--st-fs-label` | 18 px | labels, chips, meter scale, helper text (the floor minimum) |
+| `--st-fs-body` | 20 px | body |
+| `--st-fs-title` | 24 px | card titles |
+| `--st-fs-heading` | 30 px | section headings |
+| `--st-fs-readout` | 44–64 px (clamp) | scale readout, variance figure |
+| `--st-fs-next` | 30–48 px (clamp) | the next step line: the largest text on screen |
+
+The next step line reserves two lines on tablets so a long prompt never pushes the work area.
+
+## Spacing, size, radius, elevation
+
+- **Spacing:** 4 px base: `--st-1` … `--st-7` = 4 / 8 / 12 / 16 / 24 / 32 / 48.
+- **Touch:** `--st-touch` 56 px (every target), `--st-touch-lg` 72 px (hero actions).
+- **Radii:** `--st-r-sm` 10, `--st-r-md` 14, `--st-r-lg` 20, `--st-r-pill`.
+- **Elevation:** `--st-e1` card, `--st-e2` raised, `--st-e3` sheet.
+
+## Colour
+
+Deepwater ink on steel. Every body text pair is ≥ 7:1; `--st-ink-3` (secondary only) ≥ 4.5:1.
+
+| Role | Token | Value |
+| --- | --- | --- |
+| Ink (text, console bar, scale head) | `--st-ink` / `-2` / `-3` | `#0a1f29` / `#34505e` / `#587080` |
+| Canvas / surface / sunken | `--st-canvas` / `--st-surface` / `--st-sunken` | `#e8eef0` / `#ffffff` / `#f2f6f7` |
+| Lines | `--st-line` / `--st-line-strong` | `#d3dde1` / `#9fb3bb` |
+| Brand (the one filled action) | `--st-brand` / `-strong` / `-soft` | `#0b5568` / `#073e4c` / `#def0f3` |
+| Focus ring | `--st-focus` | `#1a8db0` |
+| Salmon mark (brand, manager PIN) | `--st-salmon` | `#f0683a` |
+
+### Variance bands
+
+Each band is an ink / tint / edge triple plus a shape and words (`BandChip`); the band itself
+comes from the rules engine (`varianceBand`), never from the UI.
+
+| Band | Ink | Tint | Edge | Shape | Words |
+| --- | --- | --- | --- | --- | --- |
+| within | `#0f6b43` | `#ddf3e6` | `#23a26a` | circle-check | within limit |
+| near | `#7a4a00` | `#fff1c4` | `#d99800` | triangle | near limit |
+| over | `#a3201a` | `#fde3df` | `#e0483c` | octagon | over limit |
+| unknown | `#44555e` | `#e7edef` | `#93a5ad` | dashed circle | no estimate |
+
+**Near** starts at ⅔ of the org's limit (`NEAR_LIMIT_NUMERATOR / NEAR_LIMIT_DENOMINATOR`), so at
+the default 15% limit: within < 10%, near 10–15%, over > 15%.
+
+**Variance meter** (`VarianceMeter`): the full range, **−100% to +100%**, linear, with 0 at the
+centre tick. Zones from the org's limit: within (plain tint), near (warning colour, striped),
+over (hatched) beyond the limit. The scale labels both ends and ±limit. The needle sits at the
+order's variance; past ±100% it is pinned to the end and turns red. The meter is decorative
+(`aria-hidden`): the figure and the band chip beside it say the same in words.
+
+## Motion
+
+Short and interruptible; motion confirms what happened, it never decorates.
+
+| Token | Duration | Uses |
+| --- | --- | --- |
+| `--st-dur-press` | 90 ms | button press |
+| `--st-dur-state` | 180 ms | state changes (selection, colour) |
+| `--st-dur-enter` | 260 ms | accept pop, basket enter, sheet rise, next-step fade-up, needle travel |
+
+Reject shake is 320 ms. Easing `--st-ease` / `--st-ease-out`. Under
+`prefers-reduced-motion` every animation and transition is cut to ~0 and the pulse and skeleton
+shimmer stop.
+
+## Icons
+
+`lucide-react` (pinned). Icons sit beside words, never instead of them; decorative icons are
+`aria-hidden`.
+
+## Components (`apps/web/src/components/station/`)
+
+| Component | What it is |
+| --- | --- |
+| `StationShell` | Full-screen frame: console bar (station, site, operator chip, `ConnectionChip`), command area (next step + scan feedback), one `ScanInput`; `nextTone` for warnings |
+| `NextStep` | Step row (done steps show a check, current has `aria-current="step"`) and the next step line |
+| `DisabledReason` | The why under a disabled control |
+| `ScanInput` | The single hidden-but-focused scanner input |
+| `ScanFeedback` / `FeedbackBanner` | The fixed-height feedback tile (idle reads *Scanner ready* or paused, from the shell's `ScannerPaused` context) |
+| `ManualEntry` | **Enter manually**: a visible, labelled field; keyboard Enter submits |
+| `OperatorPinOverlay` / `ManagerPinOverlay` | Non-modal PIN sheets with 64 px keys; focus returns to the scanner |
+| `ConnectionChip` / `useOnline` | *All sent* → *N pending* (amber) → *Offline · N pending* (red) |
+| `BandChip` | A variance band as tint + edge + shape + words |
+| `VarianceMeter` | The −100% to +100% meter above |
+| `ScaleReadout` | Scale head: reading, its state in words (stable, reading used, no reading), the basket Accept writes to |
+| `BasketTile` | A basket: code, weight, and a scale / spinner / check at its right edge |
+| `OrderTile` | An order in a queue: number, HELD (lock + word), species, expected lb, age |
+| `StationNotice` | An inline notice with a tone (ok / info / error) |
+| `QueueList` | Realtime queue list |
+
+Shared classes: buttons are filled by default (brand); `st-btn-secondary` (outlined),
+`st-btn-quiet`, `st-btn-danger` (red outline), `st-btn-hero` (72 px), `st-btn-block`. Older
+`station-*` classes stay as aliases for screens not yet on the system.
+
+### Lists that rank
+
+When a list is ranked or grouped by a rule, the rules engine returns the groups and the order;
+the UI renders them as given (AGENTS rule 8). Example: the suspect picker shows
+`rankSuspects(...).suspects` under *Most likely first*, then a dashed divider with the words
+**Same direction: unlikely source** above `.unlikely` (DECISION-33).
+
+## States every station must design
+
+Each one appears in the station's gallery entry.
+
+| State | Expectation |
+| --- | --- |
+| Loading | Skeletons in the final layout; nothing jumps when data lands |
+| Operator needed | *Identify operator* chip (salmon); the PIN sheet rises bottom-right (bottom on phones) |
+| Nothing open / queue empty | What to scan or tap to start; an empty queue says where items come from |
+| Empty item | What is expected, and every disabled control says why it waits |
+| In progress | Current step ticked forward; the selected target is framed and labelled |
+| Device offline (scale, printer) | Says so in words; the manual path becomes the filled button |
+| Rejected scan | Red tile: why, then what to do, in the feedback tile |
+| Warning / over limit | Band colour + shape + words, a warning next step line, the blocked action restyled |
+| Held / needs a manager | The panel takes the top of the work area, with the manager path (PIN or account) |
+| Done / signed off | Green confirmation in the feedback area; the next action is live |
+| Offline / N pending | Connection chip state; controls that need the server say so |
+
+## Layout
+
+- **Landscape tablet (1280 × 800)** is the primary target: queue rail + work area, no scroll for
+  the common path.
+- **Phone (400 px)**: a single column with the hero controls right under the item header; the
+  forward action pins to the bottom only when it can be used.
+- No horizontal scrolling at either size, in any state. Containers use `minmax(0, 1fr)` and
+  wrap; long codes may break, never overflow.
+- Reflow uses container queries and `:has()` (current Chrome / Safari / Edge).
