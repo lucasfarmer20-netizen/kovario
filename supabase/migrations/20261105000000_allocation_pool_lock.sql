@@ -13,7 +13,10 @@
 -- key-share on the intake rows → other priced sessions sharing an intake (reprice). No vessel is
 -- locked. Reconcile, move bin and pull back take the reconcile lock(s) → vessels → intakes and
 -- never lock a session or the billing lock; the release paths (release_party, release_by_tag:
--- sessions → vessels → intakes, I16) never take a reconcile lock. So no cycle forms.
+-- sessions → vessels → intakes, I16) never take a reconcile lock. So the reconcile lock adds no
+-- cycle. Not fixed here (pre-existing): a save key-shares the intake rows before it reprices
+-- other sessions, while a release holds its session and then locks the intakes, so the two can
+-- deadlock (#112); and a release closing an intake is not serialised with the state read (#113).
 
 -- Re-create save_allocation_session from its current definition with exact replacements (as
 -- 20261103000100_hold_reevaluate.sql). Raises if the old text is missing, unless the new text is
