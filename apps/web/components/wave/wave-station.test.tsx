@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { FilletryClient } from "db";
 import type { ScanRequest } from "@/src/components/station/scan-queue";
 import { WaveStation } from "./wave-station";
@@ -274,14 +274,24 @@ it("#98 the next step line walks the wave: tap orders → scan each tote → com
   await screen.findByText(/salmon_reds/);
   const next = () => screen.getByTestId("next-step").textContent;
   expect(next()).toBe("Tap orders to add to the wave");
-  expect(screen.getByText("1 Add orders").getAttribute("aria-current")).toBe("step");
+  expect(
+    within(screen.getByRole("list", { name: "Steps" }))
+      .getByText("Add orders")
+      .closest("li")!
+      .getAttribute("aria-current"),
+  ).toBe("step");
   expect(screen.getByText("Tap orders first")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: /INT-0002/ }));
   expect(next()).toBe("Tap Create wave");
   expect(screen.queryByText("Tap orders first")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /WAVE-0001/ }));
   expect(next()).toBe("Scan each tote (1 of 2)");
-  expect(screen.getByText("2 Scan totes").getAttribute("aria-current")).toBe("step");
+  expect(
+    within(screen.getByRole("list", { name: "Steps" }))
+      .getByText("Scan totes")
+      .closest("li")!
+      .getAttribute("aria-current"),
+  ).toBe("step");
   expect(screen.getByText("Scan every tote first (1 of 2)")).toBeTruthy();
 });
 it("#98 at parity the next step is Complete wave", async () => {
@@ -289,5 +299,10 @@ it("#98 at parity the next step is Complete wave", async () => {
   render(<WaveStation />);
   fireEvent.click(await screen.findByRole("button", { name: /WAVE-0001/ }));
   expect(screen.getByTestId("next-step").textContent).toBe("Complete wave");
-  expect(screen.getByText("3 Complete").getAttribute("aria-current")).toBe("step");
+  expect(
+    within(screen.getByRole("list", { name: "Steps" }))
+      .getByText("Complete")
+      .closest("li")!
+      .getAttribute("aria-current"),
+  ).toBe("step");
 });

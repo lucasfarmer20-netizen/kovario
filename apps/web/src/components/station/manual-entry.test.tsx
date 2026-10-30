@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { StationShell } from "./station-shell";
 import { ENTRY_METHOD_HEADER, readTypedCode, withEntryMethod } from "./manual-entry";
 afterEach(cleanup);
@@ -107,7 +107,7 @@ it("the next step line and step row show; Enter manually sits under the line wit
   expect(screen.getByTestId("next-step").textContent).toBe("Weigh basket 005");
   const steps = screen.getByRole("list", { name: "Steps" });
   expect(steps.textContent).toBe("1 Add baskets2 Weigh3 Send to Blast");
-  expect(screen.getByText("2 Weigh").getAttribute("aria-current")).toBe("step");
+  expect(within(steps).getByText("Weigh").closest("li")!.getAttribute("aria-current")).toBe("step");
   expect(screen.queryByText("Ready to scan")).toBeNull();
   const button = screen.getByRole("button", { name: "Enter manually" });
   expect(

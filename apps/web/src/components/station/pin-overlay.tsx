@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { KeyRound, LoaderCircle, ShieldCheck } from "lucide-react";
 import { stationMessage } from "./messages";
 export type PinResult = { ok: boolean; reason?: string };
 type Props = { verify: (pin: string) => Promise<PinResult>; onClose: () => void };
@@ -9,7 +10,14 @@ function PinOverlay({ title, verify, onClose }: Props & { title: string }) {
   const [error, setError] = useState("");
   return (
     <section role="dialog" aria-modal="false" aria-label={title} className="station-overlay">
-      <h2>{title}</h2>
+      <h2>
+        {title === "Manager PIN" ? (
+          <ShieldCheck size={28} aria-hidden />
+        ) : (
+          <KeyRound size={28} aria-hidden />
+        )}
+        {title}
+      </h2>
       <p>Enter your 4–6 digit PIN</p>
       <form
         onSubmit={async (event) => {
@@ -64,12 +72,15 @@ function PinOverlay({ title, verify, onClose }: Props & { title: string }) {
             </button>
           ))}
         </div>
-        <button disabled={busy} type="submit">
-          {busy ? "Checking…" : "Continue"}
-        </button>
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
+        <div className="st-overlay-actions">
+          <button disabled={busy} type="submit" className="st-btn-hero">
+            {busy && <LoaderCircle className="st-spin" size={24} aria-hidden />}
+            {busy ? "Checking…" : "Continue"}
+          </button>
+          <button type="button" className="st-btn-secondary" onClick={onClose}>
+            Close
+          </button>
+        </div>
         <p role="alert">{error}</p>
       </form>
     </section>

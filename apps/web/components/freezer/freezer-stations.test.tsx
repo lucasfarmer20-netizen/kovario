@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ScanReply, ScanRequest } from "@/src/components/station/scan-queue";
 import { BlastStation } from "./blast-station";
 import { LocateStation, nextPending } from "./locate-station";
@@ -182,11 +182,21 @@ it("WP13 locate two-step loop: tag → shows vessel, location → placed and res
   render(<LocateStation />);
   expect(screen.getByText("STEP 1 — SCAN BASKET")).toBeTruthy();
   expect(screen.getByTestId("next-step").textContent).toBe("Scan basket");
-  expect(screen.getByText("1 Scan basket").getAttribute("aria-current")).toBe("step");
+  expect(
+    within(screen.getByRole("list", { name: "Steps" }))
+      .getByText("Scan basket")
+      .closest("li")!
+      .getAttribute("aria-current"),
+  ).toBe("step");
   await mocks.send!(request("FL:TAG:demo:041", "loc-1"));
   expect(await screen.findByText("STEP 2 — SCAN LOCATION")).toBeTruthy();
   expect(screen.getByTestId("next-step").textContent).toBe("Scan location for basket 041");
-  expect(screen.getByText("2 Scan location").getAttribute("aria-current")).toBe("step");
+  expect(
+    within(screen.getByRole("list", { name: "Steps" }))
+      .getByText("Scan location")
+      .closest("li")!
+      .getAttribute("aria-current"),
+  ).toBe("step");
   expect(screen.getByText("INT-0001")).toBeTruthy();
   expect(screen.getByText("Reds")).toBeTruthy();
   await mocks.send!(request("FL:LOC:demo:IF-A-01-1-F", "loc-2"));
