@@ -67,16 +67,20 @@ function Picker({
 }) {
   const [editing, setEditing] = useState(false);
   return (
-    <SuspectPicker
-      rows={rows}
-      bins={bins}
-      disabled={false}
-      editingReason={editing}
-      onEditReason={setEditing}
-      onMove={onMove}
-      onPullBack={onPullBack}
-      onClose={() => undefined}
-    />
+    <>
+      {/* The station pauses its scanner while the reason is edited (reconcile-station: reasonEditing). */}
+      <p data-testid="scanner">{editing ? "paused" : "live"}</p>
+      <SuspectPicker
+        rows={rows}
+        bins={bins}
+        disabled={false}
+        editingReason={editing}
+        onEditReason={setEditing}
+        onMove={onMove}
+        onPullBack={onPullBack}
+        onClose={() => undefined}
+      />
+    </>
   );
 }
 
@@ -169,6 +173,55 @@ it("#88 a failed pull back keeps the form and its reason; it closes once the int
   // Pulled back: the refreshed group shows INT-0001 reconciled, and the form closes.
   view.rerender(<Picker rows={[row(1, -1, "reconciled", 50), ...rows.slice(1)]} />);
   expect(screen.queryByRole("group", { name: "Pull back from blast" })).toBeNull();
+});
+
+it("#103 sent back to blast after a pull back, the order's form is closed and empty", () => {
+  const rows = group();
+  const view = render(<Picker rows={rows} />);
+  fireEvent.click(screen.getByRole("button", { name: "Pull back INT-0001" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add reason" }));
+  fireEvent.change(screen.getByLabelText(/Pull back reason/), { target: { value: "Wrong bin" } });
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm pull back" }));
+  // Pulled back, then sent to blast again while the picker is still open.
+  view.rerender(<Picker rows={[row(1, -1, "reconciled", 50), ...rows.slice(1)]} />);
+  view.rerender(<Picker rows={rows} />);
+  expect(screen.queryByRole("group", { name: "Pull back from blast" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Pull back INT-0001" }));
+  const form = screen.getByRole("group", { name: "Pull back from blast" });
+  expect(form.textContent).not.toContain("Wrong bin");
+  expect(within(form).getByRole("button", { name: "Add reason" })).toBeTruthy();
+  expect(
+    (within(form).getByRole("button", { name: "Confirm pull back" }) as HTMLButtonElement).disabled,
+  ).toBe(true);
+});
+
+it("#103 the form leaves on a refresh while its reason is edited; the scanner is no longer paused", () => {
+  const rows = group();
+  const view = render(<Picker rows={rows} />);
+  fireEvent.click(screen.getByRole("button", { name: "Pull back INT-0001" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add reason" }));
+  fireEvent.change(screen.getByLabelText(/Pull back reason/), { target: { value: "Wrong" } });
+  expect(screen.getByTestId("scanner").textContent).toBe("paused");
+  // Another manager pulled INT-0001 back: the live refresh shows it reconciled.
+  view.rerender(<Picker rows={[row(1, -1, "reconciled", 50), ...rows.slice(1)]} />);
+  expect(screen.queryByRole("group", { name: "Pull back from blast" })).toBeNull();
+  expect(screen.getByTestId("scanner").textContent).toBe("live");
+});
+
+it("#103 the reason field has no maxLength; the rule's problem text covers a long reason", () => {
+  render(<Picker rows={group()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Pull back INT-0001" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add reason" }));
+  const input = screen.getByLabelText(/Pull back reason/) as HTMLInputElement;
+  expect(input.hasAttribute("maxlength")).toBe(false);
+  // 500 fish are 1000 UTF-16 units but 500 code points: within the rule.
+  fireEvent.change(input, { target: { value: "🐟".repeat(500) } });
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(
+    (screen.getByRole("button", { name: "Confirm pull back" }) as HTMLButtonElement).disabled,
+  ).toBe(false);
 });
 
 it("#88 a manager moves any bin between members at reconcile", () => {

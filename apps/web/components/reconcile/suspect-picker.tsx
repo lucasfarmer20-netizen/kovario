@@ -1,9 +1,8 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { FilletryClient } from "db";
 import {
   formatVariance,
-  PULL_BACK_REASON_MAX,
   pullBackProblem,
   rankSuspects,
   suggestMoves,
@@ -185,6 +184,17 @@ export function SuspectPicker({
   // it reconciled and the form closes; a failure (refused, PIN cancelled) keeps the typed reason.
   const pullBackRow =
     pullBackFor && byId.get(pullBackFor)?.status === "in_blast" ? byId.get(pullBackFor) : undefined;
+  // Left blast (pulled back here or by another manager): empty the form so the order never
+  // reopens with a stale reason (#103).
+  if (pullBackFor !== null && pullBackRow === undefined) {
+    setPullBackFor(null);
+    setReason("");
+  }
+  // No form, no reason editing: the station's scanner resumes (wet-glove rule 6, #103).
+  const formOpen = pullBackRow !== undefined;
+  useEffect(() => {
+    if (editingReason && !formOpen) onEditReason(false);
+  }, [editingReason, formOpen, onEditReason]);
   const problem = pullBackRow
     ? pullBackProblem(pullBackRow.state as Parameters<typeof pullBackProblem>[0], reason)
     : null;
@@ -316,12 +326,7 @@ export function SuspectPicker({
             <>
               <label>
                 Pull back reason (required)
-                <input
-                  autoFocus
-                  value={reason}
-                  maxLength={PULL_BACK_REASON_MAX}
-                  onChange={(e) => setReason(e.target.value)}
-                />
+                <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} />
               </label>
               <button type="button" onClick={() => onEditReason(false)}>
                 Done
