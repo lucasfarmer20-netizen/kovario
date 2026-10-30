@@ -1,16 +1,34 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Database, Json } from "db";
-import { parse, variancePercent, sendToBlastBlockers } from "rules";
-import { useStationSession, type StationSession } from "@/components/intake/use-station-session";
+import {
+  parse,
+  variancePercent,
+  varianceBand,
+  sendToBlastBlockers,
+  type VarianceSignoffReason,
+} from "rules";
+import {
+  managerElevation,
+  useStationSession,
+  type StationSession,
+} from "@/components/intake/use-station-session";
 import { StationShell } from "@/src/components/station/station-shell";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
-import { OperatorPinOverlay } from "@/src/components/station/pin-overlay";
+import { ManagerPinOverlay, OperatorPinOverlay } from "@/src/components/station/pin-overlay";
+import { BAND_LABEL, NowInBlastList, useNowInBlast } from "@/components/variance/now-in-blast";
+import {
+  blockedIntakes,
+  holdGroupFor,
+  useVarianceHolds,
+} from "@/components/variance/use-variance-holds";
+import { VarianceHoldPanel } from "./variance-hold-panel";
 import { useOperatorIdle } from "@/src/components/station/use-operator-idle";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
 import { useManualOptions, withEntryMethod } from "@/src/components/station/manual-entry";
 import type { ScanRequest, ScanReply } from "@/src/components/station/scan-queue";
+type SignOff = { holdId: string; reason: VarianceSignoffReason; note: string };
 type Intake = Database["public"]["Tables"]["intake"]["Row"] & {
   intake_line: { species_code: string; est_yield_lb: number | null }[];
 };
@@ -65,6 +83,10 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
     setPinOpen(true);
   }, []);
   const idle = useOperatorIdle(claims.appRole === "station" && operator !== null, expire);
+  const holds = useVarianceHolds(client, claims.orgId, scope);
+  const blastLines = useNowInBlast(client, claims.orgId, scope);
+  // A non-manager's sign-off waits here for the manager PIN.
+  const [signOffPending, setSignOffPending] = useState<SignOff | null>(null);
   const remember = useCallback(
     (id: string | null) => {
       localStorage.setItem(scope, id ?? "");
@@ -254,17 +276,51 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
         if (operation === "send") remember(null);
         if (reply.vessel_id) setSelected(reply.vessel_id);
       }
-      await refresh();
+      await Promise.all([refresh(), holds.refresh(), blastLines.refresh()]);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Action unavailable; retry");
     } finally {
       setBusy(false);
     }
   };
+  // Same key for a retried sign-off after a lost response; the token is proof, not identity.
+  const signOffRetry = useRef<{ signature: string; id: string } | null>(null);
+  const signOff = async (request: SignOff, token?: string) => {
+    setBusy(true);
+    const signature = JSON.stringify([request.holdId, request.reason, request.note]);
+    if (signOffRetry.current?.signature !== signature)
+      signOffRetry.current = { signature, id: crypto.randomUUID() };
+    try {
+      const { data, error } = await client.rpc("variance_hold_signoff", {
+        p_client_action_id: signOffRetry.current.id,
+        p_hold_id: request.holdId,
+        p_reason: request.reason,
+        p_note: request.note || undefined,
+        p_elevation_token: token,
+      });
+      if (error) throw new Error(error.message);
+      signOffRetry.current = null;
+      const reply = data as { reason?: string } | null;
+      setMessage(reply?.reason ?? "Hold signed off");
+      await holds.refresh();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Sign-off unavailable; retry");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const requestSignOff = (holdId: string, reason: VarianceSignoffReason, note: string) => {
+    const request = { holdId, reason, note };
+    if (claims.appRole === "owner" || claims.appRole === "manager") void signOff(request);
+    else setSignOffPending(request);
+  };
+  const blocked = blockedIntakes(holds.members);
+  const group = openId ? holdGroupFor(holds.members, openId) : null;
   const open = intakes.find((i) => i.id === openId),
     rows = vessels.filter((v) => v.intake_id === openId);
   const actual = rows.reduce((sum, v) => sum + v.weight_lb, 0),
-    variance = variancePercent(actual, open?.total_est_yield_lb ?? 0);
+    variance = variancePercent(actual, open?.total_est_yield_lb ?? 0),
+    band = varianceBand(actual, open?.total_est_yield_lb ?? 0, holds.limit);
   const sendBlocked =
     sendToBlastBlockers(
       rows.map((v) => ({
@@ -273,14 +329,14 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
         assetTagId: v.asset_tag_id,
       })),
     ).length > 0;
-  const disabled = busy || pending > 0 || pinOpen;
+  const disabled = busy || pending > 0 || pinOpen || signOffPending !== null;
   return (
     <StationShell
       name="Reconcile"
       site={siteName}
       operator={operator}
       pending={pending}
-      paused={pinOpen || busy || manualOpen}
+      paused={pinOpen || busy || manualOpen || signOffPending !== null}
       status={
         <>
           <ScanFeedback feedback={feedback} />
@@ -305,6 +361,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
           {intakes.map((i) => (
             <button key={i.id} disabled={disabled} onClick={() => remember(i.id)}>
               {i.number}
+              {blocked.has(i.id) && <span className="station-badge">HELD</span>}
             </button>
           ))}
           {!intakes.length && <p>Queue empty</p>}
@@ -322,6 +379,12 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
               <p>
                 Actual {actual.toFixed(2)} lb · Expected {open.total_est_yield_lb.toFixed(2)} lb ·
                 Variance {variance === null ? "—" : `${variance}%`}
+              </p>
+              <p className={`station-band station-band-${band}`}>
+                {BAND_LABEL[band]} (limit ±{holds.limit}%)
+                {band === "over" &&
+                  !group &&
+                  " — Send to Blast will be refused and held with its rollstock neighbours"}
               </p>
               <h3>Vessels — scan tag to add</h3>
               {rows.map((v) => (
@@ -387,6 +450,16 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
             </>
           )}
         </section>
+        {open && group && group[0]?.hold_id && (
+          <VarianceHoldPanel
+            key={group[0].hold_id}
+            group={group}
+            openIntakeId={open.id}
+            disabled={disabled}
+            onSignOff={(reason, note) => requestSignOff(group[0]!.hold_id!, reason, note)}
+          />
+        )}
+        <NowInBlastList lines={blastLines.lines} error={blastLines.error} />
       </div>
       {pinOpen && (
         <OperatorPinOverlay
@@ -404,6 +477,17 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
             setProof(r.session_id);
             setOperator(r.member?.display_name ?? "Operator");
             idle.reset();
+            return { ok: true };
+          }}
+        />
+      )}
+      {signOffPending && (
+        <ManagerPinOverlay
+          onClose={() => setSignOffPending(null)}
+          verify={async (pin) => {
+            const elevation = await managerElevation(client, pin);
+            if ("reason" in elevation) return { ok: false, reason: elevation.reason };
+            await signOff(signOffPending, elevation.token);
             return { ok: true };
           }}
         />

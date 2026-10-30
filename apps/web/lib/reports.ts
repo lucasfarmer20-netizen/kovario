@@ -40,6 +40,23 @@ export const REPORTS = {
     title: "Manual entries",
     columns: ["day", "site_id", "station", "entry", "entry_count", "manual_count"],
   },
+  holds: {
+    view: "report_variance_holds",
+    title: "Variance holds",
+    columns: [
+      "day",
+      "site_id",
+      "intake_number",
+      "variance_pct",
+      "limit_pct",
+      "outcome",
+      "signed_off_by",
+      "cleared_at",
+      "reason",
+      "note",
+      "cleared_variance_pct",
+    ],
+  },
 } as const;
 export type ReportKind = keyof typeof REPORTS;
 export type ReportRow = Database["public"]["Views"][(typeof REPORTS)[ReportKind]["view"]]["Row"];
@@ -109,15 +126,16 @@ export async function loadReports(
   client: FilletryClient,
   filters: ReportFilters,
 ): Promise<ReportData> {
-  const [volume, pipeline, throughput, revenue, variance, manual] = await Promise.all([
+  const [volume, pipeline, throughput, revenue, variance, manual, holds] = await Promise.all([
     loadReport(client, "volume", filters),
     loadReport(client, "pipeline", filters),
     loadReport(client, "throughput", filters),
     loadReport(client, "revenue", filters),
     loadReport(client, "variance", filters),
     loadReport(client, "manual", filters),
+    loadReport(client, "holds", filters),
   ]);
-  return { volume, pipeline, throughput, revenue, variance, manual };
+  return { volume, pipeline, throughput, revenue, variance, manual, holds };
 }
 
 export function reportValue(row: ReportRow, column: string): string | number | null {

@@ -1,0 +1,106 @@
+"use client";
+import { useState } from "react";
+import {
+  formatVariance,
+  SIGNOFF_NOTE_MAX,
+  VARIANCE_SIGNOFF_REASON_LABELS,
+  VARIANCE_SIGNOFF_REASONS,
+  varianceSignoffProblem,
+  type VarianceSignoffReason,
+} from "rules";
+import { BAND_LABEL, lineBand } from "@/components/variance/now-in-blast";
+import type { HoldMember } from "@/components/variance/use-variance-holds";
+
+/** Where a group member is, in the floor's words. */
+export function memberState(state: HoldMember["state"]): string {
+  switch (state) {
+    case "reconcile":
+      return "waiting at reconcile";
+    case "blast_freezer":
+      return "in blast";
+    case "stored":
+    case "done":
+      return "sent to blast";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return "not yet at reconcile";
+  }
+}
+
+/**
+ * A variance hold covering the open intake (#87): the group in rollstock order with each
+ * member's variance, and the manager sign-off (reason + note). Wet-glove: plain buttons, no
+ * focus trap; the PIN overlay is the caller's.
+ */
+export function VarianceHoldPanel({
+  group,
+  openIntakeId,
+  disabled,
+  onSignOff,
+}: {
+  group: readonly HoldMember[];
+  openIntakeId: string;
+  disabled: boolean;
+  onSignOff: (reason: VarianceSignoffReason, note: string) => void;
+}) {
+  const [reason, setReason] = useState<VarianceSignoffReason | null>(null);
+  const [note, setNote] = useState("");
+  const flagged = group.find((m) => m.position === 0);
+  const open = group.find((m) => m.intake_id === openIntakeId);
+  const problem = reason ? varianceSignoffProblem(reason, note) : null;
+  return (
+    <section className="station-card" aria-label="Variance hold">
+      <h3>
+        VARIANCE HOLD · {flagged?.intake_number} {formatVariance(flagged?.variance_pct ?? null)}{" "}
+        (limit ±{flagged?.limit_pct}%)
+      </h3>
+      <p>
+        {open?.position === 0
+          ? "Send to Blast is refused until the bins are fixed or a manager signs off."
+          : `${open?.intake_number ?? "This intake"} is a rollstock neighbour and waits for the hold to clear.`}
+      </p>
+      <ul>
+        {group.map((m) => {
+          const band = lineBand(m.band);
+          return (
+            <li key={m.intake_id} className={`station-band station-band-${band}`}>
+              {m.intake_number} · {formatVariance(m.variance_pct)} · {BAND_LABEL[band]} ·{" "}
+              {memberState(m.state)}
+            </li>
+          );
+        })}
+      </ul>
+      <fieldset>
+        <legend>Manager sign-off reason</legend>
+        {VARIANCE_SIGNOFF_REASONS.map((r) => (
+          <button
+            key={r}
+            type="button"
+            aria-pressed={reason === r}
+            disabled={disabled}
+            onClick={() => setReason(r)}
+          >
+            {VARIANCE_SIGNOFF_REASON_LABELS[r]}
+          </button>
+        ))}
+      </fieldset>
+      <label>
+        Sign-off note{reason === "other" ? " (required)" : ""}
+        <input
+          value={note}
+          maxLength={SIGNOFF_NOTE_MAX}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </label>
+      <button
+        type="button"
+        disabled={disabled || reason === null || problem !== null}
+        onClick={() => reason && onSignOff(reason, note)}
+      >
+        Manager sign-off
+      </button>
+      {problem && <p role="alert">{problem}</p>}
+    </section>
+  );
+}

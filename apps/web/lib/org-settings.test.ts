@@ -14,6 +14,7 @@ function form(over: Record<string, string | null> = {}): FormData {
     carrier_allowlist: "*",
     buy_window_days: "1",
     tag_digits: "3",
+    variance_hold_pct: "15",
   };
   const fd = new FormData();
   for (const [k, v] of Object.entries({ ...base, ...over })) if (v !== null) fd.set(k, v);
@@ -39,6 +40,7 @@ describe("settingsFromForm (/admin/settings)", () => {
         tax: { mode: "exclusive", rate: 0.06, cap_amount: 30 },
         shipping: { carrier_allowlist: "*", buy_window_days: 1 },
         scanner: { tag_digits: 3 },
+        reconcile: { variance_hold_pct: 15 },
       },
     });
   });
@@ -63,6 +65,13 @@ describe("settingsFromForm (/admin/settings)", () => {
     expect(settingsFromForm(form({ hold_hours: "0" }))).toHaveProperty("error");
     expect(settingsFromForm(form({ hold_hours: "1.5" }))).toHaveProperty("error");
     expect(settingsFromForm(form({ tax_rate_pct: "60" }))).toHaveProperty("error");
+    for (const pct of ["0", "101", "12.5", ""])
+      expect(settingsFromForm(form({ variance_hold_pct: pct }))).toEqual({
+        error: "Check variance hold pct.",
+      });
+    expect(settingsFromForm(form({ variance_hold_pct: "20" }))).toMatchObject({
+      settings: { reconcile: { variance_hold_pct: 20 } },
+    });
     expect(settingsFromForm(form({ wave_tolerance_lb: "5000" }))).toEqual({
       error: "The wave tolerance cannot exceed the wave target.",
     });

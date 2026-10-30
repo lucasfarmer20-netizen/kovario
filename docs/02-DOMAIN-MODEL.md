@@ -182,6 +182,17 @@ cleared on pull), `blast_in_at`, `blast_out_at`, `stored_at`, `emptied_at`,
 Expected-vs-actual per intake line: `intake_id`, `intake_line_id`, `expected_lb`,
 `actual_lb` (sum of vessels attributed), `variance_pct` (view).
 
+### variance_hold  (v1.1, #87)
+A refused Send to Blast over the variance limit (`04-BUSINESS-RULES.md §6a`). `intake_id`
+(flagged), `state enum(active, cleared)` (one active per intake), flag-time `limit_pct`,
+`expected_lb`, `actual_lb`, `variance_pct`, `flagged_at`, `flagged_by`; on clearing
+`clear_kind enum(auto, signoff)`, `cleared_at`, `cleared_by` (manager), `reason
+enum(estimate_wrong, mixed_species, spoilage, trim_heavy, other)`, `note`,
+`cleared_actual_lb`, `cleared_variance_pct`. The group is not stored: views derive it live.
+Views: `intake_variance` (live expected / actual / variance / band), `rollstock_open` (each
+intake's first accepted rollstock scan), `variance_hold_member` (each hold's group in rollstock
+order, position −1…2, `blocked`), `now_in_blast`, `report_variance_holds`.
+
 ### scale_reading
 `scale_id`, `weight_lb`, `stable bool`, `read_at`. The reconcile screen shows the latest
 stable reading for its device's scale and lets the operator accept it into a vessel.
@@ -316,9 +327,12 @@ email) poll or react via Realtime and mark `processed_at`.
   "status_page_enabled": true,
   "tax": { "mode": "exclusive", "rate": 0.06, "cap_amount": 30.00 },
   "shipping": { "carrier_allowlist": "*", "buy_window_days": 1 },
-  "scanner": { "tag_digits": 4 }
+  "scanner": { "tag_digits": 4 },
+  "reconcile": { "variance_hold_pct": 15 }
 }
 ```
+`reconcile.variance_hold_pct` (v1.1, #87): whole percent 1–100; absent on orgs from before
+v1.1, which read the default 15.
 `scanner.tag_digits` defaults to 4 for orgs created from v1.1 (earlier orgs keep 3) and can
 only be raised (see asset_tag).
 Money rates (Fast Pass, storage per box-day, method rates) live on the rate card, not

@@ -21,6 +21,8 @@ const DESCRIPTIONS: Record<ReportKind, string> = {
     "Recorded reconcile weights by species and reconcile date. Variance is weighted by expected lb; zero expected lb has no percentage.",
   manual:
     "Codes typed at a station instead of scanned (of all scans that day), and reconcile weights typed instead of read from the scale (of all weighed vessels, by reconcile date).",
+  holds:
+    "Send to Blast refused over the variance limit, by flag date: still active, cleared automatically once the group was back within the limit, or signed off by a manager (who, when, reason).",
 };
 const METRICS: Record<ReportKind, string> = {
   volume: "incoming_lb",
@@ -29,6 +31,7 @@ const METRICS: Record<ReportKind, string> = {
   revenue: "amount",
   variance: "variance_pct",
   manual: "manual_count",
+  holds: "hold_count",
 };
 const LABELS: Record<string, string> = {
   day: "Date",
@@ -50,6 +53,15 @@ const LABELS: Record<string, string> = {
   entry: "Entry",
   entry_count: "Total",
   manual_count: "Manual",
+  hold_count: "Holds",
+  intake_number: "Intake",
+  limit_pct: "Limit ±%",
+  outcome: "Outcome",
+  signed_off_by: "Signed off by",
+  cleared_at: "Cleared at",
+  reason: "Reason",
+  note: "Note",
+  cleared_variance_pct: "Variance at clearing %",
 };
 
 function chartRows(kind: ReportKind, rows: ReportRow[]) {
@@ -65,14 +77,16 @@ function chartRows(kind: ReportKind, rows: ReportRow[]) {
           ? "state"
           : kind === "throughput"
             ? "stage"
-            : "day";
+            : kind === "holds"
+              ? "outcome"
+              : "day";
     const label =
       kind === "manual"
         ? `${reportValue(row, "station")} · ${reportValue(row, "entry") === "weight" ? "weights" : "codes"}`
         : String(reportValue(row, dimension));
     const g = groups.get(label) ?? { value: 0, weight: 0, expected: 0, actual: 0 };
     const weight = kind === "throughput" ? Number(reportValue(row, "intake_count")) : 1;
-    g.value += Number(reportValue(row, METRICS[kind])) * weight;
+    g.value += kind === "holds" ? 1 : Number(reportValue(row, METRICS[kind])) * weight;
     g.weight += weight;
     g.expected += Number(reportValue(row, "expected_lb"));
     g.actual += Number(reportValue(row, "actual_lb"));

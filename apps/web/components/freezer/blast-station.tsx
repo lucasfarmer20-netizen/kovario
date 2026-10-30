@@ -9,6 +9,7 @@ import { useManualOptions, withEntryMethod } from "@/src/components/station/manu
 import type { ScanReply, ScanRequest } from "@/src/components/station/scan-queue";
 import { freezerReply, timeIn, useFreezerOperator } from "./use-freezer-operator";
 import { FREEZER_INTAKE_STATES, useVesselRefresh } from "./live-vessels";
+import { NowInBlastList, useNowInBlast } from "@/components/variance/now-in-blast";
 
 type InBlast = {
   id: string;
@@ -89,6 +90,7 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
     void refresh().catch(() => setMessage("Refresh unavailable; check connection."));
   }, [refresh]);
   useVesselRefresh(client, claims.orgId, scope, reload);
+  const blastLines = useNowInBlast(client, claims.orgId, scope);
   const send = useCallback(
     async (request: ScanRequest): Promise<ScanReply> => {
       const { data, error } = request.vessel_id
@@ -192,6 +194,7 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
         </ul>
         {vessels.length === 0 && waiting.length === 0 && <p>Blast freezer empty</p>}
       </section>
+      <NowInBlastList lines={blastLines.lines} error={blastLines.error} />
       {op.overlay}
     </StationShell>
   );

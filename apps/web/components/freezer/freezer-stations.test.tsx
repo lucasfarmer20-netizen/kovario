@@ -50,9 +50,9 @@ const inBlastDefault = () => [
  */
 function setup(
   replies: unknown[] = [],
-  lists: { inBlast?: unknown[]; waiting?: unknown[]; exchange?: unknown[] } = {},
+  lists: { inBlast?: unknown[]; waiting?: unknown[]; exchange?: unknown[]; lines?: unknown[] } = {},
 ) {
-  const { inBlast = inBlastDefault(), waiting = [], exchange = [] } = lists;
+  const { inBlast = inBlastDefault(), waiting = [], exchange = [], lines = [] } = lists;
   const calls: [string, unknown][] = [];
   const from = (name: string) => {
     const mine: string[] = [];
@@ -65,13 +65,15 @@ function setup(
       order: () => q,
       then: (resolve: (r: unknown) => unknown) => {
         const data =
-          name !== "vessel"
-            ? []
-            : mine.includes("is asset_tag_id")
-              ? exchange
-              : mine.includes("is blast_in_at")
-                ? waiting
-                : inBlast;
+          name === "now_in_blast"
+            ? lines
+            : name !== "vessel"
+              ? []
+              : mine.includes("is asset_tag_id")
+                ? exchange
+                : mine.includes("is blast_in_at")
+                  ? waiting
+                  : inBlast;
         return Promise.resolve({ data, error: null }).then(resolve);
       },
     };
@@ -103,6 +105,45 @@ it("WP13 blast queue lists occupied vessels in blast with time-in", async () => 
   expect(screen.getByText("IN BLAST (1)")).toBeTruthy();
   expect(calls).toContainEqual(["lifecycle_state", "occupied"]);
   expect(calls).toContainEqual(["is stored_at", null]);
+});
+
+it("#87 blast shows a 'now in blast' line per intake, in rollstock order, colour-coded", async () => {
+  const line = (n: string, at: string | null, pct: number | null, band: string) => ({
+    intake_id: n,
+    intake_number: n,
+    variance_pct: pct,
+    band,
+    limit_pct: 15,
+    rollstock_opened_at: at,
+    rollstock_scan_id: `s-${n}`,
+  });
+  setup([], {
+    lines: [
+      line("INT-2121", "2026-07-20T08:05:00+00:00", -12, "near"),
+      line("INT-2122", null, null, "unknown"),
+      line("INT-2120", "2026-07-20T08:00:00+00:00", 14, "near"),
+      line("INT-2119", "2026-07-20T07:55:00+00:00", 40, "over"),
+      line("INT-2118", "2026-07-20T07:50:00+00:00", 1.25, "within"),
+    ],
+  });
+  render(<BlastStation />);
+  const section = await screen.findByRole("region", { name: "Now in blast" });
+  await waitFor(() => expect(section.querySelectorAll("li")).toHaveLength(5));
+  const items = [...section.querySelectorAll("li")];
+  expect(items.map((li) => li.textContent)).toEqual([
+    "INT-2118 is in the blast · variance +1.3% · within limit",
+    "INT-2119 is in the blast · variance +40% · over limit",
+    "INT-2120 is in the blast · variance +14% · near limit",
+    "INT-2121 is in the blast · variance −12% · near limit",
+    "INT-2122 is in the blast · variance — · no estimate",
+  ]);
+  expect(items.map((li) => li.className)).toEqual([
+    "station-band station-band-within",
+    "station-band station-band-over",
+    "station-band station-band-near",
+    "station-band station-band-near",
+    "station-band station-band-unknown",
+  ]);
 });
 
 it("WP13 blast scan posts the raw tag with its idempotency key", async () => {
