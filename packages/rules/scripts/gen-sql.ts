@@ -1,8 +1,8 @@
 // `pnpm --filter rules gen:sql`: writes the generated rules SQL migrations — RULES_SQL_PATH
 // from rules-sql.ts, ALLOCATION_SQL_PATH from allocation-sql.ts, REGISTER_SQL_PATH from
-// register-sql.ts, RELEASE_SQL_PATH from release-sql.ts, VARIANCE_SQL_PATH and
-// HOLD_WAIT_SQL_PATH from variance-sql.ts, SUSPECTS_SQL_PATH from suspects-sql.ts and
-// TAG_SQL_PATH from qr.ts.
+// register-sql.ts, RELEASE_SQL_PATH from release-sql.ts, VARIANCE_SQL_PATH,
+// HOLD_WAIT_SQL_PATH and HOLD_REEVALUATE_SQL_PATH from variance-sql.ts, SUSPECTS_SQL_PATH
+// from suspects-sql.ts and TAG_SQL_PATH from qr.ts.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,8 +13,10 @@ import { RULES_SQL_PATH, renderRulesSql } from "../src/rules-sql.ts";
 import { TAG_SQL_PATH, renderTagCodeSql } from "../src/qr.ts";
 import { SUSPECTS_SQL_PATH, renderSuspectsSql } from "../src/suspects-sql.ts";
 import {
+  HOLD_REEVALUATE_SQL_PATH,
   HOLD_WAIT_SQL_PATH,
   VARIANCE_SQL_PATH,
+  renderHoldReevaluateSql,
   renderHoldWaitSql,
   renderVarianceSql,
 } from "../src/variance-sql.ts";
@@ -28,6 +30,7 @@ for (const [path, render] of [
   [TAG_SQL_PATH, renderTagCodeSql],
   [VARIANCE_SQL_PATH, renderVarianceSql],
   [HOLD_WAIT_SQL_PATH, renderHoldWaitSql],
+  [HOLD_REEVALUATE_SQL_PATH, renderHoldReevaluateSql],
   [SUSPECTS_SQL_PATH, renderSuspectsSql],
 ] as const) {
   const target = resolve(repoRoot, path);

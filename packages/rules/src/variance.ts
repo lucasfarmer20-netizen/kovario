@@ -172,6 +172,28 @@ export function memberKeepsHoldOpen(
   );
 }
 
+/**
+ * How a hold judges a member in this state (memberKeepsHoldOpen in three classes): `awaiting`
+ * keeps it open whatever the weight, `judged` on its variance at reconcile, `not_judged` once
+ * past reconcile or cancelled.
+ */
+export type HoldJudgement = "awaiting" | "judged" | "not_judged";
+
+export function holdJudgement(state: IntakeState): HoldJudgement {
+  if (AWAITING_RECONCILE_STATES.includes(state)) return "awaiting";
+  return state === "reconcile" ? "judged" : "not_judged";
+}
+
+/**
+ * #95: a member's state change can clear a hold it belongs to only when it changes how the hold
+ * judges it: entering or leaving reconcile (rollstock done, Send to Blast, #88's pull back) or a
+ * cancellation before reconcile. Such a change re-evaluates every active hold whose group holds
+ * the member, in the same transaction; any other change (blast → stored → done) cannot.
+ */
+export function holdReevaluateOn(from: IntakeState, to: IntakeState): boolean {
+  return holdJudgement(from) !== holdJudgement(to);
+}
+
 /** One member of a hold's group, as the waiting-on list judges it. */
 export type HoldGroupMember = {
   intakeId: string;

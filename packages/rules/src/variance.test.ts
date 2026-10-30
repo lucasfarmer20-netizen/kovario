@@ -15,6 +15,8 @@ import {
   type HoldGroupMember,
   holdBlocks,
   holdGroup,
+  holdJudgement,
+  holdReevaluateOn,
   memberKeepsHoldOpen,
   rollstockSequence,
   SIGNOFF_NOTE_TOO_LONG,
@@ -30,7 +32,9 @@ import {
   type RollstockScan,
 } from "./variance";
 import {
+  HOLD_REEVALUATE_SQL_PATH,
   HOLD_WAIT_SQL_PATH,
+  renderHoldReevaluateSql,
   renderHoldWaitSql,
   renderVarianceSql,
   VARIANCE_SQL_PATH,
@@ -175,6 +179,35 @@ describe("hold states (#87)", () => {
   });
 });
 
+describe("hold re-evaluation (#95)", () => {
+  const bands = ["within", "near", "over", "unknown"] as const;
+  it("I95 a member's judgement is all memberKeepsHoldOpen reads from its state", () => {
+    for (const a of STATES.intake)
+      for (const b of STATES.intake.filter((s) => holdJudgement(s) === holdJudgement(a)))
+        for (const band of bands)
+          for (const signedOff of [false, true])
+            expect(memberKeepsHoldOpen(a, band, signedOff), `${a} ${b} ${band}`).toBe(
+              memberKeepsHoldOpen(b, band, signedOff),
+            );
+  });
+  it("I95 entering or leaving reconcile and cancelling before it re-evaluate holds", () => {
+    expect(holdReevaluateOn("rollstock", "reconcile")).toBe(true);
+    expect(holdReevaluateOn("reconcile", "blast_freezer")).toBe(true);
+    expect(holdReevaluateOn("blast_freezer", "reconcile")).toBe(true);
+    expect(holdReevaluateOn("reconcile", "cancelled")).toBe(true);
+    for (const from of ["draft", "holding", "processing", "rollstock"] as const)
+      expect(holdReevaluateOn(from, "cancelled"), from).toBe(true);
+  });
+  it("I95 a change within one judgement re-evaluates nothing", () => {
+    expect(holdReevaluateOn("processing", "rollstock")).toBe(false);
+    expect(holdReevaluateOn("blast_freezer", "stored")).toBe(false);
+    expect(holdReevaluateOn("stored", "done")).toBe(false);
+    expect(holdReevaluateOn("blast_freezer", "cancelled")).toBe(false);
+    expect(holdReevaluateOn("stored", "cancelled")).toBe(false);
+    for (const s of STATES.intake) expect(holdReevaluateOn(s, s), s).toBe(false);
+  });
+});
+
 describe("sign-off and setting (#87)", () => {
   it("V-signoff reasons are the enum; other needs a note", () => {
     expect(VARIANCE_SIGNOFF_REASONS).toEqual([
@@ -308,5 +341,14 @@ describe("generated hold-wait SQL (#93)", () => {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
   it(`${HOLD_WAIT_SQL_PATH} is up to date (run \`pnpm --filter rules gen:sql\`)`, () => {
     expect(readFileSync(resolve(repoRoot, HOLD_WAIT_SQL_PATH), "utf8")).toBe(renderHoldWaitSql());
+  });
+});
+
+describe("generated hold re-evaluation SQL (#95)", () => {
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+  it(`${HOLD_REEVALUATE_SQL_PATH} is up to date (run \`pnpm --filter rules gen:sql\`)`, () => {
+    expect(readFileSync(resolve(repoRoot, HOLD_REEVALUATE_SQL_PATH), "utf8")).toBe(
+      renderHoldReevaluateSql(),
+    );
   });
 });
