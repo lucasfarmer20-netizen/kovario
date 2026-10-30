@@ -132,7 +132,7 @@ A large variance usually means fish went into the wrong order, typically a rolls
   manager account or manager PIN elevation, one SQL function (`variance_hold_signoff`) in
   `action_log`, shown in Reports → Variance holds. A sign-off covers the flagged intake's send
   only at the weight signed off; a changed weight over the limit flags again. Open points
-  (DECISION-25…29) build the defaults stated in `08-DECISIONS.md`.
+  (DECISION-25…30) build the defaults stated in `08-DECISIONS.md`.
 - **"Now in blast" line**: every intake sent to blast (flagged or not), while any of its
   vessels is not yet on a shelf: "INT-2120 is in the blast · variance +14%", in rollstock
   order, coloured by band. Shown on the blast and reconcile screens; #88's suspect picker ranks
