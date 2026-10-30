@@ -172,7 +172,7 @@ update public.intake set state='stored' where id=pg_temp.intake('INT-0002');
 set local role authenticated;
 select ok(not exists(select 1 from public.now_in_blast where intake_number='INT-0002'),'V6 an intake whose vessels are all on a shelf leaves the list');
 
--- V8: auto-clear when the whole group is back within the limit (#88's bin move) -----------------
+-- V7: auto-clear when the whole group is back within the limit (#88's bin move) -----------------
 -- INT-0011..0013 open after INT-0006. INT-0011 at 40 lb (−20%) is flagged; INT-0012 (+20%) is its
 -- neighbour. Moving fish between them (reweigh both to 50) clears the hold with no sign-off.
 select pg_temp.scan('FL:TOTE:INT-0011:1',null,'v87-rs-7');
@@ -185,22 +185,22 @@ from ids where ids.v=s.id and ids.k like 'v87-rs-_';
 set local role authenticated;
 select pg_temp.weigh('INT-0011',40);
 select pg_temp.weigh('INT-0012',60);
-select is(pg_temp.send('INT-0011','v87-send-0011')->>'ok','false','V8 INT-0011 at −20% is held');
+select is(pg_temp.send('INT-0011','v87-send-0011')->>'ok','false','V7 INT-0011 at −20% is held');
 select is((select array_agg(intake_number order by position) from public.variance_hold_member where hold_state='active'),
-  '{INT-0006,INT-0011,INT-0012,INT-0013}'::text[],'V8 group of INT-0011');
-select is(pg_temp.send('INT-0012','v87-send-0012')->>'reason','Variance hold on INT-0011: INT-0012 is its rollstock neighbour and waits for the hold to clear','V8 INT-0012 is blocked by its neighbour''s hold, not flagged itself');
+  '{INT-0006,INT-0011,INT-0012,INT-0013}'::text[],'V7 group of INT-0011');
+select is(pg_temp.send('INT-0012','v87-send-0012')->>'reason','Variance hold on INT-0011: INT-0012 is its rollstock neighbour and waits for the hold to clear','V7 INT-0012 is blocked by its neighbour''s hold, not flagged itself');
 select pg_temp.reweigh('INT-0011',50,'v87-move-1');
 select pg_temp.reweigh('INT-0012',50,'v87-move-2');
-select is((select state::text from public.variance_hold where intake_id=pg_temp.intake('INT-0011')),'active','V8 the hold stays while a member (INT-0013) is unreconciled');
+select is((select state::text from public.variance_hold where intake_id=pg_temp.intake('INT-0011')),'active','V7 the hold stays while a member (INT-0013) is unreconciled');
 select pg_temp.weigh('INT-0013',50);
 select ok((select state='cleared' and clear_kind='auto' and cleared_by is null and reason is null and cleared_actual_lb=50
-  from public.variance_hold where intake_id=pg_temp.intake('INT-0011')),'V8 the hold clears automatically when every member is within the limit');
-select ok(exists(select 1 from public.domain_event where kind='variance_hold_cleared' and subject_id=pg_temp.intake('INT-0011') and payload->>'kind'='auto'),'V8 auto clear recorded as a domain event');
-select is(pg_temp.send('INT-0012','v87-send-0012-2')->>'ok','true','V8 the neighbour goes to blast after the auto clear');
-select is(pg_temp.send('INT-0011','v87-send-0011-2')->>'ok','true','V8 the flagged intake goes to blast now within');
-select ok(exists(select 1 from public.report_variance_holds where intake_number='INT-0011' and outcome='auto' and signed_off_by is null),'V8 report shows the auto clear');
+  from public.variance_hold where intake_id=pg_temp.intake('INT-0011')),'V7 the hold clears automatically when every member is within the limit');
+select ok(exists(select 1 from public.domain_event where kind='variance_hold_cleared' and subject_id=pg_temp.intake('INT-0011') and payload->>'kind'='auto'),'V7 auto clear recorded as a domain event');
+select is(pg_temp.send('INT-0012','v87-send-0012-2')->>'ok','true','V7 the neighbour goes to blast after the auto clear');
+select is(pg_temp.send('INT-0011','v87-send-0011-2')->>'ok','true','V7 the flagged intake goes to blast now within');
+select ok(exists(select 1 from public.report_variance_holds where intake_number='INT-0011' and outcome='auto' and signed_off_by is null),'V7 report shows the auto clear');
 
--- V9: a staff caller signs off with a manager PIN elevation -----------------------------------------
+-- V8: a staff caller signs off with a manager PIN elevation -----------------------------------------
 -- A hold on INT-0013 (reweighed out of range after it was reconciled).
 select pg_temp.reweigh('INT-0013',30,'v87-0013-light');
 create temp table flag13 as select pg_temp.send('INT-0013','v87-send-0013') r;
@@ -209,42 +209,42 @@ insert into public.elevation_grant(org_id,requested_by,manager_member_id,token_h
  ('a2700000-0000-4000-8000-00000000000a','a2700000-0000-4000-8000-0000000000a2','a2700000-0000-4000-8000-0000000000b1',app.sha256_hex('v87-elevation'),now()+interval '5 minutes');
 select set_config('request.jwt.claims','{"sub":"a2700000-0000-4000-8000-0000000000a2","role":"authenticated","org_id":"a2700000-0000-4000-8000-00000000000a","app_role":"staff"}',true);
 set local role authenticated;
-select is(public.variance_hold_signoff('v87-staff-pin',((select r from flag13)->>'variance_hold_id')::uuid,'other','Short-weighted at intake',p_elevation_token=>'v87-elevation')->>'reason','Hold signed off','V9 staff with a manager PIN elevation signs off');
-select is((select cleared_by from public.variance_hold where intake_id=pg_temp.intake('INT-0013')),'a2700000-0000-4000-8000-0000000000b1'::uuid,'V9 the approving manager is recorded, not the staff caller');
+select is(public.variance_hold_signoff('v87-staff-pin',((select r from flag13)->>'variance_hold_id')::uuid,'other','Short-weighted at intake',p_elevation_token=>'v87-elevation')->>'reason','Hold signed off','V8 staff with a manager PIN elevation signs off');
+select is((select cleared_by from public.variance_hold where intake_id=pg_temp.intake('INT-0013')),'a2700000-0000-4000-8000-0000000000b1'::uuid,'V8 the approving manager is recorded, not the staff caller');
 
--- V10: setting -------------------------------------------------------------------------------------
+-- V9: setting -------------------------------------------------------------------------------------
 reset role;
-select is((select settings #>> '{reconcile,variance_hold_pct}' from public.org where id='a2700000-0000-4000-8000-00000000000a'),'15','V10 a new org defaults to ±15%');
-select is((select app.variance_hold_limit(settings) from public.org where id='b2700000-0000-4000-8000-00000000000b'),15,'V10 an org from before v1.1 reads the default');
-select is(app.org_settings_problem((select settings from public.org where id='b2700000-0000-4000-8000-00000000000b')),null,'V10 settings without the key stay valid');
+select is((select settings #>> '{reconcile,variance_hold_pct}' from public.org where id='a2700000-0000-4000-8000-00000000000a'),'15','V9 a new org defaults to ±15%');
+select is((select app.variance_hold_limit(settings) from public.org where id='b2700000-0000-4000-8000-00000000000b'),15,'V9 an org from before v1.1 reads the default');
+select is(app.org_settings_problem((select settings from public.org where id='b2700000-0000-4000-8000-00000000000b')),null,'V9 settings without the key stay valid');
 select set_config('request.jwt.claims','{"sub":"a2700000-0000-4000-8000-0000000000a2","role":"authenticated","org_id":"a2700000-0000-4000-8000-00000000000a","app_role":"staff"}',true);
 set local role authenticated;
 select throws_ok($q$select public.admin_update_org('v87-staff-settings','Variance A','UTC',
-  jsonb_set((select settings from public.org),'{reconcile,variance_hold_pct}','20'))$q$,'42501',null,'V10 staff cannot edit the setting');
+  jsonb_set((select settings from public.org),'{reconcile,variance_hold_pct}','20'))$q$,'42501',null,'V9 staff cannot edit the setting');
 reset role;
 select set_config('request.jwt.claims','{"sub":"a2700000-0000-4000-8000-0000000000a1","role":"authenticated","org_id":"a2700000-0000-4000-8000-00000000000a","app_role":"manager"}',true);
 set local role authenticated;
 select throws_ok($q$select public.admin_update_org('v87-settings-0','Variance A','UTC',
   jsonb_set((select settings from public.org),'{reconcile,variance_hold_pct}','0'))$q$,'22023',
-  'Invalid settings: reconcile.variance_hold_pct must be a whole percent between 1 and 100','V10 below 1 is refused');
+  'Invalid settings: reconcile.variance_hold_pct must be a whole percent between 1 and 100','V9 below 1 is refused');
 select throws_ok($q$select public.admin_update_org('v87-settings-101','Variance A','UTC',
-  jsonb_set((select settings from public.org),'{reconcile,variance_hold_pct}','101'))$q$,'22023',null,'V10 above 100 is refused');
+  jsonb_set((select settings from public.org),'{reconcile,variance_hold_pct}','101'))$q$,'22023',null,'V9 above 100 is refused');
 select throws_ok($q$select public.admin_update_org('v87-settings-frac','Variance A','UTC',
-  jsonb_set((select settings from public.org),'{reconcile,variance_hold_pct}','12.5'))$q$,'22023',null,'V10 a fraction is refused');
+  jsonb_set((select settings from public.org),'{reconcile,variance_hold_pct}','12.5'))$q$,'22023',null,'V9 a fraction is refused');
 select lives_ok($q$select public.admin_update_org('v87-settings-20','Variance A','UTC',
-  jsonb_set((select settings from public.org),'{reconcile,variance_hold_pct}','20'))$q$,'V10 a manager sets ±20%');
-select is((select distinct limit_pct from public.intake_variance),20,'V10 the new limit applies to every intake');
-select is((select band from public.intake_variance where number='INT-0003'),'over','V10 bands follow the limit (+40% over ±20%)');
-select is((select band from public.intake_variance where number='INT-0006'),'within','V10 +12% is within ±20% (near starts at 13.3%)');
+  jsonb_set((select settings from public.org),'{reconcile,variance_hold_pct}','20'))$q$,'V9 a manager sets ±20%');
+select is((select distinct limit_pct from public.intake_variance),20,'V9 the new limit applies to every intake');
+select is((select band from public.intake_variance where number='INT-0003'),'over','V9 bands follow the limit (+40% over ±20%)');
+select is((select band from public.intake_variance where number='INT-0006'),'within','V9 +12% is within ±20% (near starts at 13.3%)');
 
--- V11: tenancy -----------------------------------------------------------------------------------
+-- V10: tenancy -----------------------------------------------------------------------------------
 reset role;
 select set_config('request.jwt.claims','{"sub":"a2700000-0000-4000-8000-0000000000a1","role":"authenticated","org_id":"b2700000-0000-4000-8000-00000000000b","app_role":"manager"}',true);
 set local role authenticated;
-select is((select count(*)::int from public.variance_hold),0,'V11 another org sees no holds');
-select is((select count(*)::int from public.now_in_blast),0,'V11 another org sees no blast lines');
-select throws_ok($q$select public.variance_hold_signoff('v87-cross',(select v from ids limit 0),'spoilage')$q$,'22023','Unknown variance hold','V11 an unknown hold is refused');
-select throws_ok(format($q$select public.variance_hold_signoff('v87-cross-2',%L,'spoilage')$q$,(select id from hold)),'22023','Unknown variance hold','V11 another org''s hold cannot be signed off');
+select is((select count(*)::int from public.variance_hold),0,'V10 another org sees no holds');
+select is((select count(*)::int from public.now_in_blast),0,'V10 another org sees no blast lines');
+select throws_ok($q$select public.variance_hold_signoff('v87-cross',(select v from ids limit 0),'spoilage')$q$,'22023','Unknown variance hold','V10 an unknown hold is refused');
+select throws_ok(format($q$select public.variance_hold_signoff('v87-cross-2',%L,'spoilage')$q$,(select id from hold)),'22023','Unknown variance hold','V10 another org''s hold cannot be signed off');
 
 select * from finish();
 rollback;
