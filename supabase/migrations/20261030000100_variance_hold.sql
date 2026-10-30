@@ -363,10 +363,14 @@ begin
     hold_id:=blocking.id;
     if blocking.intake_id=i.id and iv.band='over' then
      reason:=format('Variance hold: %s is %s (limit ±%s%%). Fix the bins or get a manager sign-off',i.number,app.format_variance(iv.variance_pct),iv.limit_pct);
-    elsif blocking.intake_id=i.id then
+    elsif blocking.intake_id=i.id and iv.band in ('within','near') then
      -- Back within the limit, but the hold waits on neighbours (docs/08 DECISION-27).
      reason:=format('Variance hold: %s is back within the limit (%s); waiting on %s. The hold clears when they are within the limit, or a manager signs off',
        i.number,app.format_variance(iv.variance_pct),app.variance_hold_waiting_on(blocking));
+    elsif blocking.intake_id=i.id then
+     -- No expected yield any more (band unknown): nothing to be within, so name the neighbours only.
+     reason:=format('Variance hold: %s has no expected yield to compare; waiting on %s. The hold clears when they are within the limit, or a manager signs off',
+       i.number,app.variance_hold_waiting_on(blocking));
     else
      select * into flagged from public.intake where id=blocking.intake_id;
      reason:=format('Variance hold on %s: %s is its rollstock neighbour and waits for the hold to clear',flagged.number,i.number);

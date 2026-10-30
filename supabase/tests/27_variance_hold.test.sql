@@ -193,6 +193,16 @@ select pg_temp.reweigh('INT-0011',50,'v87-move-1');
 select is(pg_temp.send('INT-0011','v87-send-0011-within')->>'reason',
   'Variance hold: INT-0011 is back within the limit (0%); waiting on INT-0012 (+20%), INT-0013 (−100%). The hold clears when they are within the limit, or a manager signs off',
   'V7 a flagged intake back within the limit is told which neighbours its hold waits on');
+-- Its expected yield edited to 0 (band unknown): no "within the limit (—)", just the neighbours.
+reset role;
+update public.intake_line set lb=0 where intake_id=pg_temp.intake('INT-0011');
+set local role authenticated;
+select is(pg_temp.send('INT-0011','v87-send-0011-unknown')->>'reason',
+  'Variance hold: INT-0011 has no expected yield to compare; waiting on INT-0012 (+20%), INT-0013 (−100%). The hold clears when they are within the limit, or a manager signs off',
+  'V7 a flagged intake with no expected yield is told only which neighbours its hold waits on');
+reset role;
+update public.intake_line set lb=100 where intake_id=pg_temp.intake('INT-0011');
+set local role authenticated;
 select pg_temp.reweigh('INT-0012',50,'v87-move-2');
 select is((select state::text from public.variance_hold where intake_id=pg_temp.intake('INT-0011')),'active','V7 the hold stays while a member (INT-0013) is unreconciled');
 select pg_temp.weigh('INT-0013',50);
