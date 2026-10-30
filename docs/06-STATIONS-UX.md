@@ -80,6 +80,17 @@ baskets says "Scan basket to add it — or tap Enter manually." and shows "No ba
 of a variance, band or hold warning; the weight and remove buttons say "Add a basket first" (then
 "Tap a basket first" until one is selected). A basket added by scan or typed number is selected
 straight away, so Accept / Enter weight manually are live without a tap.
+**Weighing** (UI pass 1, #125; bake-off entry A, client side only, same RPC): after a successful
+**Accept** the next unweighed basket is selected on its own. Accept then waits for a **new** stable
+reading: a reading counts as used once it is on a basket of the order (`vessel.scale_reading_id`,
+the reading the server actually wrote, which may be newer than the one shown), and the one shown
+is held as used until the refresh lands. Meanwhile the scale reads "Reading used" and Accept says
+"Put the basket on the scale for a new reading", so one reading never goes to two baskets.
+**Enter weight manually** is a form: the keyboard's Enter saves it, like **Save manual weight**,
+and after a typed weight the selection stays on that basket (no auto-advance). A weight shows on
+its basket as soon as it is tapped, with a spinner until the refresh confirms it. While baskets are
+unweighed the variance is a running figure ("… so far, N to weigh"), muted, with no refusal
+warning.
 **Variance hold** (v1.1, #87; `04-BUSINESS-RULES.md §6a`): a send over the limit is refused
 and the intake is held with its rollstock neighbours (1 before, 2 after). Held intakes carry a
 HELD badge in the queue. Opening a held intake shows the hold group in rollstock order (each
