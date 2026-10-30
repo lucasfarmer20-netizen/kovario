@@ -289,7 +289,11 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
   };
   // Same key for a retried sign-off after a lost response; the token is proof, not identity.
   const signOffRetry = useRef<{ signature: string; id: string } | null>(null);
-  const signOff = async (request: SignOff, token?: string) => {
+  // Resolves with the outcome so the manager PIN overlay closes only on a real sign-off.
+  const signOff = async (
+    request: SignOff,
+    token?: string,
+  ): Promise<{ ok: boolean; reason?: string }> => {
     setBusy(true);
     const signature = JSON.stringify([request.holdId, request.reason, request.note]);
     if (signOffRetry.current?.signature !== signature)
@@ -308,8 +312,11 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       const reply = data as { reason?: string } | null;
       setMessage(reply?.reason ?? "Hold signed off");
       await holds.refresh();
+      return { ok: true };
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Sign-off unavailable; retry");
+      const reason = e instanceof Error ? e.message : "Sign-off unavailable; retry";
+      setMessage(reason);
+      return { ok: false, reason };
     } finally {
       setBusy(false);
     }
@@ -500,8 +507,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
           verify={async (pin) => {
             const elevation = await managerElevation(client, pin);
             if ("reason" in elevation) return { ok: false, reason: elevation.reason };
-            await signOff(signOffPending, elevation.token);
-            return { ok: true };
+            return signOff(signOffPending, elevation.token);
           }}
         />
       )}

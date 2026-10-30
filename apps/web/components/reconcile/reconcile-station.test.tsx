@@ -332,6 +332,24 @@ it("#87 typing a sign-off note pauses the scanner; Done hands focus back", async
   expect(panel.textContent).toContain("Note: Bled fish");
   expect(within(panel).getByRole("button", { name: "Edit note (required)" })).toBeTruthy();
 });
+it("#87 a failed sign-off keeps the manager PIN overlay open with the reason", async () => {
+  const rpc = setup(28, held);
+  rpc.mockImplementation((async (name: string) =>
+    name === "variance_hold_signoff"
+      ? { data: null, error: { message: "manager approval required" } }
+      : { data: { ok: true, reason: "Accepted" }, error: null }) as never);
+  render(<ReconcileStation />);
+  await screen.findByRole("region", { name: "Variance hold" });
+  fireEvent.click(screen.getByRole("button", { name: "Spoilage" }));
+  fireEvent.click(screen.getByRole("button", { name: "Manager sign-off" }));
+  fireEvent.change(await screen.findByLabelText("Manager PIN PIN"), { target: { value: "1234" } });
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  const overlay = screen.getByRole("dialog", { name: "Manager PIN" });
+  await waitFor(() =>
+    expect(within(overlay).getByRole("alert").textContent).toBe("manager approval required"),
+  );
+  expect(screen.getByRole("dialog", { name: "Manager PIN" })).toBeTruthy();
+});
 it("#87 a manager account signs off without a PIN", async () => {
   const rpc = setup(28, held, "manager");
   render(<ReconcileStation />);
