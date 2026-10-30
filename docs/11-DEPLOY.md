@@ -73,6 +73,14 @@ Rules:
 | `PROD_REDIRECT_URLS` | variable | repository | optional extra prod redirect URLs (`https://app.filletry.com/**` is always added) |
 | `SUPABASE_STAGING_POOLER_HOST` | variable | repository | optional; defaults to `aws-0-us-west-1.pooler.supabase.com` (staging's Supavisor session pooler, Dashboard → Connect → Session pooler) |
 | `SUPABASE_PROD_POOLER_HOST` | variable | repository | prod's session-pooler host; unset ⇒ the token needs `database_pooling_config_read` |
+| `SUPABASE_CUSTOM_EMAIL` | variable | environment `staging` / `production` (set it per environment, not on the repository) | `true` only once that Supabase project sends auth mail through **custom SMTP** (Dashboard → Authentication → SMTP Settings). Anything else ⇒ the `[auth.email.template.*]` tables are dropped from the deploy's temp copy of `config.toml` and `config push` leaves the project on Supabase's default templates (warning in the log). Supabase refuses template changes on free-tier projects using its built-in sender (`400 Email template modification is not available…`, #121). Unset on staging |
+
+**Pre-launch (prod): custom SMTP before the email templates.** The Filletry templates
+(`supabase/templates/`) reach a hosted project only with `SUPABASE_CUSTOM_EMAIL=true`, and
+Supabase accepts them only when that project has custom SMTP. Before real tenants sign up on
+prod: configure custom SMTP (Resend, `docs/07-INTEGRATIONS.md`) in the prod dashboard, raise
+its email rate limit (§2), **then** set `SUPABASE_CUSTOM_EMAIL=true` on the `production`
+environment and promote. Setting the variable first fails the prod deploy at `config push`.
 
 `db push` uses `postgresql://postgres.<ref>@<pooler host>:5432/postgres` with the password in
 `PGPASSWORD`, so the password never appears in a URL, argument or log.
@@ -150,7 +158,9 @@ rely on the deploy itself.
    `supabase config push` (auth hook, auth settings, API settings from `config.toml`, with the
    hosted `site_url` / redirect URLs added as a `[remotes.<env>]` block in a temp copy so the
    committed local values never reach a hosted project). A missing `STAGING_SITE_URL` skips
-   this last step with a warning.
+   this last step with a warning. Unless `SUPABASE_CUSTOM_EMAIL` is `true` for the environment
+   (§1), the same temp copy also loses its `[auth.email.template.*]` tables, so the email
+   templates are skipped (with a warning) and everything else is pushed.
 
    **Edge Functions bundle only `supabase/functions/**`**: a function that imports
    `packages/…` fails `functions deploy` with *Module not found*. Rules code a function needs
@@ -175,15 +185,26 @@ rely on the deploy itself.
    Devices (`email_confirm: true`) and invited members are unaffected by confirmations.
    Confirmation mail goes through Supabase's built-in SMTP, which only delivers to the
    project's team members and is rate-limited: fine for staging; **prod needs custom SMTP**
-   (Resend, `docs/07-INTEGRATIONS.md`) configured in the dashboard before real tenants sign up.
+   (Resend, `docs/07-INTEGRATIONS.md`) configured in the dashboard before real tenants sign up,
+   and only then can the Filletry email templates go live (§1, pre-launch).
 
    **Auth email links (#116, closes the #57 gap):** the templates in `supabase/templates/`
    (confirmation, recovery, invite, email change; wired in `config.toml`, pushed by
-   `config push`) link to `{{ .SiteURL }}/auth/confirm?token_hash=…&type=…&next=…`. That route
-   verifies the token (`verifyOtp`; a PKCE `code` from a default link goes through
-   `exchangeCodeForSession`), sets the session cookie and redirects to the same-origin `next`
+   `config push` only with `SUPABASE_CUSTOM_EMAIL=true`) link to
+   `{{ .SiteURL }}/auth/confirm?token_hash=…&type=…&next=…`. That route verifies the token
+   (`verifyOtp`), sets the session cookie and redirects to the same-origin `next`
    (`/onboarding`, `/reset-password`, `/auth/accept`); a bad or used link goes to `/login`. Links
    use the project's `site_url`, so Vercel preview deploys get links to the staging URL.
+
+   **Default templates (staging, and prod until custom SMTP, #121):** Supabase's own links
+   (`{{ .ConfirmationURL }}`) verify on Supabase and redirect to the `redirectTo` the app sent:
+   signup and password reset land on `/auth/confirm?next=…&code=…`, which
+   `exchangeCodeForSession` turns into the cookie session (`route.test.ts`, "a default-template
+   … link"). The PKCE code only works **in the browser that asked for the email** (its code
+   verifier is a cookie); opened elsewhere it goes to `/login?notice=link`. A default invite
+   link lands on `/auth/accept` with the session in the URL fragment, which that page stores.
+   The links still need the target URL in the project's redirect allow-list (`SITE_URL/**`,
+   `REDIRECT_URLS`), as before.
 
    **Email rate limit:** `config push` sends `auth.rate_limit.email_sent` only when
    `[auth.email.smtp]` is enabled in `config.toml` (CLI 2.122.0 `pkg/config/auth.go`); it is not,

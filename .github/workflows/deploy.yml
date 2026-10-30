@@ -73,6 +73,8 @@ jobs:
           SUPABASE_POOLER_HOST: ${{ vars.SUPABASE_STAGING_POOLER_HOST || 'aws-0-us-west-1.pooler.supabase.com' }}
           SITE_URL: ${{ vars.STAGING_SITE_URL }} # unset: auth config is not pushed (warning)
           REDIRECT_URLS: ${{ vars.STAGING_REDIRECT_URLS }}
+          # variable of the `staging` environment; not `true`: email templates are not pushed (warning)
+          SUPABASE_CUSTOM_EMAIL: ${{ vars.SUPABASE_CUSTOM_EMAIL }}
         run: bash scripts/deploy-supabase.sh staging
 
   # Runs before any approval prompt. Fails unless the commit already has a successful staging
@@ -172,4 +174,6 @@ jobs:
           SUPABASE_POOLER_HOST: ${{ vars.SUPABASE_PROD_POOLER_HOST }} # unset: CLI looks it up (needs database_pooling_config_read)
           SITE_URL: ${{ env.PROD_SITE_URL }}
           REDIRECT_URLS: ${{ vars.PROD_REDIRECT_URLS }}
+          # variable of the `production` environment; set to `true` only once prod has custom SMTP
+          SUPABASE_CUSTOM_EMAIL: ${{ vars.SUPABASE_CUSTOM_EMAIL }}
         run: bash scripts/deploy-supabase.sh production

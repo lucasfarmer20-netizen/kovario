@@ -10,6 +10,10 @@
 #   SITE_URL       hosted auth site_url. Without it `config push` is skipped (with a warning):
 #                  config.toml's site_url is the local one and must never reach a hosted project.
 #   REDIRECT_URLS  optional, comma-separated extra auth redirect URLs (globs allowed)
+#   SUPABASE_CUSTOM_EMAIL  `true` once the project sends auth mail through custom SMTP. Anything
+#                  else drops the [auth.email.template.*] tables from the work copy before
+#                  `config push` (with a warning): Supabase refuses template changes on free-tier
+#                  projects using its default email sender (#121).
 #   SUPABASE_POOLER_HOST  optional session-pooler host for db push (see db_push below)
 # --dry-run runs `supabase db push --dry-run` only; nothing is written.
 # No `supabase link`: every command takes --project-ref, so the token needs no API-key scopes.
@@ -84,6 +88,15 @@ if [ -n "${SITE_URL:-}" ]; then
     url=$(echo "$url" | xargs)
     if [ -n "$url" ]; then urls+=", \"$url\""; fi
   done
+  # Custom email templates need custom SMTP on the hosted project (docs/11-DEPLOY.md §1).
+  # Without it, drop each [auth.email.template.*] table (header up to the next header) from
+  # the work copy only; the project keeps Supabase's default templates.
+  if [ "${SUPABASE_CUSTOM_EMAIL:-}" != "true" ]; then
+    awk '/^[[:space:]]*\[/ { skip = /^[[:space:]]*\[auth\.email\.template\./ } !skip' \
+      "$work/supabase/config.toml" >"$work/config.toml.tmp"
+    mv "$work/config.toml.tmp" "$work/supabase/config.toml"
+    echo "::warning::$target: auth email templates not pushed (SUPABASE_CUSTOM_EMAIL is not true): Supabase refuses template changes without custom SMTP, so the project keeps its default templates; see docs/11-DEPLOY.md §1"
+  fi
   # Hosted auth policy (docs/11-DEPLOY.md §2). config.toml's [auth] is tuned for local dev
   # (no confirmations, 6-char passwords); these override it on hosted projects only.
   # Signup stays open: tenants self-serve through /signup (WP-22); the confirmation link signs
