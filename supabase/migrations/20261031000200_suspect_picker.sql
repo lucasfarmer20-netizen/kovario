@@ -188,8 +188,13 @@ begin
           else format('%s is not at reconcile', m.number) end using errcode = '22023';
       end if;
     end loop;
-    v_group := app.intake_hold_group(app.org_id(), coalesce(p_center_intake_id, f.id));
-    if not (f.id = any (v_group) and t.id = any (v_group)) then
+    -- Fail closed: an unknown, other-org or null centre has no group (null), and a null
+    -- membership test must refuse, never fall through to the move.
+    v_group := app.intake_hold_group(app.org_id(), p_center_intake_id);
+    if v_group is null then
+      raise exception 'Unknown hold group' using errcode = '22023';
+    end if;
+    if (f.id = any (v_group) and t.id = any (v_group)) is not true then
       raise exception '% and % are not in the same hold group', f.number, t.number using errcode = '22023';
     end if;
     update public.vessel set intake_id = t.id where id = v.id;

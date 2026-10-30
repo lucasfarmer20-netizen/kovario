@@ -26,6 +26,10 @@ insert into auth.users(id,email) values
 insert into public.org_member(id,org_id,user_id,role,display_name) values
  ('a2800000-0000-4000-8000-0000000000b1','a2800000-0000-4000-8000-00000000000a','a2800000-0000-4000-8000-0000000000a1','manager','Suspect manager'),
  ('a2800000-0000-4000-8000-0000000000b2','a2800000-0000-4000-8000-00000000000a','a2800000-0000-4000-8000-0000000000a2','staff','Suspect staff');
+-- Org B's own intake: a real id from another org (review #99).
+insert into public.customer(id,org_id,name) values ('b2800000-0000-4000-8000-000000000002','b2800000-0000-4000-8000-00000000000b','Other customer');
+insert into public.intake(id,org_id,number,customer_id,tote_count) values
+ ('b2800000-0000-4000-8000-0000000000ff','b2800000-0000-4000-8000-00000000000b','INT-0001','b2800000-0000-4000-8000-000000000002',1);
 insert into public.asset_tag(org_id,code,qr) values ('a2800000-0000-4000-8000-00000000000a','0042','FL:TAG:suspect-a:0042');
 -- INT-0001..0005 each expect 50 lb (100 lb × 0.5); INT-0002 also carries halibut (expects 60 lb).
 insert into public.intake(id,org_id,number,customer_id,site_id,tote_count)
@@ -146,6 +150,15 @@ select throws_ok($q$select pg_temp.move('v88-m-out','b2tag','INT-0005','INT-0002
   'INT-0002 and INT-0005 are not in the same hold group','PK-M1 a bin moves only within the group');
 select throws_ok($q$select public.variance_move_vessel('v88-m-unknown',gen_random_uuid(),pg_temp.intake('INT-0003'),pg_temp.intake('INT-0002'))$q$,'22023',
   'Unknown vessel','PK-M1 an unknown vessel is refused');
+-- Review (#99): an unknown or other-org centre has no group; the move must fail closed, even
+-- between two otherwise valid intakes at reconcile in different groups (INT-0002, INT-0005).
+select throws_ok(format($q$select public.variance_move_vessel('v88-m-nocenter',%L,%L,%L)$q$,
+  pg_temp.id('b2tag'),pg_temp.intake('INT-0005'),gen_random_uuid()),'22023','Unknown hold group','PK-M1 an unknown centre is refused');
+select throws_ok(format($q$select public.variance_move_vessel('v88-m-xorg',%L,%L,%L)$q$,
+  pg_temp.id('b2tag'),pg_temp.intake('INT-0005'),'b2800000-0000-4000-8000-0000000000ff'),'22023','Unknown hold group','PK-M1 another org''s id as centre is refused');
+select throws_ok(format($q$select public.variance_move_vessel('v88-m-nullcenter',%L,%L,null)$q$,
+  pg_temp.id('b2tag'),pg_temp.intake('INT-0005')),'22023','Unknown hold group','PK-M1 a null centre is refused');
+select ok((select intake_id=pg_temp.intake('INT-0002') from public.vessel where id=pg_temp.id('b2tag')),'PK-M1 a refused move leaves the vessel where it was');
 select is((select count(*)::int from public.intake_history),0,'PK-M1 refusals write no history');
 select is((select count(*)::int from public.action_log where client_action_id like 'v88-m-%'),0,'PK-M1 refused moves leave no action_log row (they roll back)');
 
