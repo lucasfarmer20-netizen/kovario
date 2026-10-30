@@ -17,6 +17,9 @@ import {
 import { BAND_LABEL, lineBand } from "@/components/variance/now-in-blast";
 import { DisabledReason } from "@/src/components/station/next-step";
 
+/** The divider above members whose variance has the flagged order's sign (DECISION-33). */
+export const UNLIKELY_SOURCE = "Same direction: unlikely source";
+
 /** One member of public.variance_suspect_group (#88). */
 export type SuspectRow = {
   center_intake_id: string;
@@ -134,7 +137,9 @@ export function useSuspectGroup(client: FilletryClient, intakeId: string | null)
 
 /**
  * The suspect picker (#88): the hold group, the flagged (or tapped) intake first and its suspects
- * most likely first (rules: rankSuspects), each with variance, species, size and status. Bin
+ * most likely first (rules: rankSuspects), each with variance, species, size and status;
+ * same-direction members follow below the "Same direction: unlikely source" divider, as the
+ * rules group them (DECISION-33), with no suggested move. Bin
  * moves are suggested only once every member is reconciled (rules: suggestMoves); until then the
  * picker names the members still waiting. A manager moves a bin between members at reconcile, or
  * pulls a member in blast back to reconcile with a reason. Wet-glove: plain buttons, no focus
@@ -170,7 +175,8 @@ export function SuspectPicker({
   const number = (id: string) => byId.get(id)?.intake_number ?? id;
   const suspects = rows.map(toSuspect);
   const flagged = center ? toSuspect(center) : null;
-  const ranked = flagged ? rankSuspects(flagged, suspects) : [];
+  const ranked = flagged ? rankSuspects(flagged, suspects) : { suspects: [], unlikely: [] };
+  const grouped = new Set([...ranked.suspects, ...ranked.unlikely].map((s) => s.intakeId));
   const waiting = suspectsWaiting(rows.map((r) => ({ ...r, status: status(r) })));
   const moves: SuggestedMove[] = flagged
     ? suggestMoves(
@@ -266,10 +272,18 @@ export function SuspectPicker({
       </ul>
       <h4>Most likely first</h4>
       <ol className="rc-suspect-list" aria-label="Suspects">
-        {ranked.map((s) => row(byId.get(s.intakeId)!))}
+        {ranked.suspects.map((s) => row(byId.get(s.intakeId)!))}
       </ol>
+      {ranked.unlikely.length > 0 && (
+        <>
+          <h4 className="rc-suspect-divider">{UNLIKELY_SOURCE}</h4>
+          <ul className="rc-suspect-list rc-suspect-unlikely" aria-label={UNLIKELY_SOURCE}>
+            {ranked.unlikely.map((s) => row(byId.get(s.intakeId)!))}
+          </ul>
+        </>
+      )}
       {rows
-        .filter((r) => r.position !== 0 && !ranked.some((s) => s.intakeId === r.intake_id))
+        .filter((r) => r.position !== 0 && !grouped.has(r.intake_id))
         .map((r) => (
           <p key={r.intake_id} className="rc-suspect-other">
             {suspectLine(r)}

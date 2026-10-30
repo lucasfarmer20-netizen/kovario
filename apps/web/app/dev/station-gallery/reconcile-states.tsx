@@ -65,7 +65,7 @@ const BLAST: NowInBlastLine[] = [
   {
     intake_id: "b2",
     intake_number: "INT-2139",
-    variance_pct: -11.5,
+    variance_pct: 11.5,
     band: "near",
     limit_pct: LIMIT,
     rollstock_opened_at: null,
@@ -80,7 +80,7 @@ const basket = (id: string, code: string | null, weightLb: number, manual = fals
   manual,
 });
 const HOLD: HoldMember[] = [
-  member("b2", "INT-2139", -1, -11.5, "near", "blast_freezer"),
+  member("b2", "INT-2139", -1, 11.5, "near", "blast_freezer"),
   member("o1", "INT-2141", 0, 22, "over", "reconcile"),
   member("o2", "INT-2142", 1, -19, "over", "reconcile"),
   member("o3", "INT-2143", 2, 0, "unknown", "rollstock"),
@@ -108,8 +108,11 @@ function member(
     signed_off: false,
   };
 }
+// The group as variance_suspect_group returns it, in rollstock order. The picker groups and
+// ranks it with rankSuspects (rules): INT-2142 (under) is the suspect, then INT-2143 (waiting);
+// INT-2139 is over like the flagged INT-2141, so it sits below "Same direction: unlikely source".
 const SUSPECTS: SuspectRow[] = [
-  suspect("b2", "INT-2139", -1, "in_blast", "blast_freezer", 46, 52, ["salmon_reds"]),
+  suspect("b2", "INT-2139", -1, "in_blast", "blast_freezer", 58, 52, ["salmon_reds"]),
   suspect("o1", "INT-2141", 0, "reconciled", "reconcile", 48.8, 40, [
     "salmon_reds",
     "salmon_silvers",
