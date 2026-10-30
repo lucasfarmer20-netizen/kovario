@@ -158,7 +158,8 @@ decision — the forgotten tote usually IS in an active party); no payment gate
 (legacy manual-payment releases are supported). Amendments to the frozen text:
 
 - **I16 lock envelope extended (all release paths).** Lock order is now
-  **sessions → vessels → intakes**, sorted ids within each level:
+  **sessions → vessels → intakes**, sorted ids within each level (Filletry adds the org's
+  allocation billing lock as level 0, before sessions: `docs/04-BUSINESS-RULES.md` §8):
   - The party wizard locks its **vessel rows** after its session rows (the
     session lock alone did not serialise against a tag release of an
     unpooled basket).

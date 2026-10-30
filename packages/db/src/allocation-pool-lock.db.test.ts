@@ -8,7 +8,9 @@
 // never deadlocks. #112: a save that pools an intake reprices the other priced sessions sharing it
 // after it key-shares the intake, so a release of one of those sessions that holds it while it
 // waits for the intake used to deadlock with the save; the release paths now take the billing lock
-// first, so the two serialise on it.
+// first, so the two serialise on it. #113: a save reads its intakes' states under that billing lock,
+// which a release holds when it closes an intake (I10): a save racing a close waits on it, then
+// refuses the done intake, or the release waits and its close gate sees the save's planned box.
 // The interleavings are forced: the second transaction is let go only once it blocks on a lock.
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -573,6 +575,110 @@ describe("A save repricing a session never deadlocks with a release of it (I16, 
           path === "Restore" ? "occupied" : "emptied",
           2,
         ]);
+      } finally {
+        await release(saver, releaser);
+      }
+    },
+  );
+});
+
+type ClosingPath = "Complete" | "Release-by-Tag";
+const closingPaths: ClosingPath[] = ["Complete", "Release-by-Tag"];
+
+/** An intake whose second basket is already released by tag, so releasing the first by `path`
+ * closes it to done (I10): Complete finalises ALC-0001's only box with it (priced); Release-by-Tag
+ * releases it under a draft ALC-0001 with no box plans. A box size lets a save plan a box. */
+async function closingFixture(path: ClosingPath) {
+  const f = await releaseFixture(path === "Complete" ? "priced" : "draft");
+  const c = await pool.connect();
+  try {
+    await begin(c, f.org);
+    expect((await byTag(c, f.tags[1]!)).noop).toBe(false);
+    await c.query("commit");
+  } finally {
+    c.release();
+  }
+  const boxSize = await insertId(
+    "insert into public.box_size (org_id, name, max_lb) values ($1, 'Medium', 50) returning id",
+    [f.org.id],
+  );
+  return { ...f, boxSize };
+}
+
+type ClosingFixture = Awaited<ReturnType<typeof closingFixture>>;
+
+/** Releases the intake's last basket by `path`; the close gate then closes the intake. */
+function closeBy(c: pg.PoolClient, f: ClosingFixture, path: ClosingPath): Promise<unknown> {
+  if (path === "Complete") return complete(c, f.session, f.box, f.vessels[0]!);
+  return byTag(c, f.tags[0]!);
+}
+
+/** Saves a new session pooling the intake, with one angler and one planned will-call box. */
+const savePlanning = (c: pg.PoolClient, f: ClosingFixture) =>
+  call<{ session_id: string }>(c, "public.save_allocation_session($1, $2::jsonb)", [
+    JSON.stringify({
+      intake_ids: [f.intake],
+      settlements: [
+        {
+          angler_name: "Cy",
+          boxes: [{ method: "willcall", box_size_id: f.boxSize, weight_lb: 10 }],
+        },
+      ],
+    }),
+  ]);
+
+describe("A pooling save never pools an intake a release is closing (I10, #113)", () => {
+  it.each(closingPaths)(
+    "I10 %s closing the intake first: the save waits on the billing lock, then refuses the done intake",
+    async (path) => {
+      const f = await closingFixture(path);
+      const releaser = await pool.connect();
+      const saver = await pool.connect();
+      try {
+        await begin(releaser, f.org);
+        await closeBy(releaser, f, path); // closes the intake; not committed
+        expect(await state(f.intake)).toBe("blast_freezer");
+
+        await begin(saver, f.org);
+        const backend = await pid(saver);
+        const saving = attempt(saver, () => savePlanning(saver, f));
+        expect(await blockedOn(backend)).toBe("advisory");
+        await releaser.query("commit");
+        const outcome = await saving;
+        expect(outcome).toBeInstanceOf(Error);
+        expect((outcome as Error).message).toBe(
+          "cannot pool INT-0001 (done): only saved, open intakes can be allocated",
+        );
+        await saver.query("commit");
+        expect([await state(f.intake), await pooling(f.intake)]).toEqual(["done", 1]);
+      } finally {
+        await release(releaser, saver);
+      }
+    },
+  );
+
+  it.each(closingPaths)(
+    "I10 a save pooling the intake first: %s waits on the billing lock, then sees the save's planned box and leaves the intake open",
+    async (path) => {
+      const f = await closingFixture(path);
+      const saver = await pool.connect();
+      const releaser = await pool.connect();
+      try {
+        await begin(saver, f.org);
+        await savePlanning(saver, f); // not committed
+
+        await begin(releaser, f.org);
+        const backend = await pid(releaser);
+        const releasing = attempt(releaser, () => closeBy(releaser, f, path));
+        expect(await blockedOn(backend)).toBe("advisory");
+        await saver.query("commit");
+        expect(failures(await releasing)).toEqual([]);
+        await releaser.query("commit");
+        expect([
+          await vesselState(f.vessels[0]!),
+          await state(f.intake),
+          await pooling(f.intake),
+        ]).toEqual(["emptied", "blast_freezer", 2]);
       } finally {
         await release(saver, releaser);
       }
