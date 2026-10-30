@@ -11,7 +11,8 @@
 -- re-implements it.
 --
 -- Interfaces for #88 (suspect picker, move bin, pull back from blast):
---   public.intake_variance       live expected / actual / variance / band of every intake;
+--   public.intake_variance       expected / actual / variance / band of every intake: live up to
+--                                reconcile, frozen at Send to Blast after it (intake_blast_send);
 --   public.rollstock_open        when and by which scan each intake was opened at rollstock;
 --   public.variance_hold_member  each hold's group, in rollstock order, with each member's
 --                                variance, state and whether it is blocked;
@@ -58,6 +59,8 @@ revoke all on function app.org_settings_problem(jsonb),
 -- writes scan_log.intake_id on every accepted tote). Repeat tote scans keep the first open.
 create index if not exists scan_log_rollstock_open on public.scan_log (intake_id, scanned_at, id)
   where station = 'rollstock' and result = 'ok';
+create index if not exists scan_log_rollstock_time on public.scan_log (org_id, scanned_at, id)
+  where station = 'rollstock' and result = 'ok';
 
 create or replace view public.rollstock_open with (security_invoker = true) as
 select i.org_id, i.site_id, i.id as intake_id, s.scanned_at as opened_at, s.id as scan_id
@@ -69,32 +72,81 @@ cross join lateral (
   limit 1
 ) s;
 
--- One site's rollstock line, in open order (rules: rollstockSequence). Waves play no part.
--- Not security definer: under RLS a caller sees only its own org; definer callers pass
--- app.org_id().
-create or replace function app.rollstock_sequence(p_org_id uuid, p_site_id uuid)
+-- One site's rollstock line, in open order (rules: rollstockSequence), among intakes opened
+-- within app.variance_rollstock_window() of p_around (ROLLSTOCK_NEIGHBOUR_WINDOW_DAYS). The
+-- window bounds the work to the scans around the flagged intake, not the site's whole history;
+-- each intake still counts only at its first accepted scan. Waves play no part. Not security
+-- definer: under RLS a caller sees only its own org; definer callers pass app.org_id().
+create or replace function app.rollstock_sequence(p_org_id uuid, p_site_id uuid, p_around timestamptz)
 returns uuid[] language sql stable set search_path = '' as $$
-  select coalesce(array_agg(intake_id order by opened_at, scan_id), '{}')
-  from public.rollstock_open
-  where org_id = p_org_id and site_id is not distinct from p_site_id
+  select coalesce(array_agg(sl.intake_id order by sl.scanned_at, sl.id), '{}')
+  from public.scan_log sl
+  join public.intake i on i.id = sl.intake_id and i.org_id = sl.org_id
+  where sl.org_id = p_org_id and sl.station = 'rollstock' and sl.result = 'ok'
+    and sl.scanned_at between p_around - app.variance_rollstock_window()
+      and p_around + app.variance_rollstock_window()
+    and i.site_id is not distinct from p_site_id
+    and not exists (
+      select 1 from public.scan_log e
+      where e.intake_id = sl.intake_id and e.org_id = sl.org_id and e.station = 'rollstock'
+        and e.result = 'ok' and (e.scanned_at, e.id) < (sl.scanned_at, sl.id))
 $$;
 
--- Live variance -----------------------------------------------------------------------------
--- Actual = the intake's occupied vessels (as the reconcile screen), expected =
--- total_est_yield_lb, limit = the org's setting.
+-- Actual at Send to Blast ----------------------------------------------------------------------
+-- The reconciled weight, written by every send (a #88 pull-back and re-send overwrites it).
+-- After send the occupied weight only falls (splits, full pulls zero it, I10 closes the intake),
+-- so past reconcile the variance reads this, never the live remainder.
+create table if not exists public.intake_blast_send (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.org (id) on delete cascade,
+  intake_id uuid not null unique references public.intake (id) on delete cascade,
+  actual_lb numeric(10,2) not null check (actual_lb >= 0),
+  expected_lb numeric(10,2) not null,
+  sent_at timestamptz not null default now(),
+  sent_by uuid references public.org_member (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+select app.track_updated_at('public.intake_blast_send');
+select app.enable_org_rls('public.intake_blast_send', write_roles => '{}');
+
+-- Backfill intakes already past reconcile: occupied weight, plus the release snapshot's weight
+-- of vessels emptied since (void excluded). A split's pre-split weight is not kept anywhere, so
+-- for intakes split before this migration the backfill is the remainder, not the send weight.
+insert into public.intake_blast_send (org_id, intake_id, actual_lb, expected_lb, sent_at)
+select i.org_id, i.id,
+  coalesce(sum(case when v.lifecycle_state = 'emptied'
+    then coalesce((v.release_snapshot ->> 'weight_lb')::numeric, 0) else v.weight_lb end), 0),
+  i.total_est_yield_lb, coalesce(i.blast_at, now())
+from public.intake i
+left join public.vessel v on v.intake_id = i.id and v.org_id = i.org_id and v.lifecycle_state <> 'void'
+where i.state in ('blast_freezer', 'stored', 'done')
+group by i.id
+on conflict (intake_id) do nothing;
+
+-- Variance ---------------------------------------------------------------------------------------
+-- Actual = the intake's occupied vessels up to reconcile (as the reconcile screen), the weight
+-- sent once past it (`actual_frozen`); expected = total_est_yield_lb; limit = the org's setting.
 create or replace view public.intake_variance with (security_invoker = true) as
 select i.org_id, i.site_id, i.id as intake_id, i.number, i.state,
-  i.total_est_yield_lb as expected_lb, w.actual_lb,
-  app.variance_pct(w.actual_lb, i.total_est_yield_lb) as variance_pct,
+  i.total_est_yield_lb as expected_lb, a.actual_lb, f.actual_frozen,
+  app.variance_pct(a.actual_lb, i.total_est_yield_lb) as variance_pct,
   l.limit_pct,
-  app.variance_band(w.actual_lb, i.total_est_yield_lb, l.limit_pct) as band
+  app.variance_band(a.actual_lb, i.total_est_yield_lb, l.limit_pct) as band
 from public.intake i
 join public.org o on o.id = i.org_id
+left join public.intake_blast_send s on s.intake_id = i.id and s.org_id = i.org_id
 cross join lateral (select app.variance_hold_limit(o.settings) as limit_pct) l
 cross join lateral (
-  select coalesce(sum(v.weight_lb), 0)::numeric(10,2) as actual_lb from public.vessel v
+  select coalesce(sum(v.weight_lb), 0)::numeric(10,2) as live_lb from public.vessel v
   where v.intake_id = i.id and v.org_id = i.org_id and v.lifecycle_state = 'occupied'
-) w;
+) w
+cross join lateral (
+  select (i.state in ('blast_freezer', 'stored', 'done') and s.id is not null) as actual_frozen
+) f
+cross join lateral (
+  select case when f.actual_frozen then s.actual_lb else w.live_lb end as actual_lb
+) a;
 
 -- Holds -------------------------------------------------------------------------------------
 do $$ begin
@@ -147,8 +199,10 @@ exception when duplicate_object then null; end $$;
 -- The hold's group over its site's rollstock line (rules: holdGroup).
 create or replace function app.variance_hold_group_of(p_hold public.variance_hold)
 returns uuid[] language sql stable set search_path = '' as $$
-  select app.variance_hold_group(app.rollstock_sequence(i.org_id, i.site_id), i.id)
-  from public.intake i where i.id = p_hold.intake_id and i.org_id = p_hold.org_id
+  select app.variance_hold_group(app.rollstock_sequence(i.org_id, i.site_id, ro.opened_at), i.id)
+  from public.intake i
+  left join public.rollstock_open ro on ro.intake_id = i.id and ro.org_id = i.org_id
+  where i.id = p_hold.intake_id and i.org_id = p_hold.org_id
 $$;
 
 -- Not yet sent to blast: these are the members a hold blocks.
@@ -171,26 +225,41 @@ cross join lateral (
 ) g
 join public.intake_variance iv on iv.intake_id = g.intake_id and iv.org_id = h.org_id;
 
--- Every non-cancelled member reconciled (or further) and not over the limit.
+-- A manager signed off this intake's variance at this actual weight.
+create or replace function app.variance_signed_off(p_org_id uuid, p_intake_id uuid, p_actual_lb numeric)
+returns boolean language sql stable set search_path = '' as $$
+  select exists (select 1 from public.variance_hold h
+    where h.org_id = p_org_id and h.intake_id = p_intake_id and h.state = 'cleared'
+      and h.clear_kind = 'signoff' and h.cleared_actual_lb = p_actual_lb)
+$$;
+
+-- The group is back within the limit, judged only on members whose weight can still change:
+-- every member must have reached reconcile, and one at reconcile must be within the limit or
+-- signed off at its current weight. Members past reconcile (sent within the limit or signed
+-- off, actual frozen at send; #88 pulls one back to reconcile to move fish) and cancelled
+-- members are not judged.
 create or replace function app.variance_group_within(p_org_id uuid, p_group uuid[])
 returns boolean language sql stable set search_path = '' as $$
   select not exists (
     select 1 from public.intake_variance iv
-    where iv.org_id = p_org_id and iv.intake_id = any (p_group) and iv.state <> 'cancelled'
-      and (iv.state in ('draft', 'holding', 'processing', 'rollstock') or iv.band = 'over'))
+    where iv.org_id = p_org_id and iv.intake_id = any (p_group)
+      and (iv.state in ('draft', 'holding', 'processing', 'rollstock')
+        or (iv.state = 'reconcile' and iv.band = 'over'
+          and not app.variance_signed_off(iv.org_id, iv.intake_id, iv.actual_lb))))
 $$;
 
 -- Auto-clear: every active hold whose group contains one of p_intake_ids (all of them when
--- null) and is now within the limit. Locks the org's active holds in id order — rows last in
--- the lock order. Returns the number cleared. #88's bin move calls this after moving vessels.
+-- null) and is now within the limit. Locks only those holds, in id order (rows last in the lock
+-- order), so a weight edit elsewhere in the org never waits on a hold. Returns the number
+-- cleared. #88's bin move calls this after moving vessels.
 create or replace function app.variance_holds_reevaluate(p_intake_ids uuid[])
 returns int language plpgsql security definer set search_path = '' as $$
 declare h public.variance_hold; v_group uuid[]; v public.intake_variance; n int := 0;
 begin
-  for h in select * from public.variance_hold where org_id = app.org_id() and state = 'active'
-      order by id for update loop
+  for h in select * from public.variance_hold vh where vh.org_id = app.org_id() and vh.state = 'active'
+      and (p_intake_ids is null or app.variance_hold_group_of(vh) && p_intake_ids)
+      order by vh.id for update loop
     v_group := app.variance_hold_group_of(h);
-    continue when p_intake_ids is not null and not (v_group && p_intake_ids);
     continue when not app.variance_group_within(h.org_id, v_group);
     select * into v from public.intake_variance where intake_id = h.intake_id and org_id = h.org_id;
     update public.variance_hold set state = 'cleared', clear_kind = 'auto', cleared_at = now(),
@@ -280,8 +349,7 @@ begin
      select * into flagged from public.intake where id=blocking.intake_id;
      reason:=format('Variance hold on %s: %s is its rollstock neighbour and waits for the hold to clear',flagged.number,i.number);
     end if;
-   elsif iv.band='over' and not exists(select 1 from public.variance_hold h where h.intake_id=i.id and h.org_id=i.org_id
-      and h.state='cleared' and h.clear_kind='signoff' and h.cleared_actual_lb=iv.actual_lb) then
+   elsif iv.band='over' and not app.variance_signed_off(i.org_id,i.id,iv.actual_lb) then
     insert into public.variance_hold(org_id,intake_id,limit_pct,expected_lb,actual_lb,variance_pct,flagged_by)
     values(app.org_id(),i.id,iv.limit_pct,iv.expected_lb,iv.actual_lb,iv.variance_pct,op) returning id into hold_id;
     perform app.emit_event(app.org_id(),'variance_hold_flagged',i.id,jsonb_build_object('hold_id',hold_id,
@@ -289,6 +357,10 @@ begin
     reason:=format('Variance hold: %s is %s%% (limit ±%s%%). Held with its rollstock neighbours until fixed or signed off',i.number,to_char(iv.variance_pct,'FMSG9999990.0'),iv.limit_pct);
    else
     update public.intake set state='blast_freezer' where id=i.id;
+    insert into public.intake_blast_send(org_id,intake_id,actual_lb,expected_lb,sent_by)
+    values(app.org_id(),i.id,iv.actual_lb,iv.expected_lb,op)
+    on conflict (intake_id) do update set actual_lb=excluded.actual_lb,expected_lb=excluded.expected_lb,
+      sent_at=now(),sent_by=excluded.sent_by;
     perform app.emit_event(app.org_id(),'intake_sent_to_blast',i.id,jsonb_build_object('variance_pct',iv.variance_pct,
       'band',iv.band,'limit_pct',iv.limit_pct,'actual_lb',iv.actual_lb,'expected_lb',iv.expected_lb));
    end if;
@@ -383,11 +455,13 @@ revoke all on public.rollstock_open, public.intake_variance, public.variance_hol
 grant select on public.rollstock_open, public.intake_variance, public.variance_hold_member,
   public.now_in_blast, public.report_variance_holds to authenticated, service_role;
 
-revoke all on function app.rollstock_sequence(uuid, uuid), app.variance_hold_group_of(public.variance_hold),
+revoke all on function app.rollstock_sequence(uuid, uuid, timestamptz), app.variance_hold_group_of(public.variance_hold),
+  app.variance_signed_off(uuid, uuid, numeric),
   app.variance_hold_blocks(public.intake_state), app.variance_group_within(uuid, uuid[]),
   app.variance_holds_reevaluate(uuid[]), app.variance_hold_blocking(uuid) from public;
-grant execute on function app.rollstock_sequence(uuid, uuid), app.variance_hold_group_of(public.variance_hold),
-  app.variance_hold_blocks(public.intake_state) to authenticated, service_role;
+grant execute on function app.rollstock_sequence(uuid, uuid, timestamptz), app.variance_hold_group_of(public.variance_hold),
+  app.variance_hold_blocks(public.intake_state), app.variance_signed_off(uuid, uuid, numeric)
+  to authenticated, service_role;
 
 revoke all on function public.variance_hold_signoff(text, uuid, text, text, text) from public, anon;
 grant execute on function public.variance_hold_signoff(text, uuid, text, text, text) to authenticated;

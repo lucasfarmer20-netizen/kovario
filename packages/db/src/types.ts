@@ -583,6 +583,62 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"intake_blast_send": {
+                  Row: {
+                    "actual_lb": number,"created_at": string,"expected_lb": number,"id": string,"intake_id": string,"org_id": string,"sent_at": string,"sent_by": string | null,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actual_lb": number,"created_at"?: string,"expected_lb": number,"id"?: string,"intake_id": string,"org_id": string,"sent_at"?: string,"sent_by"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "actual_lb"?: number,"created_at"?: string,"expected_lb"?: number,"id"?: string,"intake_id"?: string,"org_id"?: string,"sent_at"?: string,"sent_by"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "intake_blast_send_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: true
+      referencedRelation: "intake"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_blast_send_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: true
+      referencedRelation: "intake_variance"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_blast_send_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: true
+      referencedRelation: "now_in_blast"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_blast_send_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: true
+      referencedRelation: "rollstock_open"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_blast_send_intake_id_fkey"
+      columns: ["intake_id"]
+isOneToOne: true
+      referencedRelation: "rollstock_tote_progress"
+      referencedColumns: ["intake_id"]
+    },{
+      foreignKeyName: "intake_blast_send_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "org"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "intake_blast_send_sent_by_fkey"
+      columns: ["sent_by"]
+isOneToOne: false
+      referencedRelation: "org_member"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"intake_line": {
                   Row: {
                     "condition_code": string,"created_at": string,"est_yield_lb": number | null,"fillets_pct": number | null,"id": string,"intake_id": string,"lb": number,"method_code": string,"notes": string | null,"org_id": string,"ribbing": boolean | null,"skin_off": boolean,"sort": number,"species_code": string,"updated_at": string,"yield_factor": number | null
@@ -2270,7 +2326,7 @@ isOneToOne: false
                   ]
                 },"intake_variance": {
                   Row: {
-                    "actual_lb": number | null,"band": string | null,"expected_lb": number,"intake_id": string,"limit_pct": number | null,"number": string,"org_id": string,"site_id": string | null,"state": Database["public"]['Enums']["intake_state"],"variance_pct": number | null
+                    "actual_frozen": boolean | null,"actual_lb": number | null,"band": string | null,"expected_lb": number,"intake_id": string,"limit_pct": number | null,"number": string,"org_id": string,"site_id": string | null,"state": Database["public"]['Enums']["intake_state"],"variance_pct": number | null
                   }
                   ComputedFields: never
                   Relationships: [

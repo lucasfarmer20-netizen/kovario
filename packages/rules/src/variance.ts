@@ -13,6 +13,12 @@ export const NEAR_LIMIT_DENOMINATOR = 3;
 /** The hold group: the flagged intake plus 1 before and 2 after it in rollstock order. */
 export const HOLD_GROUP_BEFORE = 1;
 export const HOLD_GROUP_AFTER = 2;
+/**
+ * Neighbours are looked for among intakes opened at rollstock within this many days of the
+ * flagged intake (a bound on the query, not the order): an intake opened further apart cannot
+ * have shared the rollstock line with it, so it is never a suspect.
+ */
+export const ROLLSTOCK_NEIGHBOUR_WINDOW_DAYS = 7;
 
 /**
  * within / near (≥ 2/3 of the limit) / over (> the limit); unknown when nothing was expected

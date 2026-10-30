@@ -4,6 +4,7 @@
 --   app.variance_pct                   — variancePercent (reconcile.ts);
 --   app.variance_band                  — varianceBand: within | near | over | unknown;
 --   app.variance_hold_group            — holdGroup over the rollstock sequence;
+--   app.variance_rollstock_window      — ROLLSTOCK_NEIGHBOUR_WINDOW_DAYS;
 --   app.variance_hold_limit            — varianceHoldLimit (org settings, with default);
 --   app.variance_hold_setting_problem  — varianceHoldSettingProblem;
 --   app.variance_signoff_problem       — varianceSignoffProblem;
@@ -64,6 +65,16 @@ as $$
   from (select array_position(p_sequence, p_flagged) as at) p
 $$;
 
+-- Neighbours are looked for among intakes opened within this of the flagged one.
+create or replace function app.variance_rollstock_window()
+returns interval
+language sql
+immutable
+set search_path = ''
+as $$
+  select interval '7 days'
+$$;
+
 create or replace function app.variance_hold_limit(p_settings jsonb)
 returns int
 language sql
@@ -105,9 +116,9 @@ $$;
 revoke all on function app.variance_pct(numeric, numeric),
   app.variance_band(numeric, numeric, int), app.variance_hold_group(uuid[], uuid),
   app.variance_hold_limit(jsonb), app.variance_hold_setting_problem(jsonb),
-  app.variance_signoff_problem(text, text) from public;
+  app.variance_signoff_problem(text, text), app.variance_rollstock_window() from public;
 grant execute on function app.variance_pct(numeric, numeric),
   app.variance_band(numeric, numeric, int), app.variance_hold_group(uuid[], uuid),
-  app.variance_hold_limit(jsonb) to authenticated, service_role;
+  app.variance_hold_limit(jsonb), app.variance_rollstock_window() to authenticated, service_role;
 grant execute on function app.variance_hold_setting_problem(jsonb),
   app.variance_signoff_problem(text, text) to service_role;

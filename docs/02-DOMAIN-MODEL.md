@@ -189,7 +189,10 @@ A refused Send to Blast over the variance limit (`04-BUSINESS-RULES.md §6a`). `
 `clear_kind enum(auto, signoff)`, `cleared_at`, `cleared_by` (manager), `reason
 enum(estimate_wrong, mixed_species, spoilage, trim_heavy, other)`, `note`,
 `cleared_actual_lb`, `cleared_variance_pct`. The group is not stored: views derive it live.
-Views: `intake_variance` (live expected / actual / variance / band), `rollstock_open` (each
+`intake_blast_send`: one row per intake, its `actual_lb` / `expected_lb` at Send to Blast
+(`sent_at`, `sent_by`; a re-send overwrites it).
+Views: `intake_variance` (expected / actual / variance / band; actual live up to reconcile,
+frozen at send after it, `actual_frozen`), `rollstock_open` (each
 intake's first accepted rollstock scan), `variance_hold_member` (each hold's group in rollstock
 order, position −1…2, `blocked`), `now_in_blast`, `report_variance_holds`.
 

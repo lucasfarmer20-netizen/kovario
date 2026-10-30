@@ -246,5 +246,71 @@ select is((select count(*)::int from public.now_in_blast),0,'V10 another org see
 select throws_ok($q$select public.variance_hold_signoff('v87-cross',(select v from ids limit 0),'spoilage')$q$,'22023','Unknown variance hold','V10 an unknown hold is refused');
 select throws_ok(format($q$select public.variance_hold_signoff('v87-cross-2',%L,'spoilage')$q$,(select id from hold)),'22023','Unknown variance hold','V10 another org''s hold cannot be signed off');
 
+-- V11: auto-clear judges only members whose weight can still change (review finding 1) ------------
+-- INT-0021..0025 open ten days after INT-0013. Every one expects 50 lb.
+reset role;
+update public.org set settings=jsonb_set(settings,'{reconcile,variance_hold_pct}','15') where id='a2700000-0000-4000-8000-00000000000a';
+insert into public.intake(id,org_id,number,customer_id,site_id,tote_count)
+select ('a2700000-0000-4000-8000-0000000000'||n)::uuid,'a2700000-0000-4000-8000-00000000000a','INT-00'||n,
+  'a2700000-0000-4000-8000-000000000002','a2700000-0000-4000-8000-000000000001',1
+from unnest('{21,22,23,24,25}'::int[]) n;
+insert into public.intake_line(org_id,intake_id,species_code,condition_code,method_code,lb,yield_factor)
+select org_id,id,'salmon','whole','fillets',100,0.5 from public.intake where number between 'INT-0021' and 'INT-0025';
+insert into public.tote_tag(org_id,intake_id,tote_no,of_count,qr)
+select org_id,id,1,1,'FL:TOTE:'||number||':1' from public.intake where number between 'INT-0021' and 'INT-0025';
+update public.intake set state='holding' where number between 'INT-0021' and 'INT-0025';
+update public.intake set state='processing' where number between 'INT-0021' and 'INT-0025';
+select set_config('request.jwt.claims','{"sub":"a2700000-0000-4000-8000-0000000000a1","role":"authenticated","org_id":"a2700000-0000-4000-8000-00000000000a","app_role":"manager"}',true);
+set local role authenticated;
+select pg_temp.scan('FL:TOTE:INT-0021:1',null,'v87-rt-1');
+select pg_temp.scan('FL:TOTE:INT-0022:1','INT-0021','v87-rt-2');
+select pg_temp.scan('FL:TOTE:INT-0023:1','INT-0022','v87-rt-3');
+select pg_temp.scan('FL:TOTE:INT-0024:1','INT-0023','v87-rt-4');
+select pg_temp.scan('FL:TOTE:INT-0025:1','INT-0024','v87-rt-5');
+select pg_temp.scan(null,'INT-0025','v87-rt-finish');
+reset role;
+update public.scan_log s set scanned_at='2026-07-30 08:00Z'::timestamptz+(substr(k,8)::int*interval '1 minute')
+from ids where ids.v=s.id and ids.k like 'v87-rt-_';
+set local role authenticated;
+
+select pg_temp.weigh('INT-0021',70);
+create temp table flag21 as select pg_temp.send('INT-0021','v87-send-0021') r;
+select is((select array_agg(intake_number order by position) from public.variance_hold_member where hold_id=((select r from flag21)->>'variance_hold_id')::uuid),
+  '{INT-0021,INT-0022,INT-0023}'::text[],'V11 neighbours come from the rollstock window: INT-0013, opened ten days earlier, is not one');
+select is(public.variance_hold_signoff('v87-signoff-21',((select r from flag21)->>'variance_hold_id')::uuid,'estimate_wrong')->>'reason','Hold signed off','V11 INT-0021 (+40%) is signed off');
+select is(pg_temp.send('INT-0021','v87-send-0021-2')->>'ok','true','V11 the signed-off intake goes to blast at +40%');
+select ok((select band='over' and actual_frozen and actual_lb=70 from public.intake_variance where number='INT-0021'),'V11 in blast it stays over, at the actual frozen at send');
+select pg_temp.weigh('INT-0022',40);
+create temp table flag22 as select pg_temp.send('INT-0022','v87-send-0022') r;
+select is((select array_agg(intake_number order by position) from public.variance_hold_member where hold_id=((select r from flag22)->>'variance_hold_id')::uuid),
+  '{INT-0021,INT-0022,INT-0023,INT-0024}'::text[],'V11 INT-0022 (−20%) is held; its group includes the signed-off INT-0021');
+select pg_temp.weigh('INT-0023',50);
+select pg_temp.weigh('INT-0024',50);
+select is((select state::text from public.variance_hold where id=((select r from flag22)->>'variance_hold_id')::uuid),'active','V11 still held while INT-0022 is over');
+select pg_temp.reweigh('INT-0022',50,'v87-0022-fix');
+select ok((select state='cleared' and clear_kind='auto' from public.variance_hold where id=((select r from flag22)->>'variance_hold_id')::uuid),
+  'V11 the hold clears automatically: a signed-off neighbour already in blast is not judged');
+select ok(pg_temp.send('INT-0022','v87-send-0022-2')->>'ok'='true' and pg_temp.send('INT-0023','v87-send-0023')->>'ok'='true','V11 the group moves on');
+
+-- V12: a released (done) neighbour keeps its send-time actual and does not block -----------------
+-- INT-0023 is released: a full pull empties its vessel to 0 lb and I10 closes it (as release_party).
+reset role;
+update public.vessel set lifecycle_state='emptied',release_snapshot=jsonb_build_object('weight_lb',weight_lb),weight_lb=0
+where intake_id=pg_temp.intake('INT-0023');
+update public.intake set state='stored' where id=pg_temp.intake('INT-0023');
+update public.intake set state='done' where id=pg_temp.intake('INT-0023');
+set local role authenticated;
+select ok((select state='done' and actual_frozen and actual_lb=50 and variance_pct=0 and band='within' from public.intake_variance where number='INT-0023'),
+  'V12 a done intake reads its actual at send, not its emptied 0 lb');
+select is((select actual_lb from public.intake_blast_send where intake_id=pg_temp.intake('INT-0023')),50.00,'V12 the send recorded its actual');
+select pg_temp.weigh('INT-0025',50);
+select pg_temp.reweigh('INT-0024',30,'v87-0024-light');
+create temp table flag24 as select pg_temp.send('INT-0024','v87-send-0024') r;
+select is((select array_agg(intake_number order by position) from public.variance_hold_member where hold_id=((select r from flag24)->>'variance_hold_id')::uuid),
+  '{INT-0023,INT-0024,INT-0025}'::text[],'V12 INT-0024 (−40%) is held; its group includes the done INT-0023');
+select pg_temp.reweigh('INT-0024',50,'v87-0024-fix');
+select ok((select state='cleared' and clear_kind='auto' from public.variance_hold where id=((select r from flag24)->>'variance_hold_id')::uuid),
+  'V12 the hold clears automatically: a released neighbour is not judged');
+
 select * from finish();
 rollback;
