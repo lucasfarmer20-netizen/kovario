@@ -1,0 +1,6 @@
+<!-- Filletry auth email (#116). Links go to /auth/confirm with a token_hash, which verifies it
+     on any device; next is where the user lands once signed in. -->
+<h2>Confirm your new email</h2>
+<p>Open this link to confirm the change of your Filletry email to {{ .NewEmail }}.</p>
+<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email_change&amp;next=/stations">Confirm new email</a></p>
+<p>If you weren't expecting this email, you can ignore it.</p>

@@ -6,8 +6,10 @@ import { Button, Input, Label } from "@/components/ui/form";
 import { getBrowserClient } from "@/lib/supabase/browser";
 
 /**
- * Landing page of an invite email. Supabase redirects here with the session in the URL
- * fragment; we store it in the cookie session and ask the new member for a password.
+ * Landing page of an invite email; asks the new member for a password. The invite template
+ * (supabase/templates/invite.html) goes through /auth/confirm, which has already put the
+ * session in the cookie; Supabase's default invite link redirects here with the session in
+ * the URL fragment instead, which we store in the cookie session.
  */
 export function AcceptInvite() {
   const router = useRouter();
@@ -25,7 +27,9 @@ export function AcceptInvite() {
         ? getBrowserClient()
             .auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
             .then(({ error: sessionError }) => !sessionError)
-        : Promise.resolve(false);
+        : getBrowserClient()
+            .auth.getUser()
+            .then(({ data }) => !!data.user);
     void accepted.then((ok) => {
       if (ok) setReady(true);
       else

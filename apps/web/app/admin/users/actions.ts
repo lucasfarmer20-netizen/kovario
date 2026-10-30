@@ -25,7 +25,9 @@ export async function inviteMember(_state: ActionState, formData: FormData): Pro
     async ({ supabase }, id) => {
       await requirePlan("users", supabase);
       // member-invite records the membership with this id (admin_add_member), so a retry
-      // after a lost response replays instead of adding the member twice.
+      // after a lost response replays instead of adding the member twice. The invite
+      // template links to /auth/confirm (#116); redirect_to only serves Supabase's default
+      // link, which carries the session in the URL fragment that /auth/accept reads.
       const { data, error } = await supabase.functions.invoke<Json>("member-invite", {
         body: { ...parsed.data, client_action_id: id, redirect_to: `${origin}/auth/accept` },
       });
