@@ -14,6 +14,7 @@ draft ──save&print──▶ holding ──wave complete / rollstock bypass�
 processing ──rollstock scan──▶ rollstock ──next scan or finish──▶ reconcile
 reconcile ──send to blast──▶ blast_freezer ──locate scan (first vessel stored)──▶ stored
 stored ──close gate I10──▶ done
+blast_freezer ──manager pull back + reason (v1.1, #88)──▶ reconcile
 any non-terminal ──manager──▶ cancelled
 ```
 
@@ -30,6 +31,13 @@ Notes:
   (a) state ∈ {stored, blast_freezer}; (b) it has ≥ 1 vessel; (c) all vessels are
   `emptied` or `void`; (d) every non-cancelled allocation session pooling it has zero
   `planned` boxes. Zero-vessel intakes never auto-close.
+- **Pull back from blast** (v1.1, #88; `04-BUSINESS-RULES.md §6b`): `blast_freezer → reconcile`
+  is a manager edge (`states.ts`), taken only by `intake_pull_back` with a reason (manager
+  account or manager PIN elevation, DECISION-31) and logged in `intake_history` with who and
+  when. The intake's vessels' `blast_in_at` / `blast_out_at` are cleared, so re-entering blast
+  restarts blast time (`blast_at` is re-stamped by the next send); `rollstock_done_at` and
+  `reconcile_at` keep their first values. A `stored` intake (a vessel on a shelf) cannot be
+  pulled back.
 
 ## Variance hold (v1.1, #87)
 ```

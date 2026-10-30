@@ -67,6 +67,16 @@ HELD badge in the queue. Opening a held intake shows the hold group in rollstock
 member's variance, band and where it is) and the **manager sign-off**: tap a reason (≥ 56 px
 buttons; "Other" needs a note), then a manager PIN (a manager account signs off directly). The
 "now in blast" lines are listed below.
+**Suspect picker** (v1.1, #88; `04-BUSINESS-RULES.md §6b`): **Find the fish (suspects)** on the
+hold panel, or a tap on any "now in blast" line, opens a card (no modal) with the group: the
+flagged (or tapped) intake, then its suspects most likely first, each "INT-0003 · −40% · over
+limit · salmon · 50 lb · reconciled". Until every member is reconciled it reads "Suggestions
+appear once every intake in the group is reconciled. Waiting on: …"; then it lists suggested
+moves ("Move 0042 · 20 lb INT-0002 → INT-0003 (off by 44 lb → 4 lb)", **Move this bin**, or
+**Pull back INT-… first**). Any bin of a member at reconcile can be moved by tapping it, then
+**Move … to INT-…**. A member in blast has **Pull back INT-…**: a reason (typed in an explicit
+editing mode that pauses the scanner, like the sign-off note), then **Confirm pull back**. Moves
+and pull backs need a manager PIN unless a manager account is signed in.
 
 ## Blast (scan only)
 Scan vessel tag → `blast_in_at`; list shows vessels in blast with time-in.
