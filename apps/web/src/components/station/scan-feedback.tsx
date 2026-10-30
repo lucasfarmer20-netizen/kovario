@@ -1,9 +1,23 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { Check, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { stationMessage } from "./messages";
 import type { ScanReply } from "./scan-queue";
 
-export function ScanFeedback({ feedback }: { feedback: (ScanReply & { event: number }) | null }) {
+/**
+ * Accept / reject feedback for a scan (docs/06): the strip fills green or red with an icon and
+ * the reason for 3 s, with a flash on every event (keyed, so two scans in a row both flash) and
+ * one beep or a double buzz. The strip keeps its height while idle so nothing below it moves.
+ */
+export function ScanFeedback({
+  feedback,
+  persist = false,
+}: {
+  feedback: (ScanReply & { event: number }) | null;
+  /** Keep the strip up (the gallery); the station lets it clear after 3 s. */
+  persist?: boolean;
+}) {
   const audio = useRef<AudioContext | null>(null);
   const [expiredEvent, setExpiredEvent] = useState<number | null>(null);
   const visible = feedback !== null && feedback.event !== expiredEvent;
@@ -41,16 +55,30 @@ export function ScanFeedback({ feedback }: { feedback: (ScanReply & { event: num
         };
       }
     }
+    if (persist) return;
     const timer = setTimeout(() => setExpiredEvent(feedback.event), 3000);
     return () => clearTimeout(timer);
-  }, [feedback]);
+  }, [feedback, persist]);
+  const shown = visible && feedback ? feedback : null;
   return (
     <div
       role="status"
       aria-live="polite"
-      className={`station-feedback ${visible && feedback ? (feedback.ok ? "station-ok" : "station-rejected") : ""}`}
+      className={cn("station-feedback", shown && (shown.ok ? "station-ok" : "station-rejected"))}
     >
-      {visible && feedback ? `${feedback.ok ? "✓" : "✕"} ${stationMessage(feedback.reason)}` : ""}
+      {shown && (
+        <>
+          <span key={shown.event} className="station-feedback-flash" aria-hidden="true" />
+          <span className="station-feedback-icon" aria-hidden="true">
+            {shown.ok ? <Check /> : <X />}
+          </span>
+          <span>
+            {/* The glyph stays in the text (read, and matched by the stations' tests); the icon shows it. */}
+            <span className="sr-only">{shown.ok ? "✓ " : "✕ "}</span>
+            {stationMessage(shown.reason)}
+          </span>
+        </>
+      )}
     </div>
   );
 }

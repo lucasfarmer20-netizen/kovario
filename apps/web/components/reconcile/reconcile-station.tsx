@@ -5,7 +5,9 @@ import {
   formatVariance,
   holdWaitingMessage,
   holdWaitingOn,
+  isSpeciesCode,
   parse,
+  SPECIES,
   variancePercent,
   varianceBand,
   sendToBlastBlockers,
@@ -16,11 +18,13 @@ import {
   useStationSession,
   type StationSession,
 } from "@/components/intake/use-station-session";
-import { StationShell } from "@/src/components/station/station-shell";
-import { DisabledReason } from "@/src/components/station/next-step";
+import { StationFrame, StationShell } from "@/src/components/station/station-shell";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
 import { ManagerPinOverlay, OperatorPinOverlay } from "@/src/components/station/pin-overlay";
-import { BAND_LABEL, NowInBlastList, useNowInBlast } from "@/components/variance/now-in-blast";
+import { StationCard, StationNotice, type NoticeTone } from "@/src/components/station/station-ui";
+import type { ScaleState } from "@/src/components/station/scale-readout";
+import { ageBadge } from "@/src/components/station/queue-list";
+import { NowInBlastList, useNowInBlast } from "@/components/variance/now-in-blast";
 import {
   blockedIntakes,
   holdGroupFor,
@@ -29,11 +33,18 @@ import {
 } from "@/components/variance/use-variance-holds";
 import { VarianceHoldPanel } from "./variance-hold-panel";
 import { SuspectPicker, useSuspectGroup } from "./suspect-picker";
+import {
+  OrderCard,
+  QueueCard,
+  ReconcileDock,
+  ReconcileSkeleton,
+  STEPS,
+  type QueueOrder,
+} from "./order-card";
 import { useOperatorIdle } from "@/src/components/station/use-operator-idle";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
 import {
-  ManualEntry,
   useManualOptions,
   withEntryMethod,
   type EntryMethod,
@@ -50,11 +61,28 @@ type Vessel = Database["public"]["Tables"]["vessel"]["Row"] & {
   asset_tag: { code: string } | null;
 };
 type Reply = ScanReply & { intake_id: string | null; vessel_id: string | null };
-const STEPS = ["Add baskets", "Weigh", "Send to Blast"] as const;
+/** The latest stable reading from the station's scale. */
+type Reading = { id: string; weight_lb: number };
 type BasketRow = Pick<Vessel, "id" | "weight_lb" | "is_exchange" | "asset_tag">;
 /** "Basket 005" / "Exchange basket" (docs/11-FLOOR-WORDING.md). */
 export function basketName(v: Pick<Vessel, "is_exchange" | "asset_tag">): string {
   return v.is_exchange || !v.asset_tag ? "Exchange basket" : `Basket ${v.asset_tag.code}`;
+}
+function lowerFirst(text: string): string {
+  return `${text[0]!.toLowerCase()}${text.slice(1)}`;
+}
+/** The species as the floor reads it ("Reds"), falling back to the code. */
+export function speciesName(code: string): string {
+  return isSpeciesCode(code) ? SPECIES[code].name : code;
+}
+/**
+ * The basket a saved weight hands over to: the next unweighed one after `current` in list
+ * order (wrapping round), or null when every other basket is weighed.
+ */
+export function nextUnweighed(rows: readonly BasketRow[], current: string | null): string | null {
+  const at = rows.findIndex((v) => v.id === current);
+  const order = at < 0 ? rows : [...rows.slice(at + 1), ...rows.slice(0, at)];
+  return order.find((v) => v.id !== current && !(v.weight_lb > 0))?.id ?? null;
 }
 /**
  * The next step line and current step (docs/11-FLOOR-WORDING.md, Reconcile): scan a tote or tap
@@ -74,12 +102,11 @@ export function reconcileNextStep(input: {
   const unweighed = rows.filter((v) => !(v.weight_lb > 0));
   if (unweighed.length) {
     // Accept / Enter weight write to the selected basket, so the line only says "Weigh" for
-    // that one; otherwise it asks for the tap first. A newly added basket is selected (#97);
-    // after a weight is saved the selection never moves on by itself (the scale may still hold
-    // the previous basket's stable reading).
+    // that one; otherwise it asks for the tap first. A newly added basket is selected (#97), and
+    // a saved weight hands the selection to the next unweighed basket (nextUnweighed); the scale
+    // guard (ScaleState "stale") keeps the previous basket's reading from being accepted twice.
     const current = unweighed.find((v) => v.id === selected);
-    const name = basketName(current ?? unweighed[0]!);
-    const lower = `${name[0]!.toLowerCase()}${name.slice(1)}`;
+    const lower = lowerFirst(basketName(current ?? unweighed[0]!));
     return { next: current ? `Weigh ${lower}` : `Tap ${lower}, then weigh it`, step: 1 };
   }
   if (held) return { next: "Check weights or get a manager sign-off", step: 2 };
@@ -103,13 +130,24 @@ export function reconcileReply(data: Json): Reply {
 }
 export function ReconcileStation() {
   const { session, loaded } = useStationSession();
-  if (!loaded) return <main className="station">Opening reconcile…</main>;
+  if (!loaded) return <ReconcileSkeleton />;
   if (!session)
     return (
-      <main className="station">
-        <h1>Reconcile</h1>
-        <a href="/login">Sign in</a> or <a href="/pair">pair device</a>
-      </main>
+      <StationFrame
+        name="Reconcile"
+        site="Plant"
+        operator={null}
+        pending={0}
+        next="Sign in or pair this device"
+        status={null}
+      >
+        <StationCard>
+          <h2>Reconcile</h2>
+          <p className="station-hint">
+            <a href="/login">Sign in</a> or <a href="/pair">pair device</a>
+          </p>
+        </StationCard>
+      </StationFrame>
     );
   return <LiveReconcile {...session} />;
 }
@@ -121,7 +159,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       typeof window === "undefined" ? null : localStorage.getItem(scope) || null,
     ),
     [selected, setSelected] = useState<string | null>(null);
-  const [message, setMessage] = useState(""),
+  const [message, setMessage] = useState<{ text: string; tone: NoticeTone } | null>(null),
     [busy, setBusy] = useState(false),
     [weight, setWeight] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
@@ -130,7 +168,21 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
   // Typing a sign-off note pauses the scanner like manual weight (its focus capture would
   // otherwise pull focus out of the note field).
   const [noteOpen, setNoteOpen] = useState(false);
-  const [reading, setReading] = useState<number | null>(null);
+  // The station's scale: whether the device has one, and its latest stable reading.
+  const [scale, setScale] = useState<{ assigned: boolean; reading: Reading | null }>({
+    assigned: false,
+    reading: null,
+  });
+  // The reading Accept last wrote: the same reading is never accepted for the next basket.
+  const [usedReadingId, setUsedReadingId] = useState<string | null>(null);
+  // The basket just added, so its row can slide in.
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
+  // Queue ages ("18m") tick every 30 s.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
   const [pinOpen, setPinOpen] = useState(claims.appRole === "station"),
     [proof, setProof] = useState<string | null>(null);
   const [operator, setOperator] = useState<string | null>(
@@ -157,6 +209,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       setOpenId(id);
       setSelected(null);
       setNoteOpen(false);
+      setLastAdded(null);
     },
     [scope],
   );
@@ -196,15 +249,16 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       if (device.data.scale_id) {
         const r = await client
           .from("scale_reading")
-          .select("weight_lb")
+          .select("id,weight_lb")
           .eq("scale_id", device.data.scale_id)
           .eq("stable", true)
           .order("read_at", { ascending: false })
           .order("id", { ascending: false })
           .limit(1);
         if (r.error) throw new Error("Scale unavailable");
-        if (version === refreshVersion.current) setReading(r.data[0]?.weight_lb ?? null);
-      }
+        if (version === refreshVersion.current)
+          setScale({ assigned: true, reading: (r.data[0] as Reading | undefined) ?? null });
+      } else if (version === refreshVersion.current) setScale({ assigned: false, reading: null });
     }
   }, [client, claims.deviceId, openId]);
   useEffect(() => {
@@ -216,7 +270,9 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
     };
     window.addEventListener("storage", sync);
     const reload = () => {
-      void refresh().catch(() => setMessage("Refresh unavailable; check connection."));
+      void refresh().catch(() =>
+        setMessage({ text: "Refresh unavailable; check connection.", tone: "danger" }),
+      );
     };
     reload();
     const channel = client.channel(scope);
@@ -299,6 +355,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
         remember(reply.intake_id);
         // A scanned or typed basket is selected straight away, ready to weigh (#97).
         setSelected(reply.vessel_id);
+        setLastAdded(reply.vessel_id);
         if (reply.vessel_id) setWeight("");
       }
       if (reply.reason === "operator_pin_required") expire();
@@ -345,18 +402,33 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       });
       if (error) throw new Error(error.message);
       const reply = reconcileReply(data);
-      setMessage(reply.reason);
+      setMessage({
+        text: reply.reason,
+        tone: !reply.ok ? "danger" : operation === "send" ? "success" : "accent",
+      });
       retry.current = null;
       if (reply.reason === "operator_pin_required") expire();
       if (reply.ok) {
-        if (operation === "manual") setManualOpen(false);
         if (operation === "send") remember(null);
-        if (reply.vessel_id) setSelected(reply.vessel_id);
-        if (operation === "exchange") setWeight("");
+        if (operation === "accept" || operation === "manual") {
+          // Weighed: hand the selection to the next unweighed basket, so the next Accept needs
+          // no tap. The reading just written is remembered so it cannot be written twice.
+          if (operation === "accept") setUsedReadingId(scale.reading?.id ?? null);
+          if (operation === "manual") setManualOpen(false);
+          setSelected(nextUnweighed(rows, selected) ?? reply.vessel_id ?? selected);
+          setWeight("");
+        } else if (reply.vessel_id) setSelected(reply.vessel_id);
+        if (operation === "exchange") {
+          setWeight("");
+          setLastAdded(reply.vessel_id);
+        }
       }
       await Promise.all([refresh(), holds.refresh(), blastLines.refresh()]);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Action unavailable; retry");
+      setMessage({
+        text: e instanceof Error ? e.message : "Action unavailable; retry",
+        tone: "danger",
+      });
     } finally {
       setBusy(false);
     }
@@ -384,12 +456,12 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       signOffRetry.current = null;
       setNoteOpen(false);
       const reply = data as { reason?: string } | null;
-      setMessage(reply?.reason ?? "Hold signed off");
+      setMessage({ text: reply?.reason ?? "Hold signed off", tone: "success" });
       await holds.refresh();
       return { ok: true };
     } catch (e) {
       const reason = e instanceof Error ? e.message : "Sign-off unavailable; retry";
-      setMessage(reason);
+      setMessage({ text: reason, tone: "danger" });
       return { ok: false, reason };
     } finally {
       setBusy(false);
@@ -415,12 +487,15 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       const { data, error } = await call(managedRetry.current.id, token);
       if (error) throw new Error(error.message);
       managedRetry.current = null;
-      setMessage((data as { reason?: string } | null)?.reason ?? "Done");
+      setMessage({
+        text: (data as { reason?: string } | null)?.reason ?? "Done",
+        tone: "success",
+      });
       await Promise.all([refresh(), holds.refresh(), blastLines.refresh(), picker.refresh()]);
       return { ok: true };
     } catch (e) {
       const reason = e instanceof Error ? e.message : "Action unavailable; retry";
-      setMessage(reason);
+      setMessage({ text: reason, tone: "danger" });
       return { ok: false, reason };
     } finally {
       setBusy(false);
@@ -499,16 +574,43 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
   // No verdict without data (docs/11-FLOOR-WORDING.md): no variance, band or warning until the
   // order has a basket.
   const empty = rows.length === 0;
+  const selectedRow = rows.find((v) => v.id === selected) ?? null;
   // The open order's own hold, though it is no longer over the limit: what the hold waits on, as
   // the Send to Blast refusal will say (#93; rules: holdWaitingOn / holdWaitingMessage).
   const waiting =
     open && group?.some((m) => m.position === 0 && m.intake_id === open.id)
       ? holdWaitingMessage(open.number, band, holdWaitingOn(holdGroupMembers(group), open.id))
       : null;
+  const scaleState: ScaleState = !scale.assigned
+    ? { kind: "none" }
+    : !scale.reading || scale.reading.weight_lb <= 0
+      ? { kind: "waiting" }
+      : scale.reading.id === usedReadingId
+        ? { kind: "stale", weightLb: scale.reading.weight_lb }
+        : { kind: "stable", weightLb: scale.reading.weight_lb };
   const pickWhy = empty ? "Add a basket first" : !selected ? "Tap a basket first" : null;
   const scaleWhy =
-    pickWhy ?? (reading === null || reading <= 0 ? "No reading from the scale" : null);
+    pickWhy ??
+    (scaleState.kind === "none"
+      ? "No scale on this station"
+      : scaleState.kind === "waiting"
+        ? "No reading from the scale"
+        : scaleState.kind === "stale"
+          ? `Put ${lowerFirst(basketName(selectedRow!))} on the scale, or enter its weight manually`
+          : null);
   const sendWhy = empty ? "Add a basket first" : sendBlocked ? "Weigh every basket first" : null;
+  const acceptLabel =
+    scaleState.kind === "stable"
+      ? `Accept ${scaleState.weightLb.toFixed(2)} lb`
+      : "Accept scale weight";
+  const queueOrders: QueueOrder[] = intakes.map((i) => ({
+    id: i.id,
+    number: i.number,
+    meta: `${i.intake_line.map((l) => speciesName(l.species_code)).join(", ") || "No lines"} · ${i.total_est_yield_lb} lb expected`,
+    held: blocked.has(i.id),
+    open: i.id === openId,
+    age: i.rollstock_done_at ? ageBadge(i.rollstock_done_at, now) : null,
+  }));
   return (
     <StationShell
       name="Reconcile"
@@ -532,171 +634,134 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       status={
         <>
           <ScanFeedback feedback={feedback} />
-          <p role="status">{message}</p>
+          {message && (
+            <StationNotice tone={message.tone} role="status">
+              {message.text}
+            </StationNotice>
+          )}
         </>
       }
       manual={{ ...manual, accept: ["TOTE", "TAG"] }}
       onScan={(raw, _parsed, method) => submitCode(raw, method)}
+      dock={
+        open && (
+          <ReconcileDock
+            scale={scaleState}
+            acceptLabel={acceptLabel}
+            acceptPrimary={prompt.step === 1}
+            scaleWhy={scaleWhy}
+            sendWhy={sendWhy}
+            disabled={disabled}
+            onAccept={() => void mutate("accept")}
+            onSend={() => void mutate("send")}
+          />
+        )
+      }
     >
       <div className="station-workspace">
-        <section className="station-card">
-          <h2>Reconcile queue</h2>
-          {intakes.map((i) => (
-            <button key={i.id} disabled={disabled} onClick={() => remember(i.id)}>
-              {i.number}
-              {blocked.has(i.id) && (
-                <>
-                  {" "}
-                  <span className="station-badge">HELD</span>
-                </>
-              )}
-            </button>
-          ))}
-          {!intakes.length && <p>Queue empty</p>}
-        </section>
-        <section className="station-card">
-          <h2>{open ? `Order ${open.number}` : "No order open"}</h2>
-          {open && (
-            <>
-              <h3>Expected yield</h3>
-              {open.intake_line.map((l, n) => (
-                <p key={n}>
-                  {l.species_code}: {l.est_yield_lb ?? 0} lb
-                </p>
-              ))}
-              {empty ? (
-                <p>Expected {open.total_est_yield_lb.toFixed(2)} lb · No baskets yet</p>
-              ) : (
-                <>
-                  <p>
-                    Actual {actual.toFixed(2)} lb · Expected {open.total_est_yield_lb.toFixed(2)} lb
-                    · Variance {variance === null ? "—" : `${variance}%`}
-                  </p>
-                  <p className={`station-band station-band-${band}`}>
-                    {BAND_LABEL[band]} (limit ±{holds.limit}%)
-                    {band === "over" &&
-                      !group &&
-                      " — Send to Blast will be refused and held with its rollstock neighbours"}
-                  </p>
-                  {waiting && <p>{waiting}</p>}
-                </>
-              )}
-              <h3>Baskets</h3>
-              {empty && (
-                <p className="station-hint">Scan basket to add it — or tap Enter manually.</p>
-              )}
-              {rows.map((v) => (
-                <div key={v.id}>
-                  <button
-                    disabled={disabled}
-                    aria-pressed={selected === v.id}
-                    onClick={() => {
-                      setSelected(v.id);
-                      setWeight(String(v.weight_lb));
-                    }}
-                  >
-                    {basketName(v)} · {v.weight_lb} lb{" "}
-                    {v.manual && <span className="station-badge">MANUAL WEIGHT</span>}
-                  </button>
-                </div>
-              ))}
-              <div className="station-actions station-add-basket">
-                <ManualEntry
-                  open={basketTyping}
-                  onOpenChange={setTypingBasket}
-                  disabled={disabled || manualOpen || noteEditing || reasonEditing}
-                  options={{ ...manual, accept: ["TAG"] }}
-                  label="Basket number"
-                  placeholder="042"
-                  onSubmit={(text) => submitCode(text, "manual")}
-                />
-                <button disabled={disabled} onClick={() => void mutate("exchange")}>
-                  Add exchange basket
-                </button>
-              </div>
-              <p>
-                Latest stable scale:{" "}
-                {reading === null ? "No reading / scale not assigned" : `${reading} lb`}
-              </p>
-              <button
-                disabled={disabled || scaleWhy !== null}
-                onClick={() => void mutate("accept")}
-              >
-                Accept scale weight
-              </button>
-              <DisabledReason reason={scaleWhy} />
-              <button disabled={disabled || !selected} onClick={() => setManualOpen(true)}>
-                Enter weight manually
-              </button>
-              <DisabledReason reason={pickWhy} />
-              {manualOpen && (
-                <>
-                  <label>
-                    Manual weight (lb)
-                    <input
-                      autoFocus
-                      type="number"
-                      inputMode="decimal"
-                      min="0.01"
-                      step="0.01"
-                      value={weight}
-                      onChange={(e) => setWeight(e.target.value)}
-                    />
-                  </label>
-                  <button
-                    disabled={disabled || !selected || !(Number(weight) > 0)}
-                    onClick={() => void mutate("manual")}
-                  >
-                    Save manual weight
-                  </button>
-                  <button onClick={() => setManualOpen(false)}>Cancel manual weight</button>
-                </>
-              )}
-              <button disabled={disabled || !selected} onClick={() => void mutate("remove")}>
-                Remove selected basket
-              </button>
-              <DisabledReason reason={pickWhy} />
-              <button disabled={disabled || sendWhy !== null} onClick={() => void mutate("send")}>
-                Send to Blast Freezer
-              </button>
-              <DisabledReason reason={sendWhy} />
-            </>
+        <div className="station-main">
+          {!open && (
+            <QueueCard
+              orders={queueOrders}
+              title="No order open"
+              aside={`${intakes.length} waiting`}
+              disabled={disabled}
+              onOpen={remember}
+            />
           )}
-        </section>
-        {open && group && group[0]?.hold_id && (
-          <VarianceHoldPanel
-            key={group[0].hold_id}
-            group={group}
-            openIntakeId={open.id}
-            disabled={disabled}
-            editingNote={noteEditing}
-            onEditNote={setNoteOpen}
-            onSignOff={(reason, note) => requestSignOff(group[0]!.hold_id!, reason, note)}
-            onFindSuspects={() => setPickerFor(open.id)}
+          {open && (
+            <OrderCard
+              number={open.number}
+              toteCount={open.tote_count}
+              lines={open.intake_line.map((l) => ({
+                species: speciesName(l.species_code),
+                lb: l.est_yield_lb ?? 0,
+              }))}
+              expected={open.total_est_yield_lb}
+              baskets={rows.map((v) => ({
+                id: v.id,
+                name: basketName(v),
+                weightLb: v.weight_lb,
+                manual: v.manual,
+              }))}
+              selected={selected}
+              lastAdded={lastAdded}
+              variance={variance}
+              band={band}
+              limit={holds.limit}
+              held={group !== null}
+              waiting={waiting}
+              disabled={disabled}
+              pickWhy={pickWhy}
+              manualEntry={{
+                open: basketTyping,
+                onOpenChange: setTypingBasket,
+                disabled: disabled || manualOpen || noteEditing || reasonEditing,
+                options: { ...manual, accept: ["TAG"] },
+                onSubmit: (text) => submitCode(text, "manual"),
+              }}
+              onSelect={(id) => {
+                setSelected(id);
+                setWeight(String(rows.find((v) => v.id === id)?.weight_lb ?? ""));
+              }}
+              onExchange={() => void mutate("exchange")}
+              onRemove={() => void mutate("remove")}
+              weightForm={{
+                open: manualOpen,
+                value: weight,
+                canSave: selected !== null && Number(weight) > 0,
+                onOpen: () => setManualOpen(true),
+                onChange: setWeight,
+                onSave: () => void mutate("manual"),
+                onCancel: () => setManualOpen(false),
+              }}
+            />
+          )}
+          {open && group && group[0]?.hold_id && (
+            <VarianceHoldPanel
+              key={group[0].hold_id}
+              group={group}
+              openIntakeId={open.id}
+              disabled={disabled}
+              editingNote={noteEditing}
+              onEditNote={setNoteOpen}
+              onSignOff={(reason, note) => requestSignOff(group[0]!.hold_id!, reason, note)}
+              onFindSuspects={() => setPickerFor(open.id)}
+            />
+          )}
+          {pickerFor && (
+            <SuspectPicker
+              key={pickerFor}
+              rows={picker.rows}
+              bins={picker.bins}
+              error={picker.error}
+              disabled={disabled}
+              editingReason={reasonEditing}
+              onEditReason={setReasonOpen}
+              onMove={moveBin}
+              onPullBack={pullBack}
+              onClose={() => {
+                setReasonOpen(false);
+                setPickerFor(null);
+              }}
+            />
+          )}
+        </div>
+        <div className="station-side">
+          {open && (
+            <QueueCard
+              orders={queueOrders}
+              title={`${intakes.length} waiting`}
+              disabled={disabled}
+              onOpen={remember}
+            />
+          )}
+          <NowInBlastList
+            lines={blastLines.lines}
+            error={blastLines.error}
+            onSelect={(line) => setPickerFor(line.intake_id)}
           />
-        )}
-        {pickerFor && (
-          <SuspectPicker
-            key={pickerFor}
-            rows={picker.rows}
-            bins={picker.bins}
-            error={picker.error}
-            disabled={disabled}
-            editingReason={reasonEditing}
-            onEditReason={setReasonOpen}
-            onMove={moveBin}
-            onPullBack={pullBack}
-            onClose={() => {
-              setReasonOpen(false);
-              setPickerFor(null);
-            }}
-          />
-        )}
-        <NowInBlastList
-          lines={blastLines.lines}
-          error={blastLines.error}
-          onSelect={(line) => setPickerFor(line.intake_id)}
-        />
+        </div>
       </div>
       {pinOpen && (
         <OperatorPinOverlay

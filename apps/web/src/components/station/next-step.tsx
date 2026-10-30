@@ -1,6 +1,7 @@
 /**
  * The floor prompt (docs/11-FLOOR-WORDING.md, #98): the next step line (imperative verb +
- * object, the largest text on screen) and, on multi-step stations, the step row.
+ * object, the largest text on screen) and, on multi-step stations, the step rail with the
+ * current step filled and the finished ones ticked.
  */
 export function NextStep({
   next,
@@ -13,11 +14,15 @@ export function NextStep({
   step?: number;
 }) {
   return (
-    <div className="station-next-area">
+    <div className="station-next-area station-hero">
       {steps && steps.length > 1 && (
         <ol className="station-steps" aria-label="Steps">
           {steps.map((label, n) => (
-            <li key={label} aria-current={n === step ? "step" : undefined}>
+            <li
+              key={label}
+              aria-current={n === step ? "step" : undefined}
+              data-done={step !== undefined && n < step ? "" : undefined}
+            >
               {n + 1} {label}
             </li>
           ))}

@@ -1,16 +1,35 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { Delete, KeyRound, ShieldCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { stationMessage } from "./messages";
 export type PinResult = { ok: boolean; reason?: string };
 type Props = { verify: (pin: string) => Promise<PinResult>; onClose: () => void };
-function PinOverlay({ title, verify, onClose }: Props & { title: string }) {
+
+/**
+ * Operator / manager PIN (docs/06): a non-modal sheet (phone) or card (tablet) with a 64-px
+ * keypad; no focus trap, so the scanner's hidden input keeps working behind it. The station
+ * refuses actions until the PIN is accepted, so the overlay never needs to block.
+ */
+function PinOverlay({
+  title,
+  lead,
+  icon,
+  verify,
+  onClose,
+}: Props & { title: string; lead: string; icon: ReactNode }) {
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   return (
     <section role="dialog" aria-modal="false" aria-label={title} className="station-overlay">
-      <h2>{title}</h2>
-      <p>Enter your 4–6 digit PIN</p>
+      <div className="station-overlay-head">
+        <span className="station-overlay-icon" aria-hidden="true">
+          {icon}
+        </span>
+        <h2>{title}</h2>
+      </div>
+      <p className="station-overlay-lead">{lead}</p>
       <form
         onSubmit={async (event) => {
           event.preventDefault();
@@ -30,7 +49,7 @@ function PinOverlay({ title, verify, onClose }: Props & { title: string }) {
         }}
       >
         <label>
-          PIN{" "}
+          PIN
           <input
             aria-label={`${title} PIN`}
             type="password"
@@ -50,6 +69,11 @@ function PinOverlay({ title, verify, onClose }: Props & { title: string }) {
               type="button"
               key={key}
               disabled={busy}
+              className={cn(
+                key === "Clear" && "station-key-soft",
+                key === "⌫" && "station-key-soft",
+              )}
+              aria-label={key === "⌫" ? "⌫" : undefined}
               onClick={() =>
                 setPin((value) =>
                   key === "Clear"
@@ -60,24 +84,40 @@ function PinOverlay({ title, verify, onClose }: Props & { title: string }) {
                 )
               }
             >
-              {key}
+              {key === "⌫" ? <Delete aria-hidden="true" /> : key}
             </button>
           ))}
         </div>
-        <button disabled={busy} type="submit">
-          {busy ? "Checking…" : "Continue"}
-        </button>
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
+        <div className="station-overlay-actions">
+          <button disabled={busy} type="submit" className="sbtn sbtn-primary sbtn-lg">
+            {busy ? "Checking…" : "Continue"}
+          </button>
+          <button type="button" onClick={onClose} className="sbtn sbtn-secondary sbtn-lg">
+            Close
+          </button>
+        </div>
         <p role="alert">{error}</p>
       </form>
     </section>
   );
 }
 export function OperatorPinOverlay(props: Props) {
-  return <PinOverlay {...props} title="Operator PIN" />;
+  return (
+    <PinOverlay
+      {...props}
+      title="Operator PIN"
+      lead="Enter your 4–6 digit PIN to keep scanning as yourself."
+      icon={<KeyRound />}
+    />
+  );
 }
 export function ManagerPinOverlay(props: Props) {
-  return <PinOverlay {...props} title="Manager PIN" />;
+  return (
+    <PinOverlay
+      {...props}
+      title="Manager PIN"
+      lead="A manager's 4–6 digit PIN approves this action."
+      icon={<ShieldCheck />}
+    />
+  );
 }

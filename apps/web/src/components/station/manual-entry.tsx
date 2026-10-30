@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { Keyboard, ScanLine } from "lucide-react";
 import type { FilletryClient } from "db";
 import { parseManual, type ManualOptions, type ParseResult } from "rules";
+import { StationButton } from "./station-button";
 
 export { ENTRY_METHOD_HEADER, withEntryMethod, type EntryMethod } from "./entry-method";
 
@@ -71,9 +73,9 @@ export function ManualEntry({
   if (!open)
     return (
       <div className="station-manual">
-        <button type="button" onClick={() => onOpenChange(true)}>
+        <StationButton tone="secondary" icon={<Keyboard />} onClick={() => onOpenChange(true)}>
           Enter manually
-        </button>
+        </StationButton>
       </div>
     );
   return (
@@ -89,7 +91,7 @@ export function ManualEntry({
         field.current?.focus({ preventScroll: true });
       }}
     >
-      <label>
+      <label className="station-field station-field-code">
         {label}
         <input
           ref={field}
@@ -105,18 +107,19 @@ export function ManualEntry({
         />
       </label>
       <div className="station-actions">
-        <button type="submit" disabled={disabled || value.trim() === ""}>
+        <StationButton type="submit" tone="primary" disabled={disabled || value.trim() === ""}>
           Enter
-        </button>
-        <button
-          type="button"
+        </StationButton>
+        <StationButton
+          tone="ghost"
+          icon={<ScanLine />}
           onClick={() => {
             setValue("");
             onOpenChange(false);
           }}
         >
           Close — back to scanner
-        </button>
+        </StationButton>
       </div>
     </form>
   );
