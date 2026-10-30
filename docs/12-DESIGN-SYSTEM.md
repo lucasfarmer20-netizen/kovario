@@ -177,3 +177,6 @@ Each one appears in the station's gallery entry.
 - No horizontal scrolling at either size, in any state. Containers use `minmax(0, 1fr)` and
   wrap; long codes may break, never overflow.
 - Reflow uses container queries and `:has()` (current Chrome / Safari / Edge).
+- `apps/web/e2e/station-gallery.spec.ts` checks every gallery page at both sizes: no sideways
+  scroll, and every button, link and field in `.station` at least 56 × 56 px (the hidden scanner
+  input excepted). A rule that sets a smaller `min-height` on a control fails it.

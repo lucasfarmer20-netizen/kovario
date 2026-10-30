@@ -359,13 +359,13 @@
   gap: var(--st-2);
 }
 .station-topbar .station-badge {
-  min-height: 48px;
+  min-height: var(--st-touch);
   border-color: rgb(255 255 255 / 18%);
   background: rgb(255 255 255 / 8%);
   color: #fff;
 }
 .station-topbar .station-chips > a {
-  min-height: 48px;
+  min-height: var(--st-touch);
   border: 0;
   border-radius: var(--st-r-pill);
   color: #fff;
@@ -2068,7 +2068,7 @@ form.station-manual .station-actions > button[type="button"] {
   box-shadow: var(--st-e2);
 }
 .st-gallery .station-topbar nav a {
-  min-height: 48px;
+  min-height: var(--st-touch);
   border: 0;
   color: #fff;
   font-size: var(--st-fs-label);
@@ -2086,9 +2086,11 @@ form.station-manual .station-actions > button[type="button"] {
   margin-bottom: var(--st-3);
 }
 .st-gallery-state h3 a {
+  display: inline-flex;
+  align-items: center;
   border: 0;
   padding: 0;
-  min-height: 0;
+  min-height: var(--st-touch);
   font-size: var(--st-fs-title);
   color: var(--st-brand);
 }
