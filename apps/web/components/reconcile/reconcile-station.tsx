@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Database, Json } from "db";
 import {
   formatVariance,
+  holdWaitingMessage,
+  holdWaitingOn,
   parse,
   variancePercent,
   varianceBand,
@@ -22,6 +24,7 @@ import { BAND_LABEL, NowInBlastList, useNowInBlast } from "@/components/variance
 import {
   blockedIntakes,
   holdGroupFor,
+  holdGroupMembers,
   useVarianceHolds,
 } from "@/components/variance/use-variance-holds";
 import { VarianceHoldPanel } from "./variance-hold-panel";
@@ -496,6 +499,12 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
   // No verdict without data (docs/11-FLOOR-WORDING.md): no variance, band or warning until the
   // order has a basket.
   const empty = rows.length === 0;
+  // The open order's own hold, though it is no longer over the limit: what the hold waits on, as
+  // the Send to Blast refusal will say (#93; rules: holdWaitingOn / holdWaitingMessage).
+  const waiting =
+    open && group?.some((m) => m.position === 0 && m.intake_id === open.id)
+      ? holdWaitingMessage(open.number, band, holdWaitingOn(holdGroupMembers(group), open.id))
+      : null;
   const pickWhy = empty ? "Add a basket first" : !selected ? "Tap a basket first" : null;
   const scaleWhy =
     pickWhy ?? (reading === null || reading <= 0 ? "No reading from the scale" : null);
@@ -569,6 +578,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
                       !group &&
                       " — Send to Blast will be refused and held with its rollstock neighbours"}
                   </p>
+                  {waiting && <p>{waiting}</p>}
                 </>
               )}
               <h3>Baskets</h3>

@@ -133,6 +133,12 @@ A large variance usually means fish went into the wrong order, typically a rolls
   `action_log`, shown in Reports → Variance holds. A sign-off covers the flagged intake's send
   only at the weight signed off; a changed weight over the limit flags again. Its open points
   are decided in DECISION-25…30 (`08-DECISIONS.md`).
+- **Waiting on** (v1.2, #93): a flagged intake no longer over the limit, whose hold has not
+  cleared, is refused with what the hold waits on: each other member keeping it open, in
+  rollstock order, and why — not at reconcile yet, not weighed yet, or its variance: "INT-0002
+  is within the limit. Hold waits on INT-0004 (+22%) and INT-0003 (not at reconcile yet). It
+  clears when they are at reconcile within the limit, or a manager signs off."
+  (`holdWaitingOn` / `holdWaitingMessage`, generated as `app.variance_hold_waiting_message`).
 - **"Now in blast" line**: every intake sent to blast (flagged or not), while any of its
   vessels is not yet on a shelf: "INT-2120 is in the blast · variance +14%", in rollstock
   order, coloured by band. Shown on the blast and reconcile screens; #88's suspect picker ranks

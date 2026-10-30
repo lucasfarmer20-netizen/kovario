@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import type { Database, FilletryClient } from "db";
-import { varianceHoldLimit } from "rules";
+import { varianceHoldLimit, type HoldGroupMember, type VarianceBand } from "rules";
 
 /** One member of an active variance hold's group (public.variance_hold_member, #87). */
 export type HoldMember = Pick<
@@ -12,14 +12,16 @@ export type HoldMember = Pick<
   | "intake_number"
   | "position"
   | "state"
+  | "actual_lb"
   | "variance_pct"
   | "band"
   | "blocked"
   | "limit_pct"
+  | "signed_off"
 >;
 
 const COLUMNS =
-  "hold_id,flagged_intake_id,intake_id,intake_number,position,state,variance_pct,band,blocked,limit_pct";
+  "hold_id,flagged_intake_id,intake_id,intake_number,position,state,actual_lb,variance_pct,band,blocked,limit_pct,signed_off";
 
 /**
  * The hold group containing `intakeId`, in rollstock order, or null. An intake's own hold wins
@@ -35,6 +37,19 @@ export function holdGroupFor(
   return members
     .filter((m) => m.hold_id === hold.hold_id)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+}
+
+/** A hold group as the rules judge it (holdWaitingOn), in the same order. */
+export function holdGroupMembers(group: readonly HoldMember[]): HoldGroupMember[] {
+  return group.map((m) => ({
+    intakeId: m.intake_id ?? "",
+    number: m.intake_number,
+    state: m.state,
+    band: (m.band ?? "unknown") as VarianceBand,
+    actualLb: m.actual_lb ?? 0,
+    variancePct: m.variance_pct,
+    signedOffAtCurrentWeight: m.signed_off ?? false,
+  }));
 }
 
 /** Intakes a hold currently blocks from Send to Blast. */
