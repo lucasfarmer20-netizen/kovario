@@ -106,7 +106,8 @@ Nothing in `apps/web` imports a vendor SDK directly.
 - Multi-row money/release actions run in a **single Postgres function** (`security
   definer`, RLS-checked by explicit `org_id` guard) that locks rows in a fixed order:
   **session → vessels → intakes** (`select … for update`, sorted ids), re-reads state,
-  then writes. Never lock in the app layer across round trips.
+  then writes; any path that locks a session takes the org's allocation billing lock first
+  (docs/04 §8). Never lock in the app layer across round trips.
 - Derived fields are either **computed views** or maintained by **triggers** — never
   "stored computes" recalculated by app code (CSP's stale `@api.depends` lesson).
 
