@@ -60,7 +60,7 @@ export function VarianceHoldPanel({
   const open = group.find((m) => m.intake_id === openIntakeId);
   const problem = reason ? varianceSignoffProblem(reason, note) : null;
   return (
-    <section className="station-card" aria-label="Variance hold">
+    <section className="station-card station-hold" aria-label="Variance hold">
       <h3>
         VARIANCE HOLD · {flagged?.intake_number} {formatVariance(flagged?.variance_pct ?? null)}{" "}
         (limit ±{flagged?.limit_pct}%)

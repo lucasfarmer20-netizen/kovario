@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { ManualOptions, ParseResult } from "rules";
 import { ManualEntry, type EntryMethod } from "./manual-entry";
 import { NextStep } from "./next-step";
@@ -7,6 +7,7 @@ import { StationsLink } from "./stations-link";
 import { ScanInput } from "./scan-input";
 export function StationShell({
   name,
+  className = "",
   site,
   operator,
   pending,
@@ -22,6 +23,7 @@ export function StationShell({
   children,
 }: {
   name: string;
+  className?: string;
   site: string;
   operator: string | null;
   pending: number;
@@ -45,6 +47,17 @@ export function StationShell({
   status: ReactNode;
   children: ReactNode;
 }) {
+  const [offline, setOffline] = useState(false);
+  useEffect(() => {
+    const update = () => setOffline(!navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
   const [open, setOpen] = useState(false);
   // A hidden field is closed: the scanner must not stay paused behind it, nor the field reopen
   // (and take focus) when it shows again.
@@ -55,7 +68,7 @@ export function StationShell({
   }
   const typing = open && !hideManual;
   return (
-    <main className="station">
+    <main className={`station ${className}`}>
       <header>
         <div>
           <p className="station-eyebrow">Filletry · {site}</p>
@@ -65,6 +78,7 @@ export function StationShell({
           <StationsLink />
           <span className="station-badge">{operator ?? "Identify operator"}</span>
           <span className="station-badge" role="status">
+            {offline ? "Offline · " : ""}
             {pending} pending
           </span>
         </div>
