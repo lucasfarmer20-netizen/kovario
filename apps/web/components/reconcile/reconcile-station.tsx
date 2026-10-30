@@ -29,7 +29,12 @@ import { SuspectPicker, useSuspectGroup } from "./suspect-picker";
 import { useOperatorIdle } from "@/src/components/station/use-operator-idle";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
-import { useManualOptions, withEntryMethod } from "@/src/components/station/manual-entry";
+import {
+  ManualEntry,
+  useManualOptions,
+  withEntryMethod,
+  type EntryMethod,
+} from "@/src/components/station/manual-entry";
 import type { ScanRequest, ScanReply } from "@/src/components/station/scan-queue";
 type SignOff = { holdId: string; reason: VarianceSignoffReason; note: string };
 /** A manager action: run directly by a manager account, or with a manager PIN elevation token. */
@@ -66,8 +71,9 @@ export function reconcileNextStep(input: {
   const unweighed = rows.filter((v) => !(v.weight_lb > 0));
   if (unweighed.length) {
     // Accept / Enter weight write to the selected basket, so the line only says "Weigh" for
-    // that one; otherwise it asks for the tap first (never auto-selected: the scale may still
-    // hold the previous basket's stable reading).
+    // that one; otherwise it asks for the tap first. A newly added basket is selected (#97);
+    // after a weight is saved the selection never moves on by itself (the scale may still hold
+    // the previous basket's stable reading).
     const current = unweighed.find((v) => v.id === selected);
     const name = basketName(current ?? unweighed[0]!);
     const lower = `${name[0]!.toLowerCase()}${name.slice(1)}`;
@@ -116,6 +122,8 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
     [busy, setBusy] = useState(false),
     [weight, setWeight] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
+  // "Enter manually" in the order card (#97): typing a basket number pauses the scanner.
+  const [typingBasket, setTypingBasket] = useState(false);
   // Typing a sign-off note pauses the scanner like manual weight (its focus capture would
   // otherwise pull focus out of the note field).
   const [noteOpen, setNoteOpen] = useState(false);
@@ -286,7 +294,9 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       const reply = reconcileReply(data);
       if (reply.ok && reply.intake_id) {
         remember(reply.intake_id);
+        // A scanned or typed basket is selected straight away, ready to weigh (#97).
         setSelected(reply.vessel_id);
+        if (reply.vessel_id) setWeight("");
       }
       if (reply.reason === "operator_pin_required") expire();
       await refresh();
@@ -302,6 +312,16 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       return false;
     }
     return true;
+  };
+  const submitCode = (raw: string, method: EntryMethod) => {
+    if (!manualOpen && !noteEditing && !reasonEditing && allowed())
+      void scan({
+        raw,
+        station: "reconcile",
+        client_action_id: crypto.randomUUID(),
+        operator_session: proof,
+        entry_method: method,
+      });
   };
   // Preserve a failed request's key, including its inputs, for a safe retry after a lost response.
   const retry = useRef<{ signature: string; id: string } | null>(null);
@@ -329,6 +349,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
         if (operation === "manual") setManualOpen(false);
         if (operation === "send") remember(null);
         if (reply.vessel_id) setSelected(reply.vessel_id);
+        if (operation === "exchange") setWeight("");
       }
       await Promise.all([refresh(), holds.refresh(), blastLines.refresh()]);
     } catch (e) {
@@ -443,6 +464,14 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
   const noteEditing = noteOpen && group !== null;
   const open = intakes.find((i) => i.id === openId),
     rows = vessels.filter((v) => v.intake_id === openId);
+  // The basket field lives in the order card: with no order open it is closed, not hidden open.
+  const hasOrder = open !== undefined;
+  const [hadOrder, setHadOrder] = useState(hasOrder);
+  if (hadOrder !== hasOrder) {
+    setHadOrder(hasOrder);
+    if (!hasOrder) setTypingBasket(false);
+  }
+  const basketTyping = typingBasket && hasOrder;
   const actual = rows.reduce((sum, v) => sum + v.weight_lb, 0),
     variance = variancePercent(actual, open?.total_est_yield_lb ?? 0),
     band = varianceBand(actual, open?.total_est_yield_lb ?? 0, holds.limit);
@@ -464,16 +493,13 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
     over: band === "over",
     held: group !== null,
   });
-  const scaleWhy = !selected
-    ? "Tap a basket first"
-    : reading === null || reading <= 0
-      ? "No reading from the scale"
-      : null;
-  const sendWhy = !rows.length
-    ? "Add a basket first"
-    : sendBlocked
-      ? "Weigh every basket first"
-      : null;
+  // No verdict without data (docs/11-FLOOR-WORDING.md): no variance, band or warning until the
+  // order has a basket.
+  const empty = rows.length === 0;
+  const pickWhy = empty ? "Add a basket first" : !selected ? "Tap a basket first" : null;
+  const scaleWhy =
+    pickWhy ?? (reading === null || reading <= 0 ? "No reading from the scale" : null);
+  const sendWhy = empty ? "Add a basket first" : sendBlocked ? "Weigh every basket first" : null;
   return (
     <StationShell
       name="Reconcile"
@@ -481,12 +507,19 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       operator={operator}
       pending={pending}
       paused={
-        pinOpen || busy || manualOpen || noteEditing || reasonEditing || managerPending !== null
+        pinOpen ||
+        busy ||
+        manualOpen ||
+        basketTyping ||
+        noteEditing ||
+        reasonEditing ||
+        managerPending !== null
       }
       next={prompt.next}
       steps={STEPS}
       step={prompt.step}
-      manualLabel={open ? "Basket number" : "Tote number (INT-0002-1)"}
+      manualLabel="Tote number (INT-0002-1)"
+      hideManual={hasOrder}
       status={
         <>
           <ScanFeedback feedback={feedback} />
@@ -494,16 +527,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
         </>
       }
       manual={{ ...manual, accept: ["TOTE", "TAG"] }}
-      onScan={(raw, _parsed, method) => {
-        if (!manualOpen && !noteEditing && !reasonEditing && allowed())
-          void scan({
-            raw,
-            station: "reconcile",
-            client_action_id: crypto.randomUUID(),
-            operator_session: proof,
-            entry_method: method,
-          });
-      }}
+      onScan={(raw, _parsed, method) => submitCode(raw, method)}
     >
       <div className="station-workspace">
         <section className="station-card">
@@ -531,17 +555,26 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
                   {l.species_code}: {l.est_yield_lb ?? 0} lb
                 </p>
               ))}
-              <p>
-                Actual {actual.toFixed(2)} lb · Expected {open.total_est_yield_lb.toFixed(2)} lb ·
-                Variance {variance === null ? "—" : `${variance}%`}
-              </p>
-              <p className={`station-band station-band-${band}`}>
-                {BAND_LABEL[band]} (limit ±{holds.limit}%)
-                {band === "over" &&
-                  !group &&
-                  " — Send to Blast will be refused and held with its rollstock neighbours"}
-              </p>
+              {empty ? (
+                <p>Expected {open.total_est_yield_lb.toFixed(2)} lb · No baskets yet</p>
+              ) : (
+                <>
+                  <p>
+                    Actual {actual.toFixed(2)} lb · Expected {open.total_est_yield_lb.toFixed(2)} lb
+                    · Variance {variance === null ? "—" : `${variance}%`}
+                  </p>
+                  <p className={`station-band station-band-${band}`}>
+                    {BAND_LABEL[band]} (limit ±{holds.limit}%)
+                    {band === "over" &&
+                      !group &&
+                      " — Send to Blast will be refused and held with its rollstock neighbours"}
+                  </p>
+                </>
+              )}
               <h3>Baskets</h3>
+              {empty && (
+                <p className="station-hint">Scan basket to add it — or tap Enter manually.</p>
+              )}
               {rows.map((v) => (
                 <div key={v.id}>
                   <button
@@ -557,9 +590,20 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
                   </button>
                 </div>
               ))}
-              <button disabled={disabled} onClick={() => void mutate("exchange")}>
-                Add exchange basket
-              </button>
+              <div className="station-actions station-add-basket">
+                <ManualEntry
+                  open={basketTyping}
+                  onOpenChange={setTypingBasket}
+                  disabled={disabled || manualOpen || noteEditing || reasonEditing}
+                  options={{ ...manual, accept: ["TAG"] }}
+                  label="Basket number"
+                  placeholder="042"
+                  onSubmit={(text) => submitCode(text, "manual")}
+                />
+                <button disabled={disabled} onClick={() => void mutate("exchange")}>
+                  Add exchange basket
+                </button>
+              </div>
               <p>
                 Latest stable scale:{" "}
                 {reading === null ? "No reading / scale not assigned" : `${reading} lb`}
@@ -574,7 +618,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
               <button disabled={disabled || !selected} onClick={() => setManualOpen(true)}>
                 Enter weight manually
               </button>
-              <DisabledReason reason={!selected && "Tap a basket first"} />
+              <DisabledReason reason={pickWhy} />
               {manualOpen && (
                 <>
                   <label>
@@ -601,7 +645,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
               <button disabled={disabled || !selected} onClick={() => void mutate("remove")}>
                 Remove selected basket
               </button>
-              <DisabledReason reason={!selected && "Tap a basket first"} />
+              <DisabledReason reason={pickWhy} />
               <button disabled={disabled || sendWhy !== null} onClick={() => void mutate("send")}>
                 Send to Blast Freezer
               </button>

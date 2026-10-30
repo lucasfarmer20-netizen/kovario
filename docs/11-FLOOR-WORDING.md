@@ -28,7 +28,8 @@ say "basket tags" for the printable tag pool (not "asset tag pool").
    "Ready to scan". e.g. "Scan a tote", "Scan basket", "Weigh basket 005", "Scan location for
    basket 005". (`<StationShell next=…>`.)
 2. **Enter manually.** The typed-code button is **Enter manually**, shown directly under the next
-   step line. The field's label names what's expected: "Basket number", "Tote number
+   step line (Reconcile with an order open: inside the order card next to "Add exchange basket",
+   #97; one Enter manually on screen, never two). The field's label names what's expected: "Basket number", "Tote number
    (INT-0002-1)", "Location (IF-A-01-1-F)". Its submit button is **Enter**.
 3. **Steps.** Stations with more than one step show them in a row with the current one
    highlighted, e.g. Reconcile: `1 Add baskets · 2 Weigh · 3 Send to Blast`.

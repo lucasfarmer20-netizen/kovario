@@ -27,6 +27,7 @@ afterEach(() => {
   localStorage.clear();
   mocks.pending = 0;
   mocks.vesselFilters = [];
+  mocks.scan.mockReset();
 });
 function setup(weight = 0, extra: Record<string, unknown> = {}, appRole = "staff") {
   localStorage.setItem("org:staff:reconcile", "i1");
@@ -522,7 +523,7 @@ it("#98 next step: an open order with no baskets → Scan basket; Send says why 
   render(<ReconcileStation />);
   await screen.findByRole("heading", { name: "Order INT-0001" });
   expect(next()).toBe("Scan basket");
-  expect(screen.getByText("Add a basket first")).toBeTruthy();
+  expect(screen.getAllByText("Add a basket first").length).toBeGreaterThan(0);
 });
 it("#98 next step: an unweighed basket asks for the tap, then Weigh basket 042", async () => {
   setup();
@@ -600,4 +601,103 @@ it("#98 next step over the limit asks to check weights, with a true minus sign",
       held: false,
     }).next,
   ).toBe("Tap exchange basket, then weigh it");
+});
+
+// #97 empty state ---------------------------------------------------------------------------------
+const orderCard = async () =>
+  (await screen.findByRole("heading", { name: "Order INT-0001" })).closest("section")!;
+const isDisabled = (name: string) =>
+  (screen.getByRole("button", { name }) as HTMLButtonElement).disabled;
+/** A PostgREST builder: typed codes set the entry-method header on it before it is awaited. */
+const rpcBuilder = (data: unknown) => {
+  const b = Object.assign(Promise.resolve({ data, error: null }), { setHeader: () => b });
+  return b;
+};
+it("#97 an empty order shows the first step and no verdict: no variance, band or warning", async () => {
+  setup(0, { vessel: [] });
+  render(<ReconcileStation />);
+  const card = await orderCard();
+  expect(next()).toBe("Scan basket");
+  expect(within(card).getByText("Scan basket to add it — or tap Enter manually.")).toBeTruthy();
+  expect(within(card).getByText("Expected 20.00 lb · No baskets yet")).toBeTruthy();
+  expect(screen.queryByText(/Variance/)).toBeNull();
+  expect(card.querySelector(".station-band")).toBeNull();
+  expect(screen.queryByText(/over limit|will be refused/)).toBeNull();
+  // Enter manually sits in the order card, next to Add exchange basket, and only there.
+  expect(screen.getAllByRole("button", { name: "Enter manually" })).toHaveLength(1);
+  const row = within(card)
+    .getByRole("button", { name: "Enter manually" })
+    .closest<HTMLElement>(".station-add-basket")!;
+  expect(within(row).getByRole("button", { name: "Add exchange basket" })).toBeTruthy();
+  // The weight buttons say why they are disabled.
+  for (const name of ["Accept scale weight", "Enter weight manually", "Remove selected basket"])
+    expect(isDisabled(name)).toBe(true);
+  expect(screen.getAllByText("Add a basket first")).toHaveLength(4);
+  expect(screen.queryByText("Tap a basket first")).toBeNull();
+});
+it("#97 a typed basket number adds the basket and selects it; Enter weight manually is live", async () => {
+  const vessel: unknown[] = [];
+  const rpc = setup(0, { vessel });
+  rpc.mockImplementation(((name: string, args: { p_operation?: string; p_code?: string }) => {
+    if (name === "reconcile_action" && args.p_operation === "bind")
+      vessel.push({
+        id: "v7",
+        intake_id: "i1",
+        asset_tag_id: "t7",
+        asset_tag: { code: args.p_code },
+        weight_lb: 0,
+        manual: false,
+        is_exchange: false,
+      });
+    return rpcBuilder({
+      ok: true,
+      reason: "Basket 042 added to INT-0001",
+      intake_id: "i1",
+      vessel_id: "v7",
+    });
+  }) as never);
+  mocks.scan.mockImplementationOnce((r: ScanRequest) => mocks.send!(r));
+  render(<ReconcileStation />);
+  const card = await orderCard();
+  const scanner = screen.getByLabelText("Station scanner") as HTMLInputElement;
+  fireEvent.click(within(card).getByRole("button", { name: "Enter manually" }));
+  expect(scanner.disabled).toBe(true);
+  fireEvent.change(within(card).getByLabelText("Basket number"), { target: { value: "42" } });
+  fireEvent.click(within(card).getByRole("button", { name: "Enter" }));
+  const basket = await within(card).findByRole("button", { name: /Basket 042/ });
+  await waitFor(() => expect(basket.getAttribute("aria-pressed")).toBe("true"));
+  expect(rpc).toHaveBeenCalledWith(
+    "reconcile_action",
+    expect.objectContaining({ p_operation: "bind", p_code: "042", p_raw: "042" }),
+  );
+  expect(next()).toBe("Weigh basket 042");
+  expect(isDisabled("Enter weight manually")).toBe(false);
+  expect(screen.queryByText("Tap a basket first")).toBeNull();
+  // No focus trap: closing the field hands focus back to the scanner.
+  fireEvent.click(within(card).getByRole("button", { name: "Close — back to scanner" }));
+  await waitFor(() => expect(document.activeElement).toBe(scanner));
+  expect(scanner.disabled).toBe(false);
+});
+it("#97 a scanned basket is selected too, ready to weigh", async () => {
+  setup();
+  render(<ReconcileStation />);
+  const basket = await screen.findByRole("button", { name: /Basket 042/ });
+  expect(basket.getAttribute("aria-pressed")).toBe("false");
+  await mocks.send!({
+    raw: "0042",
+    station: "reconcile",
+    client_action_id: "scan-select",
+    operator_session: null,
+  });
+  await waitFor(() => expect(basket.getAttribute("aria-pressed")).toBe("true"));
+  expect(next()).toBe("Weigh basket 042");
+  expect(isDisabled("Enter weight manually")).toBe(false);
+});
+it("#97 with no order open, Enter manually under the next step line reads a tote number", async () => {
+  setup();
+  localStorage.setItem("org:staff:reconcile", "");
+  render(<ReconcileStation />);
+  await screen.findByRole("heading", { name: "No order open" });
+  fireEvent.click(screen.getByRole("button", { name: "Enter manually" }));
+  expect(screen.getByLabelText("Tote number (INT-0002-1)")).toBeTruthy();
 });

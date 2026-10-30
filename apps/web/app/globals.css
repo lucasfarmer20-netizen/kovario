@@ -338,6 +338,23 @@
   font-size: 28px;
   text-transform: uppercase;
 }
+/* Reconcile's order card (#97): Enter manually next to Add exchange basket; open, the basket
+   field takes the whole row and fits a ~400 px phone without scrolling back to the top. */
+.station-add-basket {
+  margin: 12px 0;
+}
+.station-add-basket > .station-manual {
+  margin: 0;
+}
+.station-add-basket > form.station-manual {
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 16px;
+}
+.station-add-basket > form.station-manual input {
+  box-sizing: border-box;
+  width: 100%;
+}
 @media (max-width: 850px) {
   .station-workspace {
     grid-template-columns: 1fr;

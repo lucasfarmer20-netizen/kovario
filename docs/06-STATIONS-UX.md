@@ -69,6 +69,13 @@ stable weight; **Accept** writes it to the highlighted vessel row; **Enter weigh
 weight > 0 when the scale or its link is down, flagged MANUAL WEIGHT and counted in reports),
 variance % with its band (within / near / over the org's limit),
 exchange-vessel row type (no tag), **Send to Blast Freezer** when complete.
+**Adding baskets** (v1.2, #97): the order card has **Enter manually** (field "Basket number",
+reads a tag) next to **Add exchange basket**, so a phone (~400 px) never scrolls back to the top
+to type a code; with an order open the shell's own Enter manually is not shown. An order with no
+baskets says "Scan basket to add it — or tap Enter manually." and shows "No baskets yet" instead
+of a variance, band or hold warning; the weight and remove buttons say "Add a basket first" (then
+"Tap a basket first" until one is selected). A basket added by scan or typed number is selected
+straight away, so Accept / Enter weight manually are live without a tap.
 **Variance hold** (v1.1, #87; `04-BUSINESS-RULES.md §6a`): a send over the limit is refused
 and the intake is held with its rollstock neighbours (1 before, 2 after). Held intakes carry a
 HELD badge in the queue. Opening a held intake shows the hold group in rollstock order (each
