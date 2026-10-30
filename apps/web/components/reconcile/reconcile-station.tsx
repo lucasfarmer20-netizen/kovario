@@ -71,6 +71,9 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
     [busy, setBusy] = useState(false),
     [weight, setWeight] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
+  // Typing a sign-off note pauses the scanner like manual weight (its focus capture would
+  // otherwise pull focus out of the note field).
+  const [noteOpen, setNoteOpen] = useState(false);
   const [reading, setReading] = useState<number | null>(null);
   const [pinOpen, setPinOpen] = useState(claims.appRole === "station"),
     [proof, setProof] = useState<string | null>(null);
@@ -92,6 +95,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       localStorage.setItem(scope, id ?? "");
       setOpenId(id);
       setSelected(null);
+      setNoteOpen(false);
     },
     [scope],
   );
@@ -300,6 +304,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       });
       if (error) throw new Error(error.message);
       signOffRetry.current = null;
+      setNoteOpen(false);
       const reply = data as { reason?: string } | null;
       setMessage(reply?.reason ?? "Hold signed off");
       await holds.refresh();
@@ -316,6 +321,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
   };
   const blocked = blockedIntakes(holds.members);
   const group = openId ? holdGroupFor(holds.members, openId) : null;
+  const noteEditing = noteOpen && group !== null;
   const open = intakes.find((i) => i.id === openId),
     rows = vessels.filter((v) => v.intake_id === openId);
   const actual = rows.reduce((sum, v) => sum + v.weight_lb, 0),
@@ -336,7 +342,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       site={siteName}
       operator={operator}
       pending={pending}
-      paused={pinOpen || busy || manualOpen || signOffPending !== null}
+      paused={pinOpen || busy || manualOpen || noteEditing || signOffPending !== null}
       status={
         <>
           <ScanFeedback feedback={feedback} />
@@ -345,7 +351,7 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
       }
       manual={{ ...manual, accept: ["TOTE", "TAG"] }}
       onScan={(raw, _parsed, method) => {
-        if (!manualOpen && allowed())
+        if (!manualOpen && !noteEditing && allowed())
           void scan({
             raw,
             station: "reconcile",
@@ -461,6 +467,8 @@ function LiveReconcile({ client, claims, siteName }: StationSession) {
             group={group}
             openIntakeId={open.id}
             disabled={disabled}
+            editingNote={noteEditing}
+            onEditNote={setNoteOpen}
             onSignOff={(reason, note) => requestSignOff(group[0]!.hold_id!, reason, note)}
           />
         )}

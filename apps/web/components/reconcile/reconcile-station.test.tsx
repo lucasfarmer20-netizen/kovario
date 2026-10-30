@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ScanReply, ScanRequest } from "@/src/components/station/scan-queue";
 import { ReconcileStation } from "./reconcile-station";
 const mocks = vi.hoisted(() => ({
@@ -292,7 +292,10 @@ it("#87 staff sign-off needs a reason and a manager PIN, then calls the single S
   expect(signOff.disabled).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Other" }));
   expect(screen.getByRole("alert").textContent).toBe("Other needs a note");
+  fireEvent.click(screen.getByRole("button", { name: "Add note (required)" }));
   fireEvent.change(screen.getByLabelText(/Sign-off note/), { target: { value: "Bled fish" } });
+  expect(signOff.disabled).toBe(true); // finish the note first
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
   fireEvent.click(signOff);
   fireEvent.change(await screen.findByLabelText("Manager PIN PIN"), { target: { value: "1234" } });
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
@@ -305,6 +308,29 @@ it("#87 staff sign-off needs a reason and a manager PIN, then calls the single S
       p_elevation_token: "elevation-token",
     }),
   );
+});
+it("#87 typing a sign-off note pauses the scanner; Done hands focus back", async () => {
+  setup(28, held);
+  render(<ReconcileStation />);
+  const panel = await screen.findByRole("region", { name: "Variance hold" });
+  const scanner = screen.getByLabelText("Station scanner") as HTMLInputElement;
+  await waitFor(() => expect(document.activeElement).toBe(scanner));
+  fireEvent.click(within(panel).getByRole("button", { name: "Other" }));
+  fireEvent.click(within(panel).getByRole("button", { name: "Add note (required)" }));
+  const note = within(panel).getByLabelText(/Sign-off note/) as HTMLInputElement;
+  await waitFor(() => expect(document.activeElement).toBe(note));
+  expect(scanner.disabled).toBe(true);
+  // The scanner's focus capture is off while editing: a tap (pointerup) and the re-render after
+  // each keystroke leave focus in the note.
+  fireEvent.pointerUp(document);
+  fireEvent.change(note, { target: { value: "Bled fish" } });
+  await new Promise((r) => requestAnimationFrame(r));
+  expect(document.activeElement).toBe(note);
+  fireEvent.click(within(panel).getByRole("button", { name: "Done" }));
+  await waitFor(() => expect(document.activeElement).toBe(scanner));
+  expect(scanner.disabled).toBe(false);
+  expect(panel.textContent).toContain("Note: Bled fish");
+  expect(within(panel).getByRole("button", { name: "Edit note (required)" })).toBeTruthy();
 });
 it("#87 a manager account signs off without a PIN", async () => {
   const rpc = setup(28, held, "manager");

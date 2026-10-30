@@ -31,17 +31,23 @@ export function memberState(state: HoldMember["state"]): string {
 /**
  * A variance hold covering the open intake (#87): the group in rollstock order with each
  * member's variance, and the manager sign-off (reason + note). Wet-glove: plain buttons, no
- * focus trap; the PIN overlay is the caller's.
+ * focus trap; the PIN overlay is the caller's. The note is typed in an explicit editing mode
+ * (`editingNote`): the caller pauses the station scanner while it is open, as for manual weight,
+ * so the scanner's focus capture cannot pull focus out of the field; Done hands focus back.
  */
 export function VarianceHoldPanel({
   group,
   openIntakeId,
   disabled,
+  editingNote,
+  onEditNote,
   onSignOff,
 }: {
   group: readonly HoldMember[];
   openIntakeId: string;
   disabled: boolean;
+  editingNote: boolean;
+  onEditNote: (open: boolean) => void;
   onSignOff: (reason: VarianceSignoffReason, note: string) => void;
 }) {
   const [reason, setReason] = useState<VarianceSignoffReason | null>(null);
@@ -85,17 +91,33 @@ export function VarianceHoldPanel({
           </button>
         ))}
       </fieldset>
-      <label>
-        Sign-off note{reason === "other" ? " (required)" : ""}
-        <input
-          value={note}
-          maxLength={SIGNOFF_NOTE_MAX}
-          onChange={(e) => setNote(e.target.value)}
-        />
-      </label>
+      {editingNote ? (
+        <>
+          <label>
+            Sign-off note{reason === "other" ? " (required)" : ""}
+            <input
+              autoFocus
+              value={note}
+              maxLength={SIGNOFF_NOTE_MAX}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </label>
+          <button type="button" onClick={() => onEditNote(false)}>
+            Done
+          </button>
+        </>
+      ) : (
+        <>
+          {note.trim() && <p>Note: {note}</p>}
+          <button type="button" disabled={disabled} onClick={() => onEditNote(true)}>
+            {note.trim() ? "Edit note" : "Add note"}
+            {reason === "other" ? " (required)" : ""}
+          </button>
+        </>
+      )}
       <button
         type="button"
-        disabled={disabled || reason === null || problem !== null}
+        disabled={disabled || editingNote || reason === null || problem !== null}
         onClick={() => reason && onSignOff(reason, note)}
       >
         Manager sign-off

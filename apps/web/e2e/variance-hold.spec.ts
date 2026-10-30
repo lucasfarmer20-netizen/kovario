@@ -64,9 +64,23 @@ test("variance hold: an over-limit send is refused, a manager signs off, then it
     ).toBeVisible();
   });
 
-  await test.step("sign-off: a manager picks a reason; the send then goes to blast", async () => {
+  await test.step("sign-off: Other + a typed note (scanner paused); the send then goes to blast", async () => {
     const hold = page.getByRole("region", { name: "Variance hold" });
-    await hold.getByRole("button", { name: "Trim-heavy" }).click();
+    await hold.getByRole("button", { name: "Other" }).click();
+    await hold.getByRole("button", { name: "Add note (required)" }).click();
+    const note = hold.getByLabel(/Sign-off note/);
+    await expect(note).toBeFocused();
+    // Real keystrokes into whatever has focus: they land in the note, not the scanner, and a
+    // tap on the field (pointerup) keeps focus there.
+    await page.keyboard.type("Short-weighted");
+    await note.click(); // lands mid-text; End puts the caret back after it
+    await page.keyboard.press("End");
+    await page.keyboard.type(" at intake");
+    await expect(note).toHaveValue("Short-weighted at intake");
+    await expect(note).toBeFocused();
+    await hold.getByRole("button", { name: "Done" }).click();
+    await expect(page.getByLabel("Station scanner")).toBeFocused();
+    await expect(hold).toContainText("Note: Short-weighted at intake");
     await hold.getByRole("button", { name: "Manager sign-off" }).click();
     await expect(page.getByText("Hold signed off")).toBeVisible();
     await expect(hold).toHaveCount(0);
