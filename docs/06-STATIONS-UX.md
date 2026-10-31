@@ -65,6 +65,32 @@ tote; counter `scanned / expected`; **Complete — Start Processing** enables at
 Big panel: OPEN AT ROLLSTOCK (intake number, species summary, tote X/Y, notes badges)
 and NEXT UP list. Scan loop per `04-BUSINESS-RULES.md §5`. One de-emphasised
 "Finish queue" button.
+**Design system** (UI pass, #128; `12-DESIGN-SYSTEM.md`; client side only, same RPC): the open
+order is the hero card: "Order INT-0002 · tote 1 of 2", species and the FAST PASS / DIRTY /
+RIBBING badges as chips, one pip per tote (`Tally`), the order's notes each with what it is about
+(dirty fish, cut, processing), and what to scan next. NEXT UP is below it as order tiles (species,
+totes, cooler bypass or processing, hours since drop-off). The step row is
+`1 Open an order · 2 Scan its totes · 3 Next order`; it ticks off as totes come in. Flow changes:
+- Finish queue stays outlined while scanning leads. Once every tote of the open order is in and
+  nothing is next up, the next step line is "Tap Finish queue" and it is the filled button.
+- A refusal for missing totes (a tote of the next order, or Finish queue, before every tote is
+  scanned) puts a **Missing totes** panel at the top of the work area with the next step line as a
+  warning ("Scan the missing tote for INT-0002"). It replaces the "Manager override" disclosure,
+  which had to be found and opened first. Scanning the missing tote clears it.
+- The override reason is typed in an explicit editing mode (**Add reason**, then **Done** or the
+  keyboard's Enter) that pauses the scanner, as for Reconcile's sign-off note; before, the
+  scanner took focus back from the reason field.
+- **Approve incomplete totes and finish** sends the refused tote with the approval, so the next
+  order opens in the same step (before, its tote was scanned again). A manager account approves
+  directly; anyone else enters a manager PIN, as before.
+- Finish queue and the approval go straight to the server: offline, they wait and say "Needs a
+  connection". While scans are sending they wait and say "Waiting for scans to send" (shown once
+  the wait lasts, so a quick round trip never flashes it).
+- A finished order says so in green: "Order INT-0002 sent to reconcile" (and which order opened).
+- First load shows placeholders in the final layout; a failed refresh says "Refresh unavailable;
+  check connection." An open order that moved on elsewhere reads "Open order not found", with
+  **Clear stale open order** as the step (it is no longer shown while a just-scanned order's
+  refresh is on its way). Orders left open at another station are listed to **Resume**.
 
 ## Reconcile (scan + scale)
 Queue (FIFO by `rollstock_done_at`); tap or scan a tote to open. Form: expected yield per

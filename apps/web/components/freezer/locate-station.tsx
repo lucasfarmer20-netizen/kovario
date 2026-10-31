@@ -5,6 +5,7 @@ import { StationShell } from "@/src/components/station/station-shell";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
 import { StationNotice } from "@/src/components/station/notice";
 import { useScanAction } from "@/src/components/station/use-scan-action";
+import { useLasting } from "@/src/components/station/use-lasting";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
 import { useManualOptions, withEntryMethod } from "@/src/components/station/manual-entry";
 import type { ScanReply, ScanRequest } from "@/src/components/station/scan-queue";
@@ -62,20 +63,6 @@ export function nextPending(
       species: reply.species ?? null,
     };
   return current;
-}
-
-/** `value`, once it has held for `ms` (false again at once when it drops). */
-function useLasting(value: boolean, ms: number): boolean {
-  const [held, setHeld] = useState(false);
-  useEffect(() => {
-    if (!value) return;
-    const timer = setTimeout(() => setHeld(true), ms);
-    return () => {
-      clearTimeout(timer);
-      setHeld(false);
-    };
-  }, [value, ms]);
-  return value && held;
 }
 
 export function LocateStation() {

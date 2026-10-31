@@ -22,3 +22,5 @@ export { BasketTile } from "./basket-tile";
 export { BasketRow } from "./basket-row";
 export { OrderTile } from "./order-tile";
 export { StationNotice, type NoticeTone } from "./notice";
+export { Tally } from "./tally";
+export { useLasting } from "./use-lasting";

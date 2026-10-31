@@ -1148,7 +1148,8 @@ form.station-manual .station-actions > button[type="button"] {
 }
 
 /* ---- Station components: order tile, basket tile, scale, variance meter ------------------- */
-.station button.st-order {
+.station button.st-order,
+.station div.st-order {
   display: grid;
   gap: 6px;
   width: 100%;
@@ -1172,7 +1173,8 @@ form.station-manual .station-actions > button[type="button"] {
   background: var(--st-brand-soft);
   box-shadow: inset 0 0 0 1px var(--st-brand);
 }
-.station button.st-order[data-held] {
+.station button.st-order[data-held],
+.station div.st-order[data-held] {
   border-left-color: var(--st-over);
 }
 .st-order-top {
@@ -1935,9 +1937,10 @@ form.station-manual .station-actions > button[type="button"] {
   color: var(--st-ink);
 }
 
-/* Hold and suspect panels */
+/* Hold and suspect panels; st-panel* are the same parts for any station (Rollstock missing totes) */
 .rc-hold,
-.rc-suspects {
+.rc-suspects,
+.st-panel {
   display: grid;
   gap: var(--st-3);
   border-top: 6px solid var(--st-over);
@@ -1953,7 +1956,8 @@ form.station-manual .station-actions > button[type="button"] {
   scroll-margin-top: var(--st-3);
 }
 .station .rc-hold p,
-.station .rc-suspects p {
+.station .rc-suspects p,
+.station .st-panel p {
   margin: 0;
 }
 .rc-panel-head {
@@ -1963,13 +1967,15 @@ form.station-manual .station-actions > button[type="button"] {
   justify-content: space-between;
   gap: var(--st-3);
 }
-.rc-panel-title {
+.rc-panel-title,
+.st-panel-title {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   column-gap: var(--st-3);
   align-items: center;
 }
-.rc-panel-icon {
+.rc-panel-icon,
+.st-panel-icon {
   grid-row: span 2;
   display: grid;
   place-items: center;
@@ -1983,7 +1989,8 @@ form.station-manual .station-actions > button[type="button"] {
   background: var(--st-brand-soft);
   color: var(--st-brand);
 }
-.rc-panel-kicker {
+.rc-panel-kicker,
+.st-panel-kicker {
   font-size: var(--st-fs-label);
   letter-spacing: 0.1em;
   color: var(--st-over);
@@ -1991,11 +1998,13 @@ form.station-manual .station-actions > button[type="button"] {
 .rc-suspects .rc-panel-kicker {
   color: var(--st-brand);
 }
-.rc-panel-sub {
+.rc-panel-sub,
+.st-panel-sub {
   font-size: var(--st-fs-title);
   font-weight: 750;
 }
-.rc-panel-lead {
+.rc-panel-lead,
+.st-panel-lead {
   color: var(--st-ink-2);
   font-size: var(--st-fs-label);
   font-weight: 550;
@@ -2052,15 +2061,18 @@ form.station-manual .station-actions > button[type="button"] {
   font-weight: 700;
   color: var(--st-ink-2);
 }
-.rc-note {
+.rc-note,
+.st-note {
   display: grid;
   gap: var(--st-2);
 }
-.rc-note label {
+.rc-note label,
+.st-note label {
   display: grid;
   gap: var(--st-2);
 }
-.rc-note-text {
+.rc-note-text,
+.st-note-text {
   padding: var(--st-2) var(--st-3);
   border-radius: var(--st-r-sm);
   background: var(--st-sunken);
@@ -2069,6 +2081,103 @@ form.station-manual .station-actions > button[type="button"] {
 .rc-problem {
   color: var(--st-over);
   font-weight: 650;
+}
+
+/* ---- Order parts (Rollstock first): tote tally, notes, flag chips ---------------------------- */
+/* The rest of a heading after the order number ("· tote 1 of 2"). */
+.st-item-sub {
+  color: var(--st-ink-2);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.st-facts li.st-fact-flag {
+  align-items: center;
+  border-color: var(--st-near-edge);
+  background: var(--st-near-soft);
+  color: var(--st-near);
+  letter-spacing: 0.04em;
+}
+/* Done of a known set: one pip per item, done ones filled and checked. */
+.st-tally {
+  display: flex;
+  gap: var(--st-2);
+  min-width: 0;
+}
+.st-tally-pip {
+  display: grid;
+  place-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 120px;
+  height: 40px;
+  border: 2px dashed var(--st-line-strong);
+  border-radius: var(--st-r-sm);
+  background: var(--st-sunken);
+  color: var(--st-on-brand);
+  transition:
+    background-color var(--st-dur-state) var(--st-ease),
+    border-color var(--st-dur-state) var(--st-ease);
+}
+.st-tally-pip[data-done] {
+  border-style: solid;
+  border-color: var(--st-brand);
+  background: var(--st-brand);
+  animation: st-pop var(--st-dur-enter) var(--st-ease-out);
+}
+.st-tally[data-complete] .st-tally-pip {
+  border-color: var(--st-within-edge);
+  background: var(--st-within-edge);
+}
+.st-tally-bar {
+  flex: 1;
+  height: 40px;
+  overflow: hidden;
+  border: 2px solid var(--st-line-strong);
+  border-radius: var(--st-r-sm);
+  background: var(--st-sunken);
+}
+.st-tally-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--st-brand);
+  transition: width var(--st-dur-enter) var(--st-ease-out);
+}
+.st-tally[data-complete] .st-tally-bar > span {
+  background: var(--st-within-edge);
+}
+/* An order's notes for the line: what each is about, then the note. */
+.st-notes {
+  display: grid;
+  gap: var(--st-2);
+  margin: 0;
+}
+.st-notes > div {
+  display: grid;
+  gap: 2px;
+  padding: var(--st-2) var(--st-3);
+  border-left: 4px solid var(--st-near-edge);
+  border-radius: var(--st-r-sm);
+  background: var(--st-sunken);
+}
+.st-notes dt {
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+  font-weight: 650;
+}
+.st-notes dd {
+  margin: 0;
+  font-size: var(--st-fs-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+/* A de-emphasised control at the foot of a card, its reason under it. */
+.st-finish {
+  display: grid;
+  justify-items: start;
+}
+.st-hero-empty .st-finish {
+  justify-items: center;
+  margin-top: var(--st-3);
 }
 .rc-suspects h4 {
   margin-top: var(--st-2);

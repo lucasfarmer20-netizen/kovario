@@ -10,7 +10,7 @@ in the same PR.
   colours (`bg-st-brand`, `text-st-ink-2`, …). shadcn `--primary` / `--ring` follow the brand.
 - **Components:** `apps/web/src/components/station/` (exported from `index.ts`).
 - **Gallery:** `/dev/station-gallery` shows the tokens, every component in every state, and
-  Reconcile, Blast and Locate in each of their states at 1280 × 800 and 400 px; each state is its
+  Reconcile, Blast, Locate and Rollstock in each of their states at 1280 × 800 and 400 px; each state is its
   own page (`/dev/station-gallery/<state>`). Static props, no DB. A new station adds its states
   here: its ids to `state-ids.ts`, its screens to `[state]/screen.tsx`, its frames with
   `StateFrames`.
@@ -138,9 +138,11 @@ shimmer stop.
 | `ScaleReadout` | Scale head: reading, its state in words (stable, reading used, no reading), the basket Accept writes to |
 | `BasketTile` | A basket: code, weight, and a scale / spinner / check at its right edge |
 | `BasketRow` | A basket in a list (Blast, Locate; Boxing next): name over a meta line (order · lb · time); the right edge is a hint, a status or one action, and `busy` puts a spinner there; with `onSelect` the whole row is a toggle (frame, **Selected**, `aria-pressed`) |
-| `OrderTile` | An order in a queue: number, HELD (lock + word), species, expected lb, age |
+| `OrderTile` | An order in a queue: number, HELD (lock + word), species, expected lb, age. Without `onOpen` it is a static tile, for a queue the station only shows (Rollstock's NEXT UP) |
+| `Tally` | Done of a known set: one pip per item (done ones filled and checked, all done green), one bar past 12. Rollstock's totes scanned; Wave's totes next |
 | `StationNotice` | An inline notice with a tone (ok / info / error) |
 | `QueueList` | Realtime queue list |
+| `useLasting` | A value once it has held for a while: a "Waiting for scans to send" reason shows only once the wait lasts (Locate, Rollstock) |
 
 Shared classes: buttons are filled by default (brand); `st-btn-secondary` (outlined),
 `st-btn-quiet`, `st-btn-danger` (red outline), `st-btn-hero` (72 px), `st-btn-block`. Older
@@ -150,7 +152,13 @@ Card parts (the same rules as Reconcile's `rc-*` parts): `st-card-head` + `st-co
 card's heading and its count), `st-list` (rows or tiles), `st-empty` (an empty list: icon, what is
 missing, where it comes from), `st-hero-empty` + `st-hero-art` (nothing open: art, what to scan),
 `st-item` / `st-item-head` / `st-facts` (the open item: its name, then its facts as chips),
-`st-expect` (a dashed box saying what the station waits for), `st-skeleton-list`.
+`st-expect` (a dashed box saying what the station waits for), `st-skeleton-list`. With them:
+`st-item-sub` (the rest of an item heading after its code, "· tote 1 of 2"), `st-fact-flag` (a
+flag chip in `st-facts`: FAST PASS, DIRTY), `st-notes` (an order's notes, each a `dt` saying what
+it is about and the note), `st-finish` (a de-emphasised control at the foot of a card, its reason
+under it). Panels that take the top of the work area (`st-panel`, `st-panel-title` /
+`-icon` / `-kicker` / `-sub` / `-lead`, and `st-note` / `st-note-text` for a note typed in an
+editing mode) are Reconcile's hold-panel rules under station-neutral names.
 `StationShell` takes `defaultManualOpen` so a gallery state can show **Enter manually** open.
 
 ### Lists that rank
@@ -166,6 +174,9 @@ Each one appears in the station's gallery entry. A station without the thing a s
 shows its nearest case and says so in the gallery note: Blast and Locate have no scale or printer,
 so *device offline* is a dead scanner (**Enter manually** open); they have no manager path, so
 *held* is Blast's over-limit line (informational there: a held order never reaches the blast).
+Rollstock has no scale or printer either (*device offline* is a dead scanner); its *held* is the
+**Missing totes** panel (a manager approves an order short of totes), and its *empty item* is an
+order just opened by its first tote (an order cannot open with none scanned).
 
 | State | Expectation |
 | --- | --- |
