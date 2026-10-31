@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   scan: vi.fn(),
   pending: 0,
   send: null as null | ((request: ScanRequest) => Promise<unknown>),
+  /** Runs after each ranged wave_scan page is served (a scan landing between pages). */
+  afterPage: null as null | ((from: number) => void),
 }));
 vi.mock("@/components/intake/use-station-session", () => ({
   useStationSession: () => ({ session: mocks.session, loaded: true }),
@@ -24,6 +26,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   mocks.pending = 0;
+  mocks.afterPage = null;
 });
 function setup(scanned = 0, state = "verifying", historicalScans = 0, activeTotes = 2) {
   const intakes = [
@@ -105,8 +108,10 @@ function setup(scanned = 0, state = "verifying", historicalScans = 0, activeTote
           // PostgREST caps returned rows at 1000 (also within a range), but exact HEAD counts
           // cover the full set.
           const [from, to] = range ?? [0, rows.length];
+          const data = countOnly ? null : rows.slice(from, Math.min(to + 1, from + 1000));
+          if (range) mocks.afterPage?.(from);
           return Promise.resolve({
-            data: countOnly ? null : rows.slice(from, Math.min(to + 1, from + 1000)),
+            data,
             count: countOnly ? rows.length : null,
             error: null,
           }).then(resolve);
@@ -128,7 +133,7 @@ function setup(scanned = 0, state = "verifying", historicalScans = 0, activeTote
     claims: { orgId: "org", userId: "staff", appRole: "staff", deviceId: null },
     siteName: "Main",
   };
-  return { rpc };
+  return { rpc, tables };
 }
 it("WP10 holding FIFO suggestion shows age, species, flags and permits manual adjustment", async () => {
   const { rpc } = setup();
@@ -413,4 +418,30 @@ it("#127 tote ticks read every page: a wave past the 1000-row cap shows no accep
     expect(within(orders).getByRole("listitem").textContent).toContain("1201 / 1201 totes"),
   );
   expect(within(orders).getByRole("listitem").hasAttribute("data-done")).toBe(true);
+});
+
+it("#127 a scan landing between tote pages never counts the repeated row as another tote", async () => {
+  // INT-0003 has 1001 totes, 1000 scanned (1–1000): one page exactly, so a second is read.
+  const { tables } = setup(1000, "verifying", 0, 1001);
+  const scans = tables.wave_scan as { wave_id: string; intake_id: string; tote_no: number }[];
+  mocks.afterPage = (from) => {
+    // After the first page: a scan sorting before the boundary (order i0 < i3) shifts the
+    // rest, so the second page starts with INT-0003 tote 1000 again.
+    if (from === 0 && !scans.some((s) => s.intake_id === "i0"))
+      scans.splice(
+        scans.findIndex((s) => s.wave_id === "w1"),
+        0,
+        {
+          wave_id: "w1",
+          intake_id: "i0",
+          tote_no: 1,
+        },
+      );
+  };
+  render(<WaveStation />);
+  const orders = await screen.findByRole("list", { name: "Orders in this wave" });
+  const order = within(orders).getByRole("listitem");
+  await waitFor(() => expect(order.textContent).toContain("1000 / 1001 totes"));
+  // Tote 1001 is still missing: the order is not done.
+  expect(order.hasAttribute("data-done")).toBe(false);
 });

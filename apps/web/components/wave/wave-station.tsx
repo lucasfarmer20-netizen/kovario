@@ -85,14 +85,16 @@ export const TOTE_PAGE = 1000;
 /**
  * Every tote scanned into the open waves, a page at a time in the table's unique key order
  * (wave, order, tote), so a big wave never shows an accepted tote as still to scan. A scan
- * landing mid-read can only push a row onto the next page (seen twice, harmless), never skip one.
+ * landing mid-read pushes rows onto the next page, so its first row repeats the last one read:
+ * rows are kept once per (wave, order, tote), the table's unique key, so a repeat never counts
+ * as another tote. (Such a scan is picked up by the next refresh.)
  */
 async function toteScans(
   client: StationSession["client"],
   waveIds: readonly string[],
 ): Promise<ToteScan[]> {
-  const rows: ToteScan[] = [];
-  if (!waveIds.length) return rows;
+  const rows = new Map<string, ToteScan>();
+  if (!waveIds.length) return [];
   for (let from = 0; ; from += TOTE_PAGE) {
     const { data, error } = await client
       .from("wave_scan")
@@ -103,8 +105,8 @@ async function toteScans(
       .order("tote_no")
       .range(from, from + TOTE_PAGE - 1);
     if (error || !data) throw new Error("Wave scan count unavailable");
-    rows.push(...data);
-    if (data.length < TOTE_PAGE) return rows;
+    for (const row of data) rows.set(`${row.wave_id}:${row.intake_id}:${row.tote_no}`, row);
+    if (data.length < TOTE_PAGE) return [...rows.values()];
   }
 }
 
