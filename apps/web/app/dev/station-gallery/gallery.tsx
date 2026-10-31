@@ -1,8 +1,9 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { Check, Plus, Snowflake, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Plus, ScanBarcode, Snowflake, Trash2 } from "lucide-react";
 import { BandChip, VarianceMeter } from "@/src/components/station/band";
 import { BasketTile } from "@/src/components/station/basket-tile";
+import { BasketRow } from "@/src/components/station/basket-row";
 import { ConnectionChip } from "@/src/components/station/connection-chip";
 import { ManualEntry } from "@/src/components/station/manual-entry";
 import { DisabledReason, NextStep } from "@/src/components/station/next-step";
@@ -12,6 +13,8 @@ import { ManagerPinOverlay, OperatorPinOverlay } from "@/src/components/station/
 import { ScaleReadout } from "@/src/components/station/scale-readout";
 import { FeedbackBanner } from "@/src/components/station/scan-feedback";
 import { GALLERY_STATES } from "./reconcile-states";
+import { BLAST_STATES, LOCATE_STATES } from "./freezer-states";
+import { StateFrames } from "./state-frames";
 import { WAVE_GALLERY_STATES } from "./wave-states";
 
 const STEPS = ["Add baskets", "Weigh", "Send to Blast"] as const;
@@ -100,6 +103,8 @@ export function StationGallery() {
           <a href="#tokens">Tokens</a>
           <a href="#components">Components</a>
           <a href="#reconcile">Reconcile</a>
+          <a href="#blast">Blast</a>
+          <a href="#locate">Locate</a>
           <a href="#wave">Wave</a>
         </nav>
       </header>
@@ -375,6 +380,74 @@ export function StationGallery() {
       </Section>
 
       <Section
+        title="Basket rows"
+        note="A basket in a list (Blast, Locate): name over a meta line, and the right edge says what happens to it. As a tap target it toggles: a frame and Selected."
+      >
+        <div className="st-gallery-grid">
+          <Specimen label="To scan">
+            <BasketRow
+              code="042"
+              meta={["INT-2141", "22.4 lb", "waiting 0h 12m"]}
+              end={
+                <>
+                  <ScanBarcode size={22} aria-hidden />
+                  Scan
+                </>
+              }
+            />
+          </Specimen>
+          <Specimen label="With an action">
+            <BasketRow
+              code={null}
+              meta={["INT-2141", "1.8 lb"]}
+              end={
+                <button type="button" className="st-btn-secondary">
+                  <Snowflake size={20} aria-hidden />
+                  Blast in
+                </button>
+              }
+            />
+          </Specimen>
+          <Specimen label="Sending">
+            <BasketRow code={null} meta={["INT-2141", "1.8 lb"]} busy />
+          </Specimen>
+          <Specimen label="Status">
+            <BasketRow
+              code="005"
+              meta={["INT-2138", "31.2 lb"]}
+              end={
+                <>
+                  <Snowflake size={20} aria-hidden />
+                  <span className="st-num">3h 40m</span>
+                </>
+              }
+            />
+          </Specimen>
+          <Specimen label="Tap target">
+            <BasketRow
+              code={null}
+              meta={["INT-2141", "1.8 lb", "not blasted in"]}
+              onSelect={noop}
+              end={
+                <>
+                  Select
+                  <ChevronRight size={22} aria-hidden />
+                </>
+              }
+            />
+          </Specimen>
+          <Specimen label="Tap target, selected">
+            <BasketRow
+              code={null}
+              meta={["INT-2138", "4.6 lb", "in blast 3h 38m"]}
+              selected
+              onSelect={noop}
+            />
+          </Specimen>
+        </div>
+      </Section>
+
+      <Section
         title="Queue"
         note="Number as on the tote, HELD in words with a lock, summary and time waiting."
       >
@@ -457,39 +530,28 @@ export function StationGallery() {
         </div>
       </Section>
 
+      <div id="blast" />
+      <Section
+        title="Blast, every state"
+        note="One step (scan each basket going in), so no step row. The work is the released baskets; the rail has the orders in the blast with their band and meter."
+      >
+        <StateFrames states={BLAST_STATES} />
+      </Section>
+
+      <div id="locate" />
+      <Section
+        title="Locate, every state"
+        note="Two steps: scan basket, then its location. Exchange baskets are one tap each, in both steps."
+      >
+        <StateFrames states={LOCATE_STATES} />
+      </Section>
+
       <div id="wave" />
       <Section
         title="Wave, every state"
-        note="Tap orders into the wave, scan each tote, Complete wave. Same frames as Reconcile; each is the live page for that state."
+        note="Tap orders into the wave, scan each tote, Complete wave. The forward action sits under the card, above the wave's orders."
       >
-        <div className="st-gallery-states">
-          {WAVE_GALLERY_STATES.map((s) => (
-            <article key={s.id} className="st-gallery-state">
-              <header>
-                <h3>
-                  <a href={`/dev/station-gallery/wave/${s.id}`}>{s.title}</a>
-                </h3>
-                <p className="st-gallery-note">{s.note}</p>
-              </header>
-              <div className="st-gallery-frames">
-                <div className="st-frame st-frame-tablet">
-                  <iframe
-                    title={`Wave: ${s.title} at 1280 px`}
-                    src={`/dev/station-gallery/wave/${s.id}`}
-                    loading="lazy"
-                  />
-                </div>
-                <div className="st-frame st-frame-phone">
-                  <iframe
-                    title={`Wave: ${s.title} at 400 px`}
-                    src={`/dev/station-gallery/wave/${s.id}`}
-                    loading="lazy"
-                  />
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
+        <StateFrames states={WAVE_GALLERY_STATES} />
       </Section>
     </main>
   );

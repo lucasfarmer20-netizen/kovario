@@ -10,10 +10,10 @@ in the same PR.
   colours (`bg-st-brand`, `text-st-ink-2`, …). shadcn `--primary` / `--ring` follow the brand.
 - **Components:** `apps/web/src/components/station/` (exported from `index.ts`).
 - **Gallery:** `/dev/station-gallery` shows the tokens, every component in every state, and
-  Reconcile in each of its states at 1280 × 800 and 400 px; each state is its own page
-  (`/dev/station-gallery/<state>`). Static props, no DB. A new station adds its states here,
-  each at `/dev/station-gallery/<station>/<state>` (Wave: `/dev/station-gallery/wave/scanning`),
-  with its state ids in `<station>-state-ids.ts` so `e2e/station-gallery.spec.ts` checks them.
+  Reconcile, Blast, Locate and Wave in each of their states at 1280 × 800 and 400 px; each state is its
+  own page (`/dev/station-gallery/<state>`). Static props, no DB. A new station adds its states
+  here: its ids to `state-ids.ts`, its screens to `[state]/screen.tsx`, its frames with
+  `StateFrames`.
 
 ## Principles
 
@@ -125,8 +125,8 @@ shimmer stop.
 
 | Component | What it is |
 | --- | --- |
-| `StationShell` | Full-screen frame: console bar (station, site, operator chip, `ConnectionChip`), command area (next step + scan feedback), one `ScanInput`; `nextTone` for warnings; `defaultManualOpen` opens Enter manually (gallery previews) |
-| `NextStep` | Step row (done steps show a check, current has `aria-current="step"`) and the next step line |
+| `StationShell` | Full-screen frame: console bar (station, site, operator chip, `ConnectionChip`), command area (next step + scan feedback), one `ScanInput`; `nextTone` for warnings |
+| `NextStep` | Step row (done steps show a check, current has `aria-current="step"`) and the next step line. A one-step station (Blast) has no step row (docs/11 prompt grammar 3) |
 | `DisabledReason` | The why under a disabled control |
 | `ScanInput` | The single hidden-but-focused scanner input |
 | `ScanFeedback` / `FeedbackBanner` | The fixed-height feedback tile (idle reads *Scanner ready* or paused, from the shell's `ScannerPaused` context) |
@@ -134,21 +134,26 @@ shimmer stop.
 | `OperatorPinOverlay` / `ManagerPinOverlay` | Non-modal PIN sheets with 64 px keys; focus returns to the scanner |
 | `ConnectionChip` / `useOnline` | *All sent* → *N pending* (amber) → *Offline · N pending* (red) |
 | `BandChip` | A variance band as tint + edge + shape + words |
-| `VarianceMeter` | The −100% to +100% meter above |
+| `VarianceMeter` | The −100% to +100% meter above; `compact` drops the scale, for a list whose lines each say their figure and band (Blast's "now in blast" lines, `NowInBlastList meter`) |
 | `ScaleReadout` | Scale head: reading, its state in words (stable, reading used, no reading), the basket Accept writes to |
 | `BasketTile` | A basket: code, weight, and a scale / spinner / check at its right edge |
+| `BasketRow` | A basket in a list (Blast, Locate; Boxing next): name over a meta line (order · lb · time); the right edge is a hint, a status or one action, and `busy` puts a spinner there; with `onSelect` the whole row is a toggle (frame, **Selected**, `aria-pressed`) |
 | `OrderTile` | An order in a queue: number, HELD (lock + word), species, expected lb, age; `pressed` makes it a toggle (frame + *Added* with a check + `aria-pressed`, Wave), `flags` adds badges (FAST PASS, DIRTY, RIBBING) |
 | `CountProgress` | A count toward a total, *3 / 5 totes*: readout-size figure, what is left in words, a bar that fills; green with a check at parity (Wave; Rollstock and Boxing count the same way) |
 | `StationNotice` | An inline notice with a tone (ok / info / error) |
 | `QueueList` | Realtime queue list |
 
 Shared classes: buttons are filled by default (brand); `st-btn-secondary` (outlined),
-`st-btn-quiet`, `st-btn-danger` (red outline), `st-btn-hero` (72 px), `st-btn-block`. Layout
-pieces shared by every station (Reconcile's `rc-*` rules carry these names too): `st-rail` /
-`st-main` (the queue rail and work column), `st-card-title` (a title with an `st-count` pill),
-`st-list`, `st-skeleton-list` / `st-skeleton-stack` (loading), `st-empty` (an empty queue) and
-`st-card-head` (eyebrow + heading with an action on the right). Older
+`st-btn-quiet`, `st-btn-danger` (red outline), `st-btn-hero` (72 px), `st-btn-block`. Older
 `station-*` classes stay as aliases for screens not yet on the system.
+
+Card parts (the same rules as Reconcile's `rc-*` parts): `st-card-head` + `st-count` (a list
+card's heading and its count), `st-list` (rows or tiles), `st-empty` (an empty list: icon, what is
+missing, where it comes from), `st-hero-empty` + `st-hero-art` (nothing open: art, what to scan),
+`st-item` / `st-item-head` / `st-facts` (the open item: its name, then its facts as chips),
+`st-expect` (a dashed box saying what the station waits for), `st-skeleton-list` (a loading
+list) and `st-skeleton-stack` (a loading card).
+`StationShell` takes `defaultManualOpen` so a gallery state can show **Enter manually** open.
 
 ### Lists that rank
 
@@ -159,7 +164,10 @@ the UI renders them as given (AGENTS rule 8). Example: the suspect picker shows
 
 ## States every station must design
 
-Each one appears in the station's gallery entry.
+Each one appears in the station's gallery entry. A station without the thing a state is about
+shows its nearest case and says so in the gallery note: Blast and Locate have no scale or printer,
+so *device offline* is a dead scanner (**Enter manually** open); they have no manager path, so
+*held* is Blast's over-limit line (informational there: a held order never reaches the blast).
 
 | State | Expectation |
 | --- | --- |
@@ -177,7 +185,7 @@ Each one appears in the station's gallery entry.
 
 ### Wave (#127)
 
-How Wave meets each state above (gallery: `/dev/station-gallery/wave/<state>`):
+How Wave meets each state above (gallery: `/dev/station-gallery/wave-<state>`):
 
 | State | Wave |
 | --- | --- |
@@ -197,6 +205,10 @@ How Wave meets each state above (gallery: `/dev/station-gallery/wave/<state>`):
 
 - **Landscape tablet (1280 × 800)** is the primary target: queue rail + work area, no scroll for
   the common path.
+- **Floor layout classes:** `st-floor` holds `st-main` (the work: first in the markup, a size
+  container) and an optional `st-rail` (left of the work from 1100 px, after it on a phone);
+  `st-columns` puts two lists side by side once `st-main` is 760 px wide (Blast, Locate).
+  Reconcile's `rc-floor` is the same grid.
 - **Phone (400 px)**: a single column with the hero controls right under the item header; the
   forward action pins to the bottom only when it can be used.
 - No horizontal scrolling at either size, in any state. Containers use `minmax(0, 1fr)` and

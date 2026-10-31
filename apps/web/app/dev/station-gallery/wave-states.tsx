@@ -88,37 +88,37 @@ export type WaveGalleryState = {
 
 export const WAVE_GALLERY_STATES: WaveGalleryState[] = [
   {
-    id: "loading",
+    id: "wave-loading",
     title: "Loading",
     note: "Placeholders hold the layout while the first load is out; nothing jumps when it lands.",
     loading: true,
   },
   {
-    id: "pin",
+    id: "wave-pin",
     title: "Operator needed",
     note: "Identify operator (salmon) and the PIN sheet; the floor stays visible behind it. Wave has no manager gate.",
     operator: null,
     pin: true,
   },
   {
-    id: "empty-queue",
+    id: "wave-empty-queue",
     title: "Cooler empty",
     note: "No orders waiting: the queue says where orders come from; Start Verification says why it waits.",
     queue: [],
   },
   {
-    id: "no-selection",
+    id: "wave-no-selection",
     title: "Nothing tapped",
     note: "The cooler queue oldest first, with age and FAST PASS / DIRTY / RIBBING. Tap orders, or Suggest FIFO fill.",
   },
   {
-    id: "selecting",
+    id: "wave-selecting",
     title: "Orders tapped",
     note: "Tapped orders are framed with Added and a check; the weight shows against the target band (a suggestion, no verdict).",
     selected: ["i1", "i2", "i3"],
   },
   {
-    id: "started",
+    id: "wave-started",
     title: "Wave started, no totes yet",
     note: "One tap created the wave and started verification. Every tote is expected; Complete says why it waits.",
     wave: wave("verifying", []),
@@ -126,28 +126,28 @@ export const WAVE_GALLERY_STATES: WaveGalleryState[] = [
     notice: { tone: "ok", text: "Wave started. Scan each tote." },
   },
   {
-    id: "scanning",
+    id: "wave-scanning",
     title: "Scanning totes",
     note: "Accept in the scan tile; the count and each order's totes tick off as they land.",
     wave: wave("verifying", [[1, 2, 3], [1], []]),
     feedback: { tone: "ok", text: "Tote accepted" },
   },
   {
-    id: "manual-tote",
+    id: "wave-manual-tote",
     title: "Scanner down: Enter manually",
     note: "Wave has no scale or printer; with the scanner down, the tote number is typed. The scanner pauses while the field is open.",
     wave: wave("verifying", [[1, 2, 3], [1], []]),
     manualOpen: true,
   },
   {
-    id: "rejected",
+    id: "wave-rejected",
     title: "Rejected scan",
     note: "Says why, then what to do; red, a cross and a shake, in the same tile as accepts.",
     wave: wave("verifying", [[1, 2, 3], [1], []]),
     feedback: { tone: "rejected", text: "Tote not found. Scan a tote from this wave." },
   },
   {
-    id: "ready",
+    id: "wave-ready",
     title: "Every tote scanned",
     note: "Parity: the count turns green with a check and Complete is the one thing left.",
     wave: wave("verifying", [
@@ -158,7 +158,7 @@ export const WAVE_GALLERY_STATES: WaveGalleryState[] = [
     feedback: { tone: "ok", text: "Tote accepted" },
   },
   {
-    id: "refused",
+    id: "wave-refused",
     title: "Complete refused",
     note: "The reply leads the next step line in red; Complete is restyled and Cancel wave becomes the filled way forward.",
     wave: wave("verifying", [
@@ -170,19 +170,19 @@ export const WAVE_GALLERY_STATES: WaveGalleryState[] = [
     notice: { tone: "error", text: REFUSAL },
   },
   {
-    id: "draft",
+    id: "wave-draft",
     title: "Wave not started",
     note: "A wave whose start did not go through stays in draft, with Start Verification on it.",
     wave: wave("draft", []),
   },
   {
-    id: "done",
+    id: "wave-done",
     title: "Wave complete",
     note: "Green confirmation under the scan tile; the next wave is live straight away.",
     notice: { tone: "ok", text: "Wave WAVE-0012 complete. Its orders are in processing." },
   },
   {
-    id: "offline",
+    id: "wave-offline",
     title: "Offline · 3 pending",
     note: "Scans are kept on the tablet; Complete and Cancel need the server, and say so.",
     wave: wave("verifying", [
@@ -198,6 +198,12 @@ export const WAVE_GALLERY_STATES: WaveGalleryState[] = [
     },
   },
 ];
+
+/** The Wave screen for a gallery state id, or null when the id is another station's. */
+export function WaveGalleryScreen({ id }: { id: string }) {
+  const state = WAVE_GALLERY_STATES.find((s) => s.id === id);
+  return state ? <WaveScreen state={state} /> : null;
+}
 
 /** A whole Wave screen in one gallery state, as the live station renders it. */
 export function WaveScreen({ state }: { state: WaveGalleryState }) {

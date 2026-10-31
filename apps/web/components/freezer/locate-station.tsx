@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useStationSession, type StationSession } from "@/components/intake/use-station-session";
 import { StationShell } from "@/src/components/station/station-shell";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
+import { StationNotice } from "@/src/components/station/notice";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
 import { useManualOptions, withEntryMethod } from "@/src/components/station/manual-entry";
@@ -14,6 +15,7 @@ import {
   type FreezerReply,
 } from "./use-freezer-operator";
 import { FREEZER_INTAKE_STATES, useVesselRefresh } from "./live-vessels";
+import { LOCATE_STEPS, LocateView, locateNextStep } from "./locate-view";
 
 export type PendingVessel = {
   /** Vessel step 1 resolved. Tags are reusable: step 2 places only this vessel. */
@@ -62,6 +64,20 @@ export function nextPending(
   return current;
 }
 
+/** `value`, once it has held for `ms` (false again at once when it drops). */
+function useLasting(value: boolean, ms: number): boolean {
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    if (!value) return;
+    const timer = setTimeout(() => setHeld(true), ms);
+    return () => {
+      clearTimeout(timer);
+      setHeld(false);
+    };
+  }, [value, ms]);
+  return value && held;
+}
+
 export function LocateStation() {
   const { session, loaded } = useStationSession();
   if (!loaded) return <main className="station">Opening locate station…</main>;
@@ -79,7 +95,8 @@ export function LocateStation() {
  * Two-step loop: scan a vessel tag (shows intake and species), then scan a location; the
  * placement is written and both steps reset. Archived / unknown locations are rejected by
  * the server. No capacity hints and no fill guidance: the crew chooses F or R. An exchange
- * basket has no tag: step 1 is a tap on the list below, keyed by vessel id (issue #86).
+ * basket has no tag: step 1 is a tap on the list below, keyed by vessel id (issue #86). The list
+ * stays in step 2 with the chosen basket framed, so another tap (or scan) switches baskets (#129).
  */
 function LiveLocate({ client, claims, siteName }: StationSession) {
   const scope = `${claims.orgId}:${claims.userId}:locate`;
@@ -96,6 +113,16 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
     [scope],
   );
   const [exchange, setExchange] = useState<ExchangeVessel[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [message, setMessage] = useState("");
+  // The exchange basket tapped, its reply not back yet (a spinner on its row).
+  const [selecting, setSelecting] = useState<string | null>(null);
+  // The tap is done with (never queued, refused for good, or answered): drop its spinner. A tap
+  // still queued for a retry keeps it.
+  const settle = useCallback(
+    (vesselId: string | undefined) => setSelecting((id) => (id === vesselId ? null : id)),
+    [],
+  );
   const [now, setNow] = useState(() => new Date());
   const refresh = useCallback(async () => {
     const { data, error } = await client
@@ -110,9 +137,15 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
     if (error) throw new Error("Locate refresh unavailable");
     setExchange((data ?? []) as ExchangeVessel[]);
     setNow(new Date());
+    setMessage("");
   }, [client]);
   const reload = useCallback(() => {
-    void refresh().catch(() => setExchange([]));
+    void refresh()
+      .catch(() => {
+        setExchange([]);
+        setMessage("Refresh unavailable; check connection.");
+      })
+      .finally(() => setLoaded(true));
   }, [refresh]);
   useVesselRefresh(client, claims.orgId, scope, reload);
   useEffect(() => {
@@ -147,39 +180,52 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
           );
       if (error) {
         const rejection = permanentScanFailure(error);
-        if (rejection) return rejection;
+        if (rejection) {
+          settle(request.vessel_id);
+          return rejection;
+        }
         throw new Error("Scan delivery unavailable");
       }
       const reply = freezerReply(data);
       remember(nextPending(current, reply));
+      settle(request.vessel_id);
       if (reply.reason === "operator_pin_required") expire();
       if (reply.placed) void refresh().catch(() => undefined);
       return reply;
     },
-    [client, expire, refresh, remember, scope],
+    [client, expire, refresh, remember, scope, settle],
   );
   const { scan, pending, feedback } = useScanAction(scope, send);
   const manual = useManualOptions(client, claims.orgId);
   const select = (vesselId: string) => {
-    if (op.allowed())
+    if (pendingVessel?.id === vesselId) return;
+    if (op.allowed()) {
+      setSelecting(vesselId);
       void scan({
         raw: "",
         vessel_id: vesselId,
         station: "locate",
         client_action_id: crypto.randomUUID(),
         operator_session: op.proof,
+      }).then((queued) => {
+        if (!queued) settle(vesselId);
       });
+    }
   };
   const cancel = async () => {
     await navigator.locks.request(`scan-delivery:${scope}`, () => remember(null));
   };
-  const basket = pendingVessel
-    ? pendingVessel.tag
-      ? `Basket ${pendingVessel.tag}`
-      : pendingVessel.raw === ""
-        ? "Exchange basket"
-        : "Basket"
-    : null;
+  const basket = pendingVessel && {
+    id: pendingVessel.id,
+    code: pendingVessel.tag,
+    exchange: !pendingVessel.tag && pendingVessel.raw === "",
+    order: pendingVessel.intake,
+    species: pendingVessel.species,
+  };
+  const prompt = locateNextStep(basket, exchange.length);
+  // Taps wait while scans are sending; the reason shows only once they stay pending, so a quick
+  // round trip never flashes it (the buttons themselves grey out after 200 ms, docs/12).
+  const waiting = useLasting(pending > 0, 600);
   return (
     <StationShell
       name="Locate"
@@ -187,17 +233,16 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
       operator={op.operator}
       pending={pending}
       paused={op.pinOpen}
-      next={
-        basket
-          ? `Scan location for ${basket[0]!.toLowerCase()}${basket.slice(1)}`
-          : exchange.length > 0
-            ? "Scan basket or tap an exchange basket"
-            : "Scan basket"
-      }
-      steps={["Scan basket", "Scan location"]}
-      step={pendingVessel ? 1 : 0}
+      next={prompt.next}
+      steps={LOCATE_STEPS}
+      step={prompt.step}
       manualLabel={pendingVessel ? "Location (IF-A-01-1-F)" : "Basket number"}
-      status={<ScanFeedback feedback={feedback} />}
+      status={
+        <>
+          <ScanFeedback feedback={feedback} idle />
+          <StationNotice text={message} tone="error" />
+        </>
+      }
       manual={{ ...manual, accept: ["TAG", "LOC"] }}
       onScan={(raw, _parsed, method) => {
         if (op.allowed())
@@ -210,46 +255,19 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
           });
       }}
     >
-      <section className="station-card" aria-label="Locate step">
-        {pendingVessel ? (
-          <>
-            <h2>STEP 2 — SCAN LOCATION</h2>
-            <h3 className="text-5xl">{basket}</h3>
-            <p className="text-3xl">{pendingVessel.intake}</p>
-            {pendingVessel.species && <p>{pendingVessel.species}</p>}
-            <button disabled={pending > 0} onClick={() => void cancel()}>
-              Scan a different basket
-            </button>
-          </>
-        ) : (
-          <>
-            <h2>STEP 1 — SCAN BASKET</h2>
-            <p>Scan the basket, then its shelf or pallet location.</p>
-          </>
-        )}
-      </section>
-      {!pendingVessel && exchange.length > 0 && (
-        <section className="station-card" aria-label="Exchange baskets">
-          <h2>EXCHANGE BASKETS ({exchange.length})</h2>
-          <p>Tap the basket you are holding, then scan its location.</p>
-          <ul>
-            {exchange.map((v) => (
-              <li key={v.id} className="text-2xl">
-                Exchange basket · {v.intake?.number} · {v.weight_lb} lb ·{" "}
-                {v.blast_in_at ? `in blast ${timeIn(v.blast_in_at, now)}` : "not blasted in"}{" "}
-                <button
-                  type="button"
-                  disabled={pending > 0}
-                  aria-label={`Select exchange basket ${v.intake?.number ?? ""}`.trim()}
-                  onClick={() => select(v.id)}
-                >
-                  Select
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <LocateView
+        loading={!loaded}
+        basket={basket}
+        exchange={exchange.map((v) => ({
+          id: v.id,
+          order: v.intake?.number ?? "",
+          weightLb: v.weight_lb,
+          blast: v.blast_in_at ? `in blast ${timeIn(v.blast_in_at, now)}` : "not blasted in",
+        }))}
+        selecting={selecting}
+        why={waiting ? "Waiting for scans to send" : pending > 0 ? "" : null}
+        on={{ select, change: () => void cancel() }}
+      />
       {op.overlay}
     </StationShell>
   );

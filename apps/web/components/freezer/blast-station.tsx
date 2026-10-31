@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { useStationSession, type StationSession } from "@/components/intake/use-station-session";
 import { StationShell } from "@/src/components/station/station-shell";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
+import { StationNotice } from "@/src/components/station/notice";
 import { useScanAction } from "@/src/components/station/use-scan-action";
 import { permanentScanFailure } from "@/src/components/station/scan-failure";
 import { useManualOptions, withEntryMethod } from "@/src/components/station/manual-entry";
@@ -10,6 +11,7 @@ import type { ScanReply, ScanRequest } from "@/src/components/station/scan-queue
 import { freezerReply, timeIn, useFreezerOperator } from "./use-freezer-operator";
 import { FREEZER_INTAKE_STATES, useVesselRefresh } from "./live-vessels";
 import { NowInBlastList, useNowInBlast } from "@/components/variance/now-in-blast";
+import { BlastView, blastNextStep } from "./blast-view";
 
 type InBlast = {
   id: string;
@@ -51,7 +53,8 @@ export function BlastStation() {
 
 /**
  * Scan a vessel tag → blast_in_at. Untagged exchange vessels have no tag to scan: they are
- * blasted in from the "waiting" list by tap (issue #86). Informational; no gate on time in blast.
+ * blasted in from the "waiting" list by tap (issue #86); the tapped row shows a spinner at once
+ * and leaves the list when the refresh confirms it (#129). Informational; no gate on time in blast.
  */
 function LiveBlast({ client, claims, siteName }: StationSession) {
   const scope = `${claims.orgId}:${claims.userId}:blast`;
@@ -60,6 +63,9 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
   const [vessels, setVessels] = useState<InBlast[]>([]);
   const [waiting, setWaiting] = useState<WaitingVessel[]>([]);
   const [message, setMessage] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  // Exchange baskets whose Blast in is on its way (optimistic: the row says so in the same frame).
+  const [blasting, setBlasting] = useState<string[]>([]);
   const [now, setNow] = useState(() => new Date());
   const refresh = useCallback(async () => {
     const [inBlast, released] = await Promise.all([
@@ -85,12 +91,21 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
     setVessels((inBlast.data ?? []) as InBlast[]);
     setWaiting(waitingOrder((released.data ?? []) as WaitingVessel[]));
     setNow(new Date());
+    setMessage("");
   }, [client]);
   const reload = useCallback(() => {
-    void refresh().catch(() => setMessage("Refresh unavailable; check connection."));
+    void refresh()
+      .catch(() => setMessage("Refresh unavailable; check connection."))
+      .finally(() => setLoaded(true));
   }, [refresh]);
   useVesselRefresh(client, claims.orgId, scope, reload);
   const blastLines = useNowInBlast(client, claims.orgId, scope);
+  // A Blast in tap stays busy while it is queued (sending, or waiting to retry); it clears once the
+  // tap is done with: never queued, refused for good, or answered (after the refresh it triggers).
+  const settle = useCallback(
+    (vesselId: string | undefined) => setBlasting((ids) => ids.filter((id) => id !== vesselId)),
+    [],
+  );
   const send = useCallback(
     async (request: ScanRequest): Promise<ScanReply> => {
       const { data, error } = request.vessel_id
@@ -109,33 +124,45 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
           );
       if (error) {
         const rejection = permanentScanFailure(error);
-        if (rejection) return rejection;
+        if (rejection) {
+          settle(request.vessel_id);
+          return rejection;
+        }
         throw new Error("Scan delivery unavailable");
       }
       const reply = freezerReply(data);
       if (reply.reason === "operator_pin_required") expire();
-      void refresh().catch(() => undefined);
+      void refresh()
+        .catch(() => undefined)
+        .finally(() => settle(request.vessel_id));
       return reply;
     },
-    [client, expire, refresh],
+    [client, expire, refresh, settle],
   );
   const { scan, pending, feedback } = useScanAction(scope, send);
   const manual = useManualOptions(client, claims.orgId);
   const blastIn = (vesselId: string) => {
-    if (op.allowed())
+    if (blasting.includes(vesselId)) return;
+    if (op.allowed()) {
+      setBlasting((ids) => [...ids, vesselId]);
       void scan({
         raw: "",
         vessel_id: vesselId,
         station: "blast",
         client_action_id: crypto.randomUUID(),
         operator_session: op.proof,
+      }).then((queued) => {
+        if (!queued) settle(vesselId);
       });
+    }
   };
-  // Only exchange baskets waiting: they are tapped in, not scanned (docs/11-FLOOR-WORDING.md).
-  const next =
-    waiting.length > 0 && waiting.every((v) => !v.asset_tag)
-      ? "Tap Blast in for an exchange basket"
-      : "Scan a basket going into the blast";
+  const waitingRows = waiting.map((v) => ({
+    id: v.id,
+    code: v.asset_tag?.code ?? null,
+    order: v.intake?.number ?? "",
+    weightLb: v.weight_lb,
+    waiting: v.intake?.blast_at ? timeIn(v.intake.blast_at, now) : null,
+  }));
   return (
     <StationShell
       name="Blast"
@@ -143,12 +170,12 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
       operator={op.operator}
       pending={pending}
       paused={op.pinOpen}
-      next={next}
+      next={blastNextStep(waitingRows)}
       manualLabel="Basket number"
       status={
         <>
-          <ScanFeedback feedback={feedback} />
-          <p role="status">{message}</p>
+          <ScanFeedback feedback={feedback} idle />
+          <StationNotice text={message} tone="error" />
         </>
       }
       manual={{ ...manual, accept: ["TAG"] }}
@@ -163,46 +190,20 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
           });
       }}
     >
-      {waiting.length > 0 && (
-        <section className="station-card" aria-label="Waiting for blast-in">
-          <h2>RELEASED, WAITING FOR BLAST-IN ({waiting.length})</h2>
-          <p>Scan each basket. Tap Blast in for an exchange basket.</p>
-          <ul>
-            {waiting.map((v) => (
-              <li key={v.id} className="text-2xl">
-                {v.asset_tag ? `Basket ${v.asset_tag.code}` : "Exchange basket"} ·{" "}
-                {v.intake?.number} · {v.weight_lb} lb
-                {!v.asset_tag && (
-                  <>
-                    {" "}
-                    <button
-                      type="button"
-                      aria-label={`Blast in exchange basket ${v.intake?.number ?? ""}`.trim()}
-                      onClick={() => blastIn(v.id)}
-                    >
-                      Blast in
-                    </button>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <section className="station-card" aria-label="In blast">
-        <h2>IN BLAST ({vessels.length})</h2>
-        <p>Scan each basket as it goes into the blast freezer.</p>
-        <ul>
-          {vessels.map((v) => (
-            <li key={v.id} className="text-2xl">
-              {v.asset_tag ? `Basket ${v.asset_tag.code}` : "Exchange basket"} · {v.intake?.number}{" "}
-              · {v.weight_lb} lb · {timeIn(v.blast_in_at, now)}
-            </li>
-          ))}
-        </ul>
-        {vessels.length === 0 && waiting.length === 0 && <p>Blast freezer empty</p>}
-      </section>
-      <NowInBlastList lines={blastLines.lines} error={blastLines.error} />
+      <BlastView
+        loading={!loaded}
+        waiting={waitingRows}
+        inBlast={vessels.map((v) => ({
+          id: v.id,
+          code: v.asset_tag?.code ?? null,
+          order: v.intake?.number ?? "",
+          weightLb: v.weight_lb,
+          timeIn: timeIn(v.blast_in_at, now),
+        }))}
+        blasting={blasting}
+        blastList={<NowInBlastList lines={blastLines.lines} error={blastLines.error} meter />}
+        on={{ blastIn }}
+      />
       {op.overlay}
     </StationShell>
   );

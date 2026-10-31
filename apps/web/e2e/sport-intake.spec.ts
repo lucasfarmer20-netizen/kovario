@@ -101,10 +101,10 @@ test("sport intake: intake → wave → rollstock → reconcile → blast → lo
     await page.goto("/freezer/locate");
     const step = page.getByRole("region", { name: "Locate step" });
     await scan(page, qr.tag(ORG_SLUG, tag));
-    await expect(step.getByRole("heading", { name: "STEP 2 — SCAN LOCATION" })).toBeVisible();
+    await expect(step.getByRole("heading", { name: `Basket ${tag}` })).toBeVisible();
     await expect(step).toContainText(number);
     await scan(page, qr.location(ORG_SLUG, LOCATION_CODE));
-    await expect(step.getByRole("heading", { name: "STEP 1 — SCAN BASKET" })).toBeVisible();
+    await expect(step.getByRole("heading", { name: "No basket scanned" })).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: "✓" })).toBeVisible();
   });
 

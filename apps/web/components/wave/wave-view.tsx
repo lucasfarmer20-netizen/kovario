@@ -91,7 +91,7 @@ export function WaveView(props: WaveViewProps) {
       <div className="st-rail wv-rail">
         {waves.length > 0 && (
           <section className="station-card" aria-label="Open waves">
-            <h2 className="st-card-title">
+            <h2 className="st-card-head">
               Open waves <span className="st-count st-num">{waves.length}</span>
             </h2>
             <ul className="st-list">
@@ -120,7 +120,7 @@ export function WaveView(props: WaveViewProps) {
           </section>
         )}
         <section className="station-card" aria-label="Cooler queue">
-          <h2 className="st-card-title">
+          <h2 className="st-card-head">
             Cooler · oldest first{" "}
             {!loading && <span className="st-count st-num">{queue.length}</span>}
           </h2>
@@ -210,7 +210,7 @@ function NewWaveCard({ queue, selected, target, disabled, on }: WaveViewProps) {
   const totes = chosen.reduce((sum, i) => sum + i.totes, 0);
   return (
     <section className="station-card wv-card" aria-labelledby={heading}>
-      <div className="st-card-head">
+      <div className="st-item-head">
         <div>
           <p className="st-eyebrow">Next wave</p>
           <h2 id={heading}>New wave</h2>
@@ -302,7 +302,7 @@ function WaveCard({
         : `${left} to scan`;
   return (
     <section className="station-card wv-card" aria-labelledby={heading}>
-      <div className="st-card-head">
+      <div className="st-item-head">
         <div>
           <p className="st-eyebrow">{wave.state === "draft" ? "Not started" : "Checking totes"}</p>
           <h2 id={heading}>
@@ -337,7 +337,7 @@ function WaveOrders({ wave }: { wave: OpenWave }) {
   const members = [...wave.members.filter(left), ...wave.members.filter((m) => !left(m))];
   return (
     <section className="station-card wv-orders" aria-labelledby={heading}>
-      <h3 id={heading} className="st-card-title">
+      <h3 id={heading} className="st-card-head">
         Orders in this wave <span className="st-count st-num">{wave.members.length}</span>
       </h3>
       <ul className="wv-members" aria-label="Orders in this wave">

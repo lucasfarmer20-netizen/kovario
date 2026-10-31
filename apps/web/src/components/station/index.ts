@@ -19,6 +19,7 @@ export { ConnectionChip, useOnline } from "./connection-chip";
 export { BandChip, VarianceMeter } from "./band";
 export { ScaleReadout, type ScaleState } from "./scale-readout";
 export { BasketTile } from "./basket-tile";
+export { BasketRow } from "./basket-row";
 export { OrderTile } from "./order-tile";
 export { StationNotice, type NoticeTone } from "./notice";
 export { CountProgress } from "./count-progress";

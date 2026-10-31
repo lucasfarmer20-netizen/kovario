@@ -54,7 +54,7 @@ export function StationShell({
   status: ReactNode;
   /** Overrides navigator.onLine (previews in the station gallery). */
   online?: boolean;
-  /** Starts with "Enter manually" open (previews in the station gallery). */
+  /** "Enter manually" starts open (previews in the station gallery). */
   defaultManualOpen?: boolean;
   children: ReactNode;
 }) {
