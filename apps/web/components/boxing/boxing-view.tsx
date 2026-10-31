@@ -246,7 +246,11 @@ export function BoxingPartyView(props: BoxingPartyViewProps) {
     <div className="st-floor bx-floor">
       <div className="st-main bx-work">
         {props.blocked === "override" && !done && <OverridePanel {...props} />}
-        {done ? <HandedOver wizard={wizard} reply={props.reply} /> : <PartyCard {...props} />}
+        {done ? (
+          <HandedOver wizard={wizard} reply={props.reply} notices={props.notices} />
+        ) : (
+          <PartyCard {...props} />
+        )}
         {!done && <BoxesCard {...props} />}
         {!done && <PickListCard {...props} />}
         {!done && <CommitArea {...props} />}
@@ -569,16 +573,22 @@ function CommitArea({ why, busy, blocked, reply, on }: BoxingPartyViewProps) {
       </div>
       {reply && (reply.stale.length > 0 || !reply.noop) && (
         <section className="station-card bx-result" aria-label="Complete result">
-          {reply.stale.length > 0 && (
-            <StationNotice
-              tone="info"
-              text={`Already handled elsewhere (dropped): ${reply.stale.map((s) => s.label).join(", ")}`}
-            />
-          )}
+          <StaleNotice reply={reply} />
           {!reply.noop && <LastComplete reply={reply} />}
         </section>
       )}
     </>
+  );
+}
+
+/** What the last Complete dropped because it was handled elsewhere (another station, I16). */
+function StaleNotice({ reply }: { reply: ReleaseReply }) {
+  if (reply.stale.length === 0) return null;
+  return (
+    <StationNotice
+      tone="info"
+      text={`Already handled elsewhere (dropped): ${reply.stale.map((s) => s.label).join(", ")}`}
+    />
   );
 }
 
@@ -606,7 +616,20 @@ function LastComplete({ reply }: { reply: ReleaseReply }) {
   );
 }
 
-function HandedOver({ wizard, reply }: { wizard: Wizard; reply: ReleaseReply | null }) {
+/**
+ * Nothing left for this party. When it emptied under the operator (another station finalised
+ * the last box or freed the last basket), the re-projection notices (I15) and the last
+ * Complete's dropped lines still say which selections were handled elsewhere.
+ */
+function HandedOver({
+  wizard,
+  reply,
+  notices,
+}: {
+  wizard: Wizard;
+  reply: ReleaseReply | null;
+  notices: readonly string[];
+}) {
   const released = reply && !reply.noop;
   return (
     <section className="station-card st-hero-empty bx-hero bx-done" aria-label="Handed over">
@@ -618,6 +641,14 @@ function HandedOver({ wizard, reply }: { wizard: Wizard; reply: ReleaseReply | n
         <span className="st-code">{wizard.number}</span> · {wizard.party_name ?? "Party"}. Scan the
         next receipt&apos;s boxing QR, or tap a party in Ready to box.
       </p>
+      {(notices.length > 0 || (reply && reply.stale.length > 0)) && (
+        <div className="bx-handled" aria-label="Handled elsewhere">
+          {notices.map((n) => (
+            <StationNotice key={n} tone="error" text={n} />
+          ))}
+          {reply && <StaleNotice reply={reply} />}
+        </div>
+      )}
       {released && <LastComplete reply={reply} />}
     </section>
   );

@@ -2769,6 +2769,14 @@ label.bx-tick:has(> .bx-check:disabled) {
 .bx-done .bx-last {
   margin-top: var(--st-3);
 }
+/* Emptied elsewhere: which selections were handled at another station, read left to right. */
+.bx-handled {
+  display: grid;
+  gap: var(--st-2);
+  width: min(100%, 40rem);
+  margin-top: var(--st-3);
+  text-align: left;
+}
 .bx-hold .bx-field {
   margin-top: var(--st-2);
 }

@@ -13,6 +13,7 @@ export const BOXING_STATE_IDS = [
   "boxing-tote-left",
   "boxing-held",
   "boxing-done",
+  "boxing-emptied",
   "boxing-offline",
   "boxing-tools",
 ];

@@ -667,3 +667,51 @@ it("#130 once everything is handed over, the next receipt's boxing QR opens its 
     expect.objectContaining({ p_raw: "FL:BOX:othertoken", p_session_id: undefined }),
   );
 });
+
+// Review on #137: a party emptied by another station still says what was handled elsewhere.
+const EMPTIED: Wizard = { ...WIZARD, boxes: [], vessels: [] };
+
+it("#130 I15 a rescan that empties the party keeps the stale-tick notices on screen", async () => {
+  const { rpc } = setup();
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  fireEvent.click(screen.getByLabelText("Tick Basket 042 (INT-0001)"));
+  // Another station finalised the box and freed the basket: the re-projection is empty.
+  const respond = rpc.getMockImplementation()!;
+  rpc.mockImplementation((name: string, args?: Record<string, unknown>) =>
+    name === "boxing_wizard"
+      ? Promise.resolve({ data: EMPTIED, error: null })
+      : respond(name, args),
+  );
+  fireEvent.keyDown(screen.getByLabelText("Station scanner"), {
+    key: "Enter",
+    target: { value: "FL:BOX:partytoken" },
+  });
+  expect(await screen.findByText("Nothing left to hand over")).toBeTruthy();
+  expect(screen.getByText(/BOX-0001 is no longer planned \(finalised elsewhere\)/)).toBeTruthy();
+  expect(
+    screen.getByText(/Basket 042 \(INT-0001\) is no longer in the freezer \(released elsewhere\)/),
+  ).toBeTruthy();
+});
+
+it("#130 I7 a concurrent no-op that empties the party keeps its dropped lines on screen", async () => {
+  const { rpc } = setup({
+    noop: true,
+    message: "Nothing left to release: everything ticked was already released or changed",
+    finalized: [],
+    moved: [],
+    stale: [{ kind: "box", id: "b1", label: "BOX-0001", state: "picked_up" }],
+    shipping: [],
+    closed_intakes: [],
+  });
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  const respond = rpc.getMockImplementation()!;
+  rpc.mockImplementation((name: string, args?: Record<string, unknown>) =>
+    name === "boxing_wizard"
+      ? Promise.resolve({ data: EMPTIED, error: null })
+      : respond(name, args),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+  expect(await screen.findByText("Nothing left to hand over")).toBeTruthy();
+  expect(screen.getByText(/Already handled elsewhere \(dropped\): BOX-0001/)).toBeTruthy();
+  expect(screen.getByText(/BOX-0001 is no longer planned/)).toBeTruthy();
+});

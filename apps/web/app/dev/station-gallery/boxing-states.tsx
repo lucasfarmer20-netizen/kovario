@@ -318,6 +318,18 @@ export const BOXING_GALLERY_STATES: BoxingGalleryState[] = [
     notice: { tone: "ok", text: "Released: 3 box(es), 3 tote(s)." },
   },
   {
+    id: "boxing-emptied",
+    title: "Handed over elsewhere",
+    note: "Another station finalised the last box and freed the last basket: the party is empty, and the dropped ticks still say what was handled elsewhere.",
+    wizard: { ...HANDED_OVER, finalized_count: 2 },
+    queue: QUEUE.slice(1),
+    notices: [
+      "BOX-0310 is no longer planned (finalised elsewhere); its tick was dropped.",
+      "Basket 042 (INT-2141) is no longer in the freezer (released elsewhere); dropped.",
+    ],
+    feedback: { tone: "ok", text: "ALC-0042 refreshed" },
+  },
+  {
     id: "boxing-offline",
     title: "Offline",
     note: "Ticks are local and keep working; Complete needs the server and says so.",
