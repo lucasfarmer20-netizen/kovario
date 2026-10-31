@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   scanGate: null as null | ((raw: string) => Promise<void>),
   /** Rows of allocation_session_list (the boxing queue). */
   queue: [] as Record<string, unknown>[],
+  /** boxing_wizard fails (a bad id, a network blip). */
+  wizardFails: false,
 }));
 vi.mock("@/components/intake/use-station-session", () => ({
   useStationSession: () => ({ session: mocks.session, loaded: true }),
@@ -73,6 +75,7 @@ afterEach(() => {
   mocks.headers.length = 0;
   mocks.scanGate = null;
   mocks.queue = [];
+  mocks.wizardFails = false;
 });
 
 const WIZARD: Wizard = {
@@ -185,7 +188,10 @@ function setup(
   wizard: Wizard = WIZARD,
 ) {
   const respond = (name: string, args: Record<string, unknown> = {}) => {
-    if (name === "boxing_wizard") return { data: wizard, error: null };
+    if (name === "boxing_wizard")
+      return mocks.wizardFails
+        ? { data: null, error: { message: "party not found" } }
+        : { data: wizard, error: null };
     if (name === "release_party") {
       const error = releaseErrors.shift();
       return error ? { data: null, error } : { data: release, error: null };
@@ -714,4 +720,45 @@ it("#130 I7 a concurrent no-op that empties the party keeps its dropped lines on
   expect(await screen.findByText("Nothing left to hand over")).toBeTruthy();
   expect(screen.getByText(/Already handled elsewhere \(dropped\): BOX-0001/)).toBeTruthy();
   expect(screen.getByText(/BOX-0001 is no longer planned/)).toBeTruthy();
+});
+
+// Review on #137 (CustomSeafoods): the not-found screen asks for a receipt, so it reads one.
+it("#130 Party not found: scanning a receipt's boxing QR opens its party", async () => {
+  mocks.wizardFails = true;
+  const { rpc } = setup();
+  expect(await screen.findByText("Party not found")).toBeTruthy();
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan the boxing QR or tap an order");
+  fireEvent.keyDown(screen.getByLabelText("Station scanner"), {
+    key: "Enter",
+    target: { value: "FL:BOX:othertoken" },
+  });
+  await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/boxing/other"));
+  expect(rpc).toHaveBeenCalledWith(
+    "boxing_scan",
+    expect.objectContaining({ p_raw: "FL:BOX:othertoken", p_session_id: undefined }),
+  );
+});
+
+it("#130 Party not found: Enter manually asks for the boxing code, not a basket", async () => {
+  mocks.wizardFails = true;
+  setup();
+  await screen.findByText("Party not found");
+  fireEvent.click(screen.getByRole("button", { name: "Enter manually" }));
+  expect(screen.getByLabelText("Boxing code (on the receipt)")).toBeTruthy();
+  expect(screen.queryByLabelText("Basket number")).toBeNull();
+});
+
+it("#130 Party not found: this party's own QR loads it again once it is reachable", async () => {
+  mocks.wizardFails = true;
+  setup();
+  await screen.findByText("Party not found");
+  mocks.wizardFails = false;
+  fireEvent.keyDown(screen.getByLabelText("Station scanner"), {
+    key: "Enter",
+    target: { value: "FL:BOX:partytoken" },
+  });
+  expect(await screen.findByLabelText("Tick Basket 042 (INT-0001)")).toBeTruthy();
+  expect(screen.getByText("ALC-0001 refreshed")).toBeTruthy();
+  expect(screen.queryByText("Party not found.")).toBeNull();
+  expect(mocks.push).not.toHaveBeenCalled();
 });

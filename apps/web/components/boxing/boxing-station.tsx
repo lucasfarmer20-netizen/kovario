@@ -229,6 +229,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       setNotices(r.notices);
     }
     setWizard(next);
+    setFailed(false);
     setEmptied(
       await emptiedVessels(
         client,
@@ -283,14 +284,26 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     else if (!reply.ok || !reply.session_id) setTile(scanTile(false, stationMessage(reply.reason)));
     else if (reply.session_id !== sessionId) router.push(`/boxing/${reply.session_id}`);
     else {
-      await refresh(false).catch(() => undefined);
-      setTile(scanTile(true, `${wizardRef.current?.number ?? "Party"} refreshed`));
+      // This party's own QR: load it again (a retry after "Party not found", or a refresh).
+      const loaded = await refresh(false).then(
+        () => true,
+        () => false,
+      );
+      if (loaded && failed) setNotice(NO_NOTICE);
+      setTile(
+        loaded
+          ? scanTile(true, `${wizardRef.current?.number ?? "Party"} refreshed`)
+          : scanTile(false, "Party not found."),
+      );
     }
   }
 
   async function onScan(raw: string, method: EntryMethod) {
+    // No party on screen (it failed to load) or nothing left in it: the screen asks for a
+    // receipt's boxing QR, so read the scan as the queue does (review on #137).
+    if (failed || (wizardRef.current && nothingLeft(wizardRef.current)))
+      return openFromScan(raw, method);
     if (!wizardRef.current) return;
-    if (nothingLeft(wizardRef.current)) return openFromScan(raw, method);
     // The server validates the code against the masters and this party's pick list (I11),
     // and logs it in scan_log; ticks stay a local projection (I15). The form stays live
     // meanwhile, so the reply is applied to the latest form state below.
@@ -468,6 +481,8 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   };
 
   const done = wizard !== null && nothingLeft(wizard);
+  /** The screen asks for a receipt: the party failed to load, or nothing is left in it. */
+  const receipt = failed || done;
   const prompt = boxingPrompt(wizard, ticks, i8Blocked);
   const why = wizard ? completeWhy({ wizard, ticks, validating, online }) : null;
   const field = { onFocus: () => setEditing(true), onBlur: () => setEditing(false) };
@@ -483,9 +498,9 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       nextTone={prompt.tone}
       steps={BOXING_STEPS}
       step={prompt.step}
-      manualLabel={done ? "Boxing code (on the receipt)" : "Basket number"}
+      manualLabel={receipt ? "Boxing code (on the receipt)" : "Basket number"}
       status={<Status tile={tile} notice={notice} />}
-      manual={{ ...manual, accept: done ? ["BOX"] : ["TAG", "BOX"] }}
+      manual={{ ...manual, accept: receipt ? ["BOX"] : ["TAG", "BOX"] }}
       onScan={(raw, _parsed, method) => void onScan(raw, method)}
     >
       <BoxingPartyView

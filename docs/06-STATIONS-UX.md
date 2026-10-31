@@ -229,7 +229,8 @@ whole-row tick targets, framed with *Ticked*; the notes and the queue sit in the
 - **The queue stays at hand.** *Ready to box* is in the rail of the party screen too, so the next
   party is one tap away; there is no separate **Queue** link to go back through.
 - **The next receipt opens the next party.** Once a party has nothing left (no planned box, no
-  basket), a scanned or typed boxing QR is read as the queue reads it and opens that party. While
+  basket), or when it did not load (*Party not found*), a scanned or typed boxing QR is read as the
+  queue reads it and opens that party. While
   something is left, another party's QR is still refused (I11).
 - **Tick every box.** With two or more boxes unticked, one tap ticks them all; each is still a box
   tick (I1, I3), and baskets are never ticked by it.

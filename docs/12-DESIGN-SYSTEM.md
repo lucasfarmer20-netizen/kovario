@@ -223,7 +223,7 @@ baskets are ticked on whole-row targets (the checkbox covers the row, ≥ 72 px)
 | --- | --- |
 | Loading | `loading`: party, boxes and pick list skeletons; notes and queue in the rail |
 | Operator needed | `pin` |
-| Nothing open / queue empty | `queue` (scan the receipt's boxing QR or tap a party); `empty-queue` (parties come from the counter) |
+| Nothing open / queue empty | `queue` (scan the receipt's boxing QR or tap a party); `empty-queue` (parties come from the counter); `not-found` (the party did not load: the receipt's QR, scanned or entered, opens it) |
 | Empty item | `open`: nothing ticked; Complete says why it waits; *Tick every box* for a whole party |
 | In progress | `ticking` (step 3 current, ticked rows framed, a split says what stays), `ready` (count green at parity) |
 | Device offline | `manual`: no scale or printer (the pick list prints from the browser); with the scanner down, Enter manually reads the basket number |

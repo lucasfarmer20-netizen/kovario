@@ -4,6 +4,7 @@ export const BOXING_STATE_IDS = [
   "boxing-pin",
   "boxing-queue",
   "boxing-empty-queue",
+  "boxing-not-found",
   "boxing-open",
   "boxing-ticking",
   "boxing-ready",

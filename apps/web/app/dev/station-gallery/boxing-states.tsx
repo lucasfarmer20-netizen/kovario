@@ -191,6 +191,8 @@ export type BoxingGalleryState = {
   note: string;
   /** The queue screen (/boxing), with nothing open. */
   queueScreen?: boolean;
+  /** The party failed to load: the screen asks for a receipt instead. */
+  failed?: boolean;
   loading?: boolean;
   queue?: BoxingQueueItem[];
   wizard?: Wizard;
@@ -240,6 +242,13 @@ export const BOXING_GALLERY_STATES: BoxingGalleryState[] = [
     note: "No priced party has boxes left; the queue says parties come from the counter.",
     queueScreen: true,
     queue: [],
+  },
+  {
+    id: "boxing-not-found",
+    title: "Party not found",
+    note: "The party did not load (a bad link, a network blip): says so, and the receipt's boxing QR, scanned or entered, opens it; the queue is beside it.",
+    failed: true,
+    notice: { tone: "error", text: "Party not found." },
   },
   {
     id: "boxing-open",
@@ -354,7 +363,7 @@ export function BoxingGalleryScreen({ id }: { id: string }) {
 
 /** A whole Boxing screen in one gallery state, as the live station renders it. */
 export function BoxingScreen({ state }: { state: BoxingGalleryState }) {
-  const wizard = state.loading ? null : (state.wizard ?? WIZARD);
+  const wizard = state.loading || state.failed ? null : (state.wizard ?? WIZARD);
   const ticks = state.ticks ?? emptyTicks();
   const blocked = state.blocked ?? "none";
   const online = state.online ?? true;
@@ -373,7 +382,9 @@ export function BoxingScreen({ state }: { state: BoxingGalleryState }) {
       nextTone={prompt.tone}
       steps={BOXING_STEPS}
       step={state.loading ? 1 : prompt.step}
-      manualLabel={state.queueScreen || done ? "Boxing code (on the receipt)" : "Basket number"}
+      manualLabel={
+        state.queueScreen || state.failed || done ? "Boxing code (on the receipt)" : "Basket number"
+      }
       defaultManualOpen={state.manualOpen}
       status={
         <>
@@ -395,6 +406,7 @@ export function BoxingScreen({ state }: { state: BoxingGalleryState }) {
       ) : (
         <BoxingPartyView
           loading={Boolean(state.loading)}
+          failed={state.failed}
           wizard={wizard}
           ticks={ticks}
           notices={state.notices ?? []}
