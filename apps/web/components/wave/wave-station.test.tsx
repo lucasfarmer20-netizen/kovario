@@ -74,6 +74,8 @@ function setup(scanned = 0, state = "verifying", historicalScans = 0, activeTote
   const from = (name: string) => {
     let countOnly = false;
     let waveId: string | undefined;
+    let waveIds: string[] | undefined;
+    let range: [number, number] | undefined;
     const q: Record<string, unknown> = {
       select: (_columns: string, options?: { count?: string; head?: boolean }) => {
         countOnly = options?.count === "exact" && options.head === true;
@@ -84,16 +86,27 @@ function setup(scanned = 0, state = "verifying", historicalScans = 0, activeTote
         return q;
       },
       order: () => q,
-      in: () => q,
+      in: (column: string, values: string[]) => {
+        if (column === "wave_id") waveIds = values;
+        return q;
+      },
+      range: (from: number, to: number) => {
+        range = [from, to];
+        return q;
+      },
       single: () => q,
       then: (resolve: (r: unknown) => void) => {
         if (name === "wave_scan") {
           const rows = (tables[name] as { wave_id: string }[]).filter(
-            (row) => waveId === undefined || row.wave_id === waveId,
+            (row) =>
+              (waveId === undefined || row.wave_id === waveId) &&
+              (waveIds === undefined || waveIds.includes(row.wave_id)),
           );
-          // PostgREST caps returned rows, but exact HEAD counts cover the full set.
+          // PostgREST caps returned rows at 1000 (also within a range), but exact HEAD counts
+          // cover the full set.
+          const [from, to] = range ?? [0, rows.length];
           return Promise.resolve({
-            data: countOnly ? null : rows.slice(0, 1000),
+            data: countOnly ? null : rows.slice(from, Math.min(to + 1, from + 1000)),
             count: countOnly ? rows.length : null,
             error: null,
           }).then(resolve);
@@ -174,7 +187,8 @@ it("WP10 exact counts preserve parity for an active wave larger than the respons
   setup(1201, "verifying", 1500, 1201);
   render(<WaveStation />);
   fireEvent.click(await screen.findByRole("button", { name: /WAVE-0001/ }));
-  expect(screen.getByText("1201 / 1201 totes")).toBeTruthy();
+  // The wave's count and the order's own (every tote-detail page read) agree.
+  expect(screen.getAllByText("1201 / 1201 totes")).toHaveLength(2);
   expect(
     (screen.getByRole("button", { name: "Complete — Start Processing" }) as HTMLButtonElement)
       .disabled,
@@ -389,4 +403,14 @@ it("#127 a completed wave confirms in words and goes back to tapping orders", as
   expect(
     await screen.findByText("Wave WAVE-0001 complete. Its orders are in processing."),
   ).toBeTruthy();
+});
+
+it("#127 tote ticks read every page: a wave past the 1000-row cap shows no accepted tote as missing", async () => {
+  setup(1201, "verifying", 1500, 1201);
+  render(<WaveStation />);
+  const orders = await screen.findByRole("list", { name: "Orders in this wave" });
+  await waitFor(() =>
+    expect(within(orders).getByRole("listitem").textContent).toContain("1201 / 1201 totes"),
+  );
+  expect(within(orders).getByRole("listitem").hasAttribute("data-done")).toBe(true);
 });

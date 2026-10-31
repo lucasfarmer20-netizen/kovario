@@ -79,6 +79,35 @@ const flags = (i: Intake) =>
     (f): f is string => Boolean(f),
   );
 
+/** PostgREST's row cap (supabase/config.toml `max_rows`): tote rows come a page at a time. */
+export const TOTE_PAGE = 1000;
+
+/**
+ * Every tote scanned into the open waves, a page at a time in the table's unique key order
+ * (wave, order, tote), so a big wave never shows an accepted tote as still to scan. A scan
+ * landing mid-read can only push a row onto the next page (seen twice, harmless), never skip one.
+ */
+async function toteScans(
+  client: StationSession["client"],
+  waveIds: readonly string[],
+): Promise<ToteScan[]> {
+  const rows: ToteScan[] = [];
+  if (!waveIds.length) return rows;
+  for (let from = 0; ; from += TOTE_PAGE) {
+    const { data, error } = await client
+      .from("wave_scan")
+      .select("wave_id, intake_id, tote_no")
+      .in("wave_id", [...waveIds])
+      .order("wave_id")
+      .order("intake_id")
+      .order("tote_no")
+      .range(from, from + TOTE_PAGE - 1);
+    if (error || !data) throw new Error("Wave scan count unavailable");
+    rows.push(...data);
+    if (data.length < TOTE_PAGE) return rows;
+  }
+}
+
 function result(data: Json): ScanReply {
   if (
     !data ||
@@ -166,21 +195,15 @@ function LiveWave({ client, claims, siteName }: StationSession) {
           return [wave.id, count] as const;
         }),
       ),
-      open.length
-        ? client
-            .from("wave_scan")
-            .select("wave_id, intake_id, tote_no")
-            .in(
-              "wave_id",
-              open.map((wave) => wave.id),
-            )
-        : Promise.resolve({ data: [] as ToteScan[], error: null }),
+      toteScans(
+        client,
+        open.map((wave) => wave.id),
+      ),
     ]);
-    if (scanRows.error) throw new Error("Wave scan count unavailable");
     setIntakes(i.data ?? []);
     setWaves(open);
     setCounts(Object.fromEntries(scanCounts));
-    setTotes((scanRows.data ?? []) as ToteScan[]);
+    setTotes(scanRows);
     const settings = o.data?.settings as {
       wave_target_lb?: number;
       wave_tolerance_lb?: number;
