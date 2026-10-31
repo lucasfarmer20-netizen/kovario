@@ -63,7 +63,11 @@ function setup(scanned = 0, state = "verifying", historicalScans = 0, activeTote
     wave: [{ id: "w1", number: "WAVE-0001", state }],
     wave_scan: [
       ...Array.from({ length: historicalScans }, () => ({ wave_id: "completed-wave" })),
-      ...Array.from({ length: scanned }, () => ({ wave_id: "w1" })),
+      ...Array.from({ length: scanned }, (_, n) => ({
+        wave_id: "w1",
+        intake_id: "i3",
+        tote_no: n + 1,
+      })),
     ],
     org: { settings: { wave_target_lb: 200, wave_tolerance_lb: 10 } },
   };
@@ -116,20 +120,35 @@ function setup(scanned = 0, state = "verifying", historicalScans = 0, activeTote
 it("WP10 holding FIFO suggestion shows age, species, flags and permits manual adjustment", async () => {
   const { rpc } = setup();
   render(<WaveStation />);
-  await screen.findByText(/salmon_reds/);
-  expect(screen.getByText(/FAST PASS/).textContent).toContain("DIRTY");
-  expect(screen.getByText(/RIBBING/).textContent).toContain("RIBBING");
+  // The only open wave opens on its own; New wave goes back to tapping orders.
+  fireEvent.click(await screen.findByRole("button", { name: "New wave" }));
+  expect(screen.getByText("Reds · 100 lb · 2 totes")).toBeTruthy();
+  expect(screen.getAllByText(/h in cooler$/)).toHaveLength(2);
+  for (const flag of ["FAST PASS", "DIRTY", "RIBBING"]) expect(screen.getByText(flag)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Suggest FIFO fill" }));
   expect(screen.getByText("2 selected · 190 lb")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: /INT-0002/ }));
   expect(screen.getByText("1 selected · 100 lb")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Create wave" }));
+  expect(screen.getByRole("button", { name: "INT-0001" }).getAttribute("aria-pressed")).toBe(
+    "true",
+  );
+  expect(screen.getByRole("button", { name: "INT-0002" }).getAttribute("aria-pressed")).toBe(
+    "false",
+  );
+  // One tap creates the wave and starts verification (create_wave, then advance_wave).
+  fireEvent.click(screen.getByRole("button", { name: "Start Verification" }));
   await waitFor(() =>
     expect(rpc).toHaveBeenCalledWith(
-      "create_wave",
-      expect.objectContaining({ p_intake_ids: ["i1"], p_client_action_id: expect.any(String) }),
+      "advance_wave",
+      expect.objectContaining({ p_wave_id: "new-wave", p_client_action_id: expect.any(String) }),
     ),
   );
+  expect(rpc).toHaveBeenNthCalledWith(
+    1,
+    "create_wave",
+    expect.objectContaining({ p_intake_ids: ["i1"], p_client_action_id: expect.any(String) }),
+  );
+  expect(await screen.findByText("Wave started. Scan each tote.")).toBeTruthy();
 });
 it("WP10 Complete stays disabled below parity", async () => {
   setup(1);
@@ -271,8 +290,10 @@ it("#84 Enter manually: a typed tote short code takes the scan path, flagged man
 it("#98 the next step line walks the wave: tap orders → scan each tote → complete", async () => {
   setup(1);
   render(<WaveStation />);
-  await screen.findByText(/salmon_reds/);
   const next = () => screen.getByTestId("next-step").textContent;
+  // The only open wave is on screen as soon as it loads.
+  await waitFor(() => expect(next()).toBe("Scan each tote (1 of 2)"));
+  fireEvent.click(screen.getByRole("button", { name: "New wave" }));
   expect(next()).toBe("Tap orders to add to the wave");
   expect(
     within(screen.getByRole("list", { name: "Steps" }))
@@ -282,7 +303,7 @@ it("#98 the next step line walks the wave: tap orders → scan each tote → com
   ).toBe("step");
   expect(screen.getByText("Tap orders first")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: /INT-0002/ }));
-  expect(next()).toBe("Tap Create wave");
+  expect(next()).toBe("Tap Start verification");
   expect(screen.queryByText("Tap orders first")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /WAVE-0001/ }));
   expect(next()).toBe("Scan each tote (1 of 2)");
@@ -305,4 +326,67 @@ it("#98 at parity the next step is Complete wave", async () => {
       .closest("li")!
       .getAttribute("aria-current"),
   ).toBe("step");
+});
+
+it("#127 each order's totes tick off as they are scanned", async () => {
+  setup(1);
+  render(<WaveStation />);
+  const totes = await screen.findByRole("list", { name: "Totes of INT-0003" });
+  expect(
+    within(totes)
+      .getAllByRole("listitem")
+      .map((li) => li.textContent),
+  ).toEqual(["Tote 1 scanned", "Tote 2 to scan"]);
+  expect(screen.getByText("1 to scan")).toBeTruthy();
+});
+
+it("#127 a tote scanned from the new-wave card goes to the one wave being checked", async () => {
+  setup(1);
+  render(<WaveStation />);
+  fireEvent.click(await screen.findByRole("button", { name: "New wave" }));
+  expect(screen.getByTestId("next-step").textContent).toBe("Tap orders to add to the wave");
+  const input = screen.getByLabelText("Station scanner");
+  fireEvent.change(input, { target: { value: "FL:TOTE:INT-0003:2" } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  await waitFor(() =>
+    expect(mocks.scan).toHaveBeenCalledWith(expect.objectContaining({ wave_id: "w1" })),
+  );
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan each tote (1 of 2)");
+});
+
+it("#127 Complete says why it waits for pending scans", async () => {
+  mocks.pending = 1;
+  setup(2);
+  render(<WaveStation />);
+  const button = await screen.findByRole("button", { name: "Complete — Start Processing" });
+  expect((button as HTMLButtonElement).disabled).toBe(true);
+  // Complete and Cancel both wait, and both say so.
+  expect(screen.getAllByText("Wait for 1 pending scan to send")).toHaveLength(2);
+});
+
+it("#127 a refused Complete warns in the next step line and makes Cancel the way forward", async () => {
+  const { rpc } = setup(2);
+  const reason =
+    "An order in this wave is no longer in the cooler. Cancel the wave and start again.";
+  rpc.mockImplementation(async () => ({ data: { ok: false, reason }, error: null }) as never);
+  render(<WaveStation />);
+  const cancel = await screen.findByRole("button", { name: "Cancel wave — Return to holding" });
+  expect(cancel.className).toBe("st-btn-danger");
+  fireEvent.click(screen.getByRole("button", { name: "Complete — Start Processing" }));
+  const next = screen.getByTestId("next-step");
+  await waitFor(() => expect(next.textContent).toBe(reason));
+  expect(next.getAttribute("data-tone")).toBe("warn");
+  expect(cancel.className).toBe("");
+});
+
+it("#127 a completed wave confirms in words and goes back to tapping orders", async () => {
+  const { rpc } = setup(2);
+  render(<WaveStation />);
+  fireEvent.click(await screen.findByRole("button", { name: "Complete — Start Processing" }));
+  await waitFor(() =>
+    expect(rpc).toHaveBeenCalledWith("advance_wave", expect.objectContaining({ p_wave_id: "w1" })),
+  );
+  expect(
+    await screen.findByText("Wave WAVE-0001 complete. Its orders are in processing."),
+  ).toBeTruthy();
 });

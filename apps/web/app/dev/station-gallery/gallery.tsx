@@ -12,6 +12,7 @@ import { ManagerPinOverlay, OperatorPinOverlay } from "@/src/components/station/
 import { ScaleReadout } from "@/src/components/station/scale-readout";
 import { FeedbackBanner } from "@/src/components/station/scan-feedback";
 import { GALLERY_STATES } from "./reconcile-states";
+import { WAVE_GALLERY_STATES } from "./wave-states";
 
 const STEPS = ["Add baskets", "Weigh", "Send to Blast"] as const;
 const noop = () => undefined;
@@ -99,6 +100,7 @@ export function StationGallery() {
           <a href="#tokens">Tokens</a>
           <a href="#components">Components</a>
           <a href="#reconcile">Reconcile</a>
+          <a href="#wave">Wave</a>
         </nav>
       </header>
 
@@ -446,6 +448,41 @@ export function StationGallery() {
                   <iframe
                     title={`${s.title} at 400 px`}
                     src={`/dev/station-gallery/${s.id}`}
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </Section>
+
+      <div id="wave" />
+      <Section
+        title="Wave, every state"
+        note="Tap orders into the wave, scan each tote, Complete wave. Same frames as Reconcile; each is the live page for that state."
+      >
+        <div className="st-gallery-states">
+          {WAVE_GALLERY_STATES.map((s) => (
+            <article key={s.id} className="st-gallery-state">
+              <header>
+                <h3>
+                  <a href={`/dev/station-gallery/wave/${s.id}`}>{s.title}</a>
+                </h3>
+                <p className="st-gallery-note">{s.note}</p>
+              </header>
+              <div className="st-gallery-frames">
+                <div className="st-frame st-frame-tablet">
+                  <iframe
+                    title={`Wave: ${s.title} at 1280 px`}
+                    src={`/dev/station-gallery/wave/${s.id}`}
+                    loading="lazy"
+                  />
+                </div>
+                <div className="st-frame st-frame-phone">
+                  <iframe
+                    title={`Wave: ${s.title} at 400 px`}
+                    src={`/dev/station-gallery/wave/${s.id}`}
                     loading="lazy"
                   />
                 </div>

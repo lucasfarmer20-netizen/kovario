@@ -41,8 +41,10 @@ test("sport intake: intake → wave → rollstock → reconcile → blast → lo
 
   await test.step("wave: add the intake, verify both totes by scan, complete", async () => {
     await page.goto("/wave");
-    await page.getByRole("button", { name: new RegExp(`^\\+ ${number} `) }).click();
-    await page.getByRole("button", { name: "Create wave" }).click();
+    // Tap the order into the new wave; Start Verification creates the wave and starts it.
+    const tile = page.getByRole("button", { name: number, exact: true });
+    await tile.click();
+    await expect(tile).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "Start Verification" }).click();
     const complete = page.getByRole("button", { name: "Complete — Start Processing" });
     await expect(complete).toBeVisible();

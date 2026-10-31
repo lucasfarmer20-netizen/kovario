@@ -1177,12 +1177,14 @@ form.station-manual .station-actions > button[type="button"] {
 }
 .st-order-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--st-2);
   width: 100%;
 }
 .st-order-number {
+  white-space: nowrap;
   font-size: var(--st-fs-title);
   font-weight: 750;
 }
@@ -1205,6 +1207,114 @@ form.station-manual .station-actions > button[type="button"] {
 .station button.st-order .station-badge {
   padding: 2px 10px;
   font-size: 16px;
+}
+/* Toggle tile (Wave: tap orders into the wave): chosen reads by frame, "Added" and a check. */
+.station button.st-order[aria-pressed="true"] {
+  border-color: var(--st-brand);
+  border-left-color: var(--st-brand);
+  background: var(--st-brand-soft);
+  box-shadow: inset 0 0 0 1px var(--st-brand);
+  color: var(--st-ink);
+}
+.st-order-pick {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border: 2px solid var(--st-line-strong);
+  border-radius: var(--st-r-pill);
+  color: var(--st-brand);
+  font-size: 16px;
+  font-weight: 750;
+  transition:
+    background-color var(--st-dur-state) var(--st-ease),
+    border-color var(--st-dur-state) var(--st-ease);
+}
+.st-order-pick[data-on] {
+  padding: 0 12px 0 8px;
+  border-color: var(--st-brand);
+  background: var(--st-brand);
+  color: var(--st-on-brand);
+  animation: st-pop var(--st-dur-enter) var(--st-ease-out);
+}
+.st-order-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+.station button.st-order .st-badge-flag {
+  border-color: var(--st-ink-2);
+  color: var(--st-ink);
+  letter-spacing: 0.04em;
+}
+
+/* Count toward a total ("3 / 5 totes"): figure, words, a bar that fills; green at parity. */
+.st-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--st-2) var(--st-4);
+  padding: var(--st-4);
+  border-radius: var(--st-r-md);
+  background: var(--st-sunken);
+  border: 1px solid var(--st-line);
+}
+.station .st-progress p {
+  margin: 0;
+}
+.st-progress-figure {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-2);
+  font-size: var(--st-fs-readout);
+  font-weight: 780;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.st-progress-label {
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+  font-weight: 650;
+  text-align: right;
+}
+.st-progress-track {
+  grid-column: 1 / -1;
+  height: 14px;
+  overflow: hidden;
+  border-radius: var(--st-r-pill);
+  background: var(--st-surface);
+  box-shadow: inset 0 0 0 1px var(--st-line);
+}
+.st-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--st-brand);
+  transition: width var(--st-dur-enter) var(--st-ease-out);
+}
+.st-progress[data-complete] {
+  border-color: var(--st-within-edge);
+  background: var(--st-within-soft);
+}
+.st-progress[data-complete] .st-progress-figure,
+.st-progress[data-complete] .st-progress-label {
+  color: var(--st-within);
+}
+.st-progress[data-complete] .st-progress-fill {
+  background: var(--st-within-edge);
+}
+@media (max-width: 560px) {
+  .st-progress {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .st-progress-label {
+    text-align: left;
+  }
 }
 
 .station button.st-basket {
@@ -1458,7 +1568,9 @@ form.station-manual .station-actions > button[type="button"] {
   align-items: start;
 }
 .rc-rail,
-.rc-main {
+.rc-main,
+.st-rail,
+.st-main {
   display: grid;
   gap: var(--st-4);
   min-width: 0;
@@ -1479,7 +1591,8 @@ form.station-manual .station-actions > button[type="button"] {
     top: var(--st-3);
   }
 }
-.rc-count {
+.rc-count,
+.st-count {
   display: inline-grid;
   place-items: center;
   min-width: 32px;
@@ -1493,29 +1606,35 @@ form.station-manual .station-actions > button[type="button"] {
   vertical-align: middle;
 }
 .rc-queue h2,
-.rc-baskets h3 {
+.rc-baskets h3,
+.st-card-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--st-2);
 }
 .rc-queue-list,
-.rc-basket-list {
+.rc-basket-list,
+.st-list {
   display: grid;
   gap: var(--st-2);
 }
-.rc-skeleton-list {
+.rc-skeleton-list,
+.st-skeleton-list {
   display: grid;
   gap: var(--st-2);
 }
-.rc-skeleton-list .st-skeleton {
+.rc-skeleton-list .st-skeleton,
+.st-skeleton-list .st-skeleton {
   height: 76px;
 }
-.rc-skeleton-order {
+.rc-skeleton-order,
+.st-skeleton-stack {
   display: grid;
   gap: var(--st-4);
 }
-.rc-empty {
+.rc-empty,
+.st-empty {
   display: flex;
   align-items: flex-start;
   gap: var(--st-3);
@@ -1524,10 +1643,12 @@ form.station-manual .station-actions > button[type="button"] {
   border-radius: var(--st-r-md);
   color: var(--st-ink-2);
 }
-.station .rc-empty p {
+.station .rc-empty p,
+.station .st-empty p {
   margin: 0;
 }
-.rc-empty strong {
+.rc-empty strong,
+.st-empty strong {
   color: var(--st-ink);
 }
 .station-card[aria-label="Now in blast"] h2 {
@@ -1603,17 +1724,20 @@ form.station-manual .station-actions > button[type="button"] {
     box-shadow: var(--st-e2);
   }
 }
-.rc-head {
+.rc-head,
+.st-card-head {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--st-3);
 }
-.station .rc-head p {
+.station .rc-head p,
+.station .st-card-head p {
   margin: 0;
 }
-.rc-head h2 {
+.rc-head h2,
+.st-card-head h2 {
   margin: 0;
   font-size: var(--st-fs-heading);
 }
@@ -1982,6 +2106,247 @@ form.station-manual .station-actions > button[type="button"] {
 .rc-pullback label {
   display: grid;
   gap: var(--st-2);
+}
+
+/* ---- Wave (docs/06 Wave): cooler queue rail | work card, the forward action under it ------- */
+.wv-floor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--st-4);
+  align-items: start;
+}
+/* Phone: the work card first; the queue next while a wave is being built (the forward action
+   pins under it); with a wave open, the forward action, the wave's orders, then the queue. */
+.wv-main {
+  order: 1;
+}
+.wv-rail {
+  order: 2;
+}
+.wv-commit {
+  order: 3;
+}
+.wv-floor[data-open] .wv-commit {
+  order: 2;
+}
+.wv-floor[data-open] .wv-orders {
+  order: 3;
+}
+.wv-floor[data-open] .wv-rail {
+  order: 4;
+}
+@media (min-width: 1100px) {
+  .wv-floor {
+    grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "rail main"
+      "rail commit"
+      "rail orders";
+  }
+  .wv-rail {
+    grid-area: rail;
+    position: sticky;
+    top: var(--st-3);
+  }
+  .wv-main {
+    grid-area: main;
+  }
+  .wv-commit {
+    grid-area: commit;
+    align-self: start;
+  }
+  .wv-orders {
+    grid-area: orders;
+    align-self: start;
+  }
+}
+@media (max-width: 1099px) {
+  /* Usable: the forward action stays at hand at the bottom of the screen. */
+  .wv-commit[data-ready] {
+    position: sticky;
+    bottom: var(--st-2);
+    z-index: 2;
+    margin-inline: calc(var(--st-2) * -1);
+    padding: var(--st-2);
+    border-radius: var(--st-r-lg);
+    background: color-mix(in srgb, var(--st-surface) 88%, transparent);
+    backdrop-filter: blur(8px);
+    box-shadow: var(--st-e2);
+  }
+}
+.wv-commit[data-tone="warn"] button:not(:disabled) {
+  background: var(--st-surface);
+  color: var(--st-over);
+  border-color: var(--st-over);
+}
+.wv-cancel {
+  display: grid;
+  justify-items: end;
+}
+.wv-new {
+  margin-top: var(--st-3);
+}
+.wv-card {
+  display: grid;
+  gap: var(--st-4);
+}
+.wv-card .st-card-head {
+  align-items: flex-start;
+}
+.wv-instrument {
+  display: grid;
+  gap: var(--st-3);
+  padding: var(--st-4);
+  border-radius: var(--st-r-md);
+  background: var(--st-sunken);
+  border: 1px solid var(--st-line);
+}
+.station .wv-instrument p {
+  margin: 0;
+}
+.wv-sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--st-2) var(--st-4);
+  font-size: var(--st-fs-heading);
+  font-weight: 760;
+  letter-spacing: -0.02em;
+}
+.wv-sum-totes {
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-body);
+  font-weight: 650;
+  letter-spacing: 0;
+}
+.wv-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--st-3);
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-title);
+  font-weight: 650;
+}
+.wv-empty svg {
+  flex: none;
+}
+.wv-target {
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+  font-weight: 600;
+}
+/* The tapped weight against the target band (band hatched, target a tick): decorative. */
+.wv-target-bar {
+  position: relative;
+  height: 20px;
+  overflow: hidden;
+  border-radius: var(--st-r-pill);
+  background: var(--st-surface);
+  box-shadow: inset 0 0 0 1px var(--st-line);
+}
+.wv-target-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--st-brand-soft) 0 6px,
+    var(--st-surface) 6px 12px
+  );
+  box-shadow: inset 0 0 0 1px var(--st-line-strong);
+}
+.wv-target-fill {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 0;
+  border-radius: var(--st-r-pill);
+  background: var(--st-brand);
+  transition: width var(--st-dur-enter) var(--st-ease-out);
+}
+.wv-target-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  margin-left: -1.5px;
+  background: var(--st-ink);
+}
+.wv-chosen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+}
+.wv-chosen li {
+  padding: 4px 12px;
+  border: 1px solid var(--st-brand);
+  border-radius: var(--st-r-pill);
+  background: var(--st-brand-soft);
+  color: var(--st-brand-strong);
+  font-size: var(--st-fs-label);
+  font-weight: 700;
+  animation: st-enter var(--st-dur-enter) var(--st-ease-out);
+}
+.wv-members {
+  display: grid;
+  gap: var(--st-2);
+}
+.wv-members > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--st-2) var(--st-4);
+  padding: var(--st-3) var(--st-4);
+  border: 1px solid var(--st-line);
+  border-radius: var(--st-r-md);
+  background: var(--st-surface);
+}
+.wv-members > li[data-done] {
+  background: var(--st-sunken);
+}
+.wv-member-head {
+  display: grid;
+  min-width: 0;
+}
+.wv-member-number {
+  font-size: var(--st-fs-title);
+  font-weight: 750;
+}
+.wv-member-detail {
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+  font-weight: 600;
+}
+/* One tick per tote: dashed until scanned, then green with a check (shape and colour). */
+.wv-totes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.wv-totes li {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 44px;
+  height: 40px;
+  padding: 0 8px;
+  border: 2px dashed var(--st-line-strong);
+  border-radius: var(--st-r-sm);
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.wv-totes li[data-done] {
+  border-style: solid;
+  border-color: var(--st-within-edge);
+  background: var(--st-within-soft);
+  color: var(--st-within);
+  animation: st-pop var(--st-dur-enter) var(--st-ease-out);
 }
 
 /* ---- /dev/station-gallery ----------------------------------------------------------------- */

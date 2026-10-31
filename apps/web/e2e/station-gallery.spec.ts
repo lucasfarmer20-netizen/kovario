@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { GALLERY_STATE_IDS } from "../app/dev/station-gallery/state-ids";
+import { WAVE_STATE_IDS } from "../app/dev/station-gallery/wave-state-ids";
 
 // docs/12-DESIGN-SYSTEM.md (#125): every station state fits a phone (400 px) and a landscape
 // tablet (1280 × 800) without horizontal scrolling, and every tap target is at least 56 px
@@ -9,7 +10,11 @@ const VIEWPORTS = [
   { name: "phone", width: 400, height: 860 },
   { name: "tablet", width: 1280, height: 800 },
 ];
-const PAGES = ["", ...GALLERY_STATE_IDS.map((id) => `/${id}`)];
+const PAGES = [
+  "",
+  ...GALLERY_STATE_IDS.map((id) => `/${id}`),
+  ...WAVE_STATE_IDS.map((id) => `/wave/${id}`),
+];
 
 for (const viewport of VIEWPORTS) {
   test(`station gallery at ${viewport.name} (${viewport.width} px): no sideways scroll, targets ≥ ${TOUCH} px`, async ({

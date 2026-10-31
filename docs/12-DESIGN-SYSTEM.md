@@ -11,7 +11,9 @@ in the same PR.
 - **Components:** `apps/web/src/components/station/` (exported from `index.ts`).
 - **Gallery:** `/dev/station-gallery` shows the tokens, every component in every state, and
   Reconcile in each of its states at 1280 × 800 and 400 px; each state is its own page
-  (`/dev/station-gallery/<state>`). Static props, no DB. A new station adds its states here.
+  (`/dev/station-gallery/<state>`). Static props, no DB. A new station adds its states here,
+  each at `/dev/station-gallery/<station>/<state>` (Wave: `/dev/station-gallery/wave/scanning`),
+  with its state ids in `<station>-state-ids.ts` so `e2e/station-gallery.spec.ts` checks them.
 
 ## Principles
 
@@ -123,7 +125,7 @@ shimmer stop.
 
 | Component | What it is |
 | --- | --- |
-| `StationShell` | Full-screen frame: console bar (station, site, operator chip, `ConnectionChip`), command area (next step + scan feedback), one `ScanInput`; `nextTone` for warnings |
+| `StationShell` | Full-screen frame: console bar (station, site, operator chip, `ConnectionChip`), command area (next step + scan feedback), one `ScanInput`; `nextTone` for warnings; `defaultManualOpen` opens Enter manually (gallery previews) |
 | `NextStep` | Step row (done steps show a check, current has `aria-current="step"`) and the next step line |
 | `DisabledReason` | The why under a disabled control |
 | `ScanInput` | The single hidden-but-focused scanner input |
@@ -135,12 +137,17 @@ shimmer stop.
 | `VarianceMeter` | The −100% to +100% meter above |
 | `ScaleReadout` | Scale head: reading, its state in words (stable, reading used, no reading), the basket Accept writes to |
 | `BasketTile` | A basket: code, weight, and a scale / spinner / check at its right edge |
-| `OrderTile` | An order in a queue: number, HELD (lock + word), species, expected lb, age |
+| `OrderTile` | An order in a queue: number, HELD (lock + word), species, expected lb, age; `pressed` makes it a toggle (frame + *Added* with a check + `aria-pressed`, Wave), `flags` adds badges (FAST PASS, DIRTY, RIBBING) |
+| `CountProgress` | A count toward a total, *3 / 5 totes*: readout-size figure, what is left in words, a bar that fills; green with a check at parity (Wave; Rollstock and Boxing count the same way) |
 | `StationNotice` | An inline notice with a tone (ok / info / error) |
 | `QueueList` | Realtime queue list |
 
 Shared classes: buttons are filled by default (brand); `st-btn-secondary` (outlined),
-`st-btn-quiet`, `st-btn-danger` (red outline), `st-btn-hero` (72 px), `st-btn-block`. Older
+`st-btn-quiet`, `st-btn-danger` (red outline), `st-btn-hero` (72 px), `st-btn-block`. Layout
+pieces shared by every station (Reconcile's `rc-*` rules carry these names too): `st-rail` /
+`st-main` (the queue rail and work column), `st-card-title` (a title with an `st-count` pill),
+`st-list`, `st-skeleton-list` / `st-skeleton-stack` (loading), `st-empty` (an empty queue) and
+`st-card-head` (eyebrow + heading with an action on the right). Older
 `station-*` classes stay as aliases for screens not yet on the system.
 
 ### Lists that rank
@@ -167,6 +174,24 @@ Each one appears in the station's gallery entry.
 | Held / needs a manager | The panel takes the top of the work area, with the manager path (PIN or account) |
 | Done / signed off | Green confirmation in the feedback area; the next action is live |
 | Offline / N pending | Connection chip state; controls that need the server say so |
+
+### Wave (#127)
+
+How Wave meets each state above (gallery: `/dev/station-gallery/wave/<state>`):
+
+| State | Wave |
+| --- | --- |
+| Loading | `loading`: queue and card skeletons |
+| Operator needed | `pin` |
+| Nothing open / queue empty | `no-selection` (tap orders or Suggest FIFO fill); `empty-queue` (orders come from the Intake station) |
+| Empty item | `started`: a wave with no totes scanned; every tote expected, Complete says why it waits |
+| In progress | `selecting` (tapped orders framed, *Added*), `scanning` (count and per-order tote ticks) |
+| Device offline | `manual-tote`: Wave has no scale or printer; with the scanner down, Enter manually reads the tote number |
+| Rejected scan | `rejected` |
+| Warning / over limit | `refused`: a refused Complete leads the next step line in red, Complete is restyled, Cancel wave becomes the filled button. The weight target is a suggestion, so the tapped weight is shown against it with no verdict |
+| Held / needs a manager | Not at Wave: no manager gate, and orders reach Wave before any variance hold. `draft` shows a wave whose start did not go through |
+| Done | `done`: green confirmation, the next wave live |
+| Offline / N pending | `offline`: Complete and Cancel need the server and say so |
 
 ## Layout
 

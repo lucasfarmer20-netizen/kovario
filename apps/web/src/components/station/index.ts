@@ -21,3 +21,4 @@ export { ScaleReadout, type ScaleState } from "./scale-readout";
 export { BasketTile } from "./basket-tile";
 export { OrderTile } from "./order-tile";
 export { StationNotice, type NoticeTone } from "./notice";
+export { CountProgress } from "./count-progress";
