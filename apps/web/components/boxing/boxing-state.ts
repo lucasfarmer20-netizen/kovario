@@ -231,3 +231,59 @@ export function scanTick(wizard: Wizard, ticks: Ticks, raw: string): ScanOutcome
     return { kind: "ticked", ticks, message: `${vesselLabel(v)} already ticked` };
   return { kind: "ticked", ticks: toggleVessel(ticks, v), message: `Ticked ${vesselLabel(v)}` };
 }
+
+/** Ticks every listed box ("Tick every box"): each still a box tick the crew reports (I1, I3). */
+export function tickBoxes(ticks: Ticks, boxIds: readonly string[]): Ticks {
+  const boxes = [...ticks.boxes, ...boxIds.filter((id) => !ticks.boxes.includes(id))];
+  return { ...ticks, boxes };
+}
+
+export const BOXING_STEPS = ["Open order", "Tick boxes and baskets", "Complete"] as const;
+
+/** The last Complete's I8 refusal as the server judged it (DECISION-23); "none" otherwise. */
+export type I8Blocked = "none" | "tote_left" | "override";
+
+export const I8_TOTE_LEFT_HINT =
+  "Tick the baskets you are handing over: this party still has baskets in the freezer (see the pick list).";
+
+/** Nothing left to hand over: no planned box and no basket in the freezer for this party. */
+export const nothingLeft = (wizard: Pick<Wizard, "boxes" | "vessels">) =>
+  wizard.boxes.length === 0 && wizard.vessels.length === 0;
+
+/**
+ * The next step line and current step (docs/11-FLOOR-WORDING.md, Boxing): open an order, tick
+ * each box and basket, Complete. A party with nothing left goes back to opening the next one.
+ * An I8 refusal leads the line as a warning: the pick list (a basket is left) or the manager.
+ */
+export function boxingPrompt(
+  wizard: Pick<Wizard, "boxes" | "vessels"> | null,
+  ticks: Ticks,
+  blocked: I8Blocked = "none",
+): { next: string; step: number; tone?: "warn" } {
+  if (!wizard || nothingLeft(wizard))
+    return { next: "Scan the boxing QR or tap an order", step: 0 };
+  if (blocked === "tote_left") return { next: I8_TOTE_LEFT_HINT, step: 1, tone: "warn" };
+  if (blocked === "override")
+    return { next: "Enter a reason, then Manager override", step: 2, tone: "warn" };
+  const ticked = ticks.boxes.length > 0 || Object.values(ticks.vessels).some((l) => l.ticked);
+  return ticked ? { next: "Complete", step: 2 } : { next: "Tick each box and basket", step: 1 };
+}
+
+/** Why Complete waits (docs/11: disabled buttons say why); null when it can run. */
+export function completeWhy({
+  wizard,
+  ticks,
+  validating,
+  online,
+}: {
+  wizard: Wizard;
+  ticks: Ticks;
+  validating: number;
+  online: boolean;
+}): string | null {
+  if (!online) return "Offline. Reconnect to Complete.";
+  if (validating > 0) return "A scan is still being checked; Complete when it lands.";
+  if (lineIssues(wizard, ticks).length > 0) return "Fix Lbs left on the pick list first";
+  const ticked = ticks.boxes.length > 0 || Object.values(ticks.vessels).some((l) => l.ticked);
+  return ticked ? null : "Nothing ticked yet. Tick each box and basket being handed over.";
+}

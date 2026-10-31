@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { LBS_LEFT_ON_UNTICKED } from "rules";
 import {
+  boxingPrompt,
   completePayload,
+  completeWhy,
   emptyTicks,
+  I8_TOTE_LEFT_HINT,
   lineIssues,
   nothingTicked,
   reproject,
   scanTick,
   setLbsLeft,
+  tickBoxes,
   toggleBox,
   toggleVessel,
   type Wizard,
@@ -186,5 +190,58 @@ describe("P15 additive re-scan keeps ticks only for still-eligible records (I15)
     const t = toggleVessel(emptyTicks(), before.vessels[0]!);
     const after = wizard({ vessels: [{ ...before.vessels[0]!, weight_lb: 15 }] });
     expect(completePayload(after, reproject(before, t, after).ticks).vessel_ticks).toEqual([]);
+  });
+});
+
+describe("boxing prompt (docs/11 Boxing)", () => {
+  it("#98 walks open order → tick each box and basket → Complete", () => {
+    const w = wizard();
+    expect(boxingPrompt(null, emptyTicks())).toEqual({
+      next: "Scan the boxing QR or tap an order",
+      step: 0,
+    });
+    expect(boxingPrompt(w, emptyTicks())).toEqual({ next: "Tick each box and basket", step: 1 });
+    expect(boxingPrompt(w, toggleBox(emptyTicks(), "b1"))).toEqual({ next: "Complete", step: 2 });
+    expect(boxingPrompt(w, toggleVessel(emptyTicks(), w.vessels[0]!)).step).toBe(2);
+  });
+
+  it("#130 a party with nothing left goes back to opening the next one", () => {
+    expect(boxingPrompt(wizard({ boxes: [], vessels: [] }), emptyTicks()).step).toBe(0);
+  });
+
+  it("#130 an I8 refusal leads the line as a warning", () => {
+    const w = wizard();
+    const t = toggleBox(emptyTicks(), "b1");
+    expect(boxingPrompt(w, t, "tote_left")).toEqual({
+      next: I8_TOTE_LEFT_HINT,
+      step: 1,
+      tone: "warn",
+    });
+    expect(boxingPrompt(w, t, "override").tone).toBe("warn");
+  });
+});
+
+describe("why Complete waits (docs/11: disabled buttons say why)", () => {
+  const base = { wizard: wizard(), validating: 0, online: true };
+  it("I7 nothing ticked waits, with the reason", () => {
+    expect(completeWhy({ ...base, ticks: emptyTicks() })).toMatch(/^Nothing ticked yet/);
+    expect(completeWhy({ ...base, ticks: toggleBox(emptyTicks(), "b1") })).toBeNull();
+  });
+  it("I5 a line fault waits before anything else is judged", () => {
+    const ticks = setLbsLeft(toggleBox(emptyTicks(), "b1"), base.wizard.vessels[0]!, "5");
+    expect(completeWhy({ ...base, ticks })).toBe("Fix Lbs left on the pick list first");
+  });
+  it("offline and scans in flight say so first", () => {
+    const ticks = toggleBox(emptyTicks(), "b1");
+    expect(completeWhy({ ...base, ticks, online: false })).toBe("Offline. Reconnect to Complete.");
+    expect(completeWhy({ ...base, ticks, validating: 1 })).toMatch(/scan is still being checked/);
+  });
+});
+
+describe("Tick every box", () => {
+  it("I1 I3 ticks each listed box once and never a basket", () => {
+    const t = tickBoxes(toggleBox(emptyTicks(), "b1"), ["b1", "b2"]);
+    expect(t.boxes).toEqual(["b1", "b2"]);
+    expect(t.vessels).toEqual({});
   });
 });

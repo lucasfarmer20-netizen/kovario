@@ -10,7 +10,7 @@ in the same PR.
   colours (`bg-st-brand`, `text-st-ink-2`, …). shadcn `--primary` / `--ring` follow the brand.
 - **Components:** `apps/web/src/components/station/` (exported from `index.ts`).
 - **Gallery:** `/dev/station-gallery` shows the tokens, every component in every state, and
-  Reconcile, Blast, Locate, Wave and Rollstock in each of their states at 1280 × 800 and 400 px;
+  Reconcile, Blast, Locate, Wave, Rollstock and Boxing in each of their states at 1280 × 800 and 400 px;
   each state is its own page (`/dev/station-gallery/<state>`). Static props, no DB. A new station
   adds its states here: its ids to `state-ids.ts`, its screens to `[state]/screen.tsx`, its frames with
   `StateFrames`.
@@ -137,9 +137,9 @@ shimmer stop.
 | `VarianceMeter` | The −100% to +100% meter above; `compact` drops the scale, for a list whose lines each say their figure and band (Blast's "now in blast" lines, `NowInBlastList meter`) |
 | `ScaleReadout` | Scale head: reading, its state in words (stable, reading used, no reading), the basket Accept writes to |
 | `BasketTile` | A basket: code, weight, and a scale / spinner / check at its right edge |
-| `BasketRow` | A basket in a list (Blast, Locate; Boxing next): name over a meta line (order · lb · time); the right edge is a hint, a status or one action, and `busy` puts a spinner there; with `onSelect` the whole row is a toggle (frame, **Selected**, `aria-pressed`) |
+| `BasketRow` | A basket in a list (Blast, Locate, Boxing's released baskets): name over a meta line (order · lb · time); the right edge is a hint, a status or one action, and `busy` puts a spinner there; with `onSelect` the whole row is a toggle (frame, **Selected**, `aria-pressed`) |
 | `OrderTile` | An order in a queue: number, HELD (lock + word), species, expected lb, age; `pressed` makes it a toggle (frame + *Added* with a check + `aria-pressed`, Wave), `flags` adds badges (FAST PASS, DIRTY, RIBBING). Without `onOpen` it is a static tile, for a queue the station only shows (Rollstock's NEXT UP) |
-| `CountProgress` | A count toward a total, *3 / 5 totes*: readout-size figure, what is left in words, a bar that fills; green with a check at parity (Wave; Rollstock's totes of the open order; Boxing next) |
+| `CountProgress` | A count toward a total, *3 / 5 totes*: readout-size figure, what is left in words, a bar that fills; green with a check at parity (Wave; Rollstock's totes of the open order; Boxing counts what is ticked, `2 / 6 ticked`) |
 | `StationNotice` | An inline notice with a tone (ok / info / error) |
 | `QueueList` | Realtime queue list |
 | `speciesName` | A species code in the floor's words ("Reds" for `salmon_reds`), from the rules engine's species table |
@@ -160,7 +160,8 @@ order tile or under an item heading), `st-notes` (an order's notes, each a `dt` 
 about and the note), `st-finish` (a de-emphasised control at the foot of a card, its reason under
 it). Panels that take the top of the work area (`st-panel`, `st-panel-title` / `-icon` /
 `-kicker` / `-sub` / `-lead`, and `st-note` / `st-note-text` for a note typed in an editing mode)
-are Reconcile's hold-panel rules under station-neutral names.
+are Reconcile's hold-panel rules under station-neutral names (Rollstock's missing totes, Boxing's I8
+override).
 `StationShell` takes `defaultManualOpen` so a gallery state can show **Enter manually** open.
 
 ### Lists that rank
@@ -211,6 +212,28 @@ How Wave meets each state above (gallery: `/dev/station-gallery/wave-<state>`):
 | Held / needs a manager | Not at Wave: no manager gate, and orders reach Wave before any variance hold. `draft` shows a wave whose start did not go through |
 | Done | `done`: green confirmation, the next wave live |
 | Offline / N pending | `offline`: Complete and Cancel need the server and say so |
+
+### Boxing / will-call (#130)
+
+How Boxing meets each state above (gallery: `/dev/station-gallery/boxing-<state>`). Boxes and
+baskets are ticked on whole-row targets (the checkbox covers the row, ≥ 72 px), framed with
+*Ticked*; the pick list's Lbs left sits on the line once the card is 600 px wide.
+
+| State | Boxing |
+| --- | --- |
+| Loading | `loading`: party, boxes and pick list skeletons; notes and queue in the rail |
+| Operator needed | `pin` |
+| Nothing open / queue empty | `queue` (scan the receipt's boxing QR or tap a party); `empty-queue` (parties come from the counter); `not-found` (the party did not load: the receipt's QR, scanned or entered, opens it) |
+| Empty item | `open`: nothing ticked; Complete says why it waits; *Tick every box* for a whole party |
+| In progress | `ticking` (step 3 current, ticked rows framed, a split says what stays), `ready` (count green at parity) |
+| Device offline | `manual`: no scale or printer (the pick list prints from the browser); with the scanner down, Enter manually reads the basket number |
+| Rejected scan | `rejected` |
+| Warning / over limit | `lbs-left` (the fault on its line, Complete says to fix it), `tote-left` (I8 refusal leads the next step line in red, the pick list framed red, Complete restyled) |
+| Held / needs a manager | `held`: I8 with no basket left (DECISION-23); the override panel takes the top of the work, with the manager PIN |
+| Done | `done`: green confirmation and what Complete did; the next receipt's QR opens the next party. `emptied`: handed over at another station, with the dropped ticks (I15) and dropped Complete lines still listed |
+| Offline / N pending | `offline`: ticks keep working; Complete needs the server and says so |
+
+`tools` shows Manager tools open (Release by tag, restore a released basket).
 
 ## Layout
 
