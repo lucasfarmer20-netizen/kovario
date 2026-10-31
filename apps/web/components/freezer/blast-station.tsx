@@ -100,6 +100,12 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
   }, [refresh]);
   useVesselRefresh(client, claims.orgId, scope, reload);
   const blastLines = useNowInBlast(client, claims.orgId, scope);
+  // A Blast in tap stays busy while it is queued (sending, or waiting to retry); it clears once the
+  // tap is done with: never queued, refused for good, or answered (after the refresh it triggers).
+  const settle = useCallback(
+    (vesselId: string | undefined) => setBlasting((ids) => ids.filter((id) => id !== vesselId)),
+    [],
+  );
   const send = useCallback(
     async (request: ScanRequest): Promise<ScanReply> => {
       const { data, error } = request.vessel_id
@@ -118,18 +124,20 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
           );
       if (error) {
         const rejection = permanentScanFailure(error);
-        if (rejection) return rejection;
+        if (rejection) {
+          settle(request.vessel_id);
+          return rejection;
+        }
         throw new Error("Scan delivery unavailable");
       }
       const reply = freezerReply(data);
       if (reply.reason === "operator_pin_required") expire();
-      const done = () => setBlasting((ids) => ids.filter((id) => id !== request.vessel_id));
       void refresh()
         .catch(() => undefined)
-        .finally(done);
+        .finally(() => settle(request.vessel_id));
       return reply;
     },
-    [client, expire, refresh],
+    [client, expire, refresh, settle],
   );
   const { scan, pending, feedback } = useScanAction(scope, send);
   const manual = useManualOptions(client, claims.orgId);
@@ -143,6 +151,8 @@ function LiveBlast({ client, claims, siteName }: StationSession) {
         station: "blast",
         client_action_id: crypto.randomUUID(),
         operator_session: op.proof,
+      }).then((queued) => {
+        if (!queued) settle(vesselId);
       });
     }
   };

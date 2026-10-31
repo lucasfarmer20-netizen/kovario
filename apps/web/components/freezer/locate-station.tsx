@@ -117,6 +117,12 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
   const [message, setMessage] = useState("");
   // The exchange basket tapped, its reply not back yet (a spinner on its row).
   const [selecting, setSelecting] = useState<string | null>(null);
+  // The tap is done with (never queued, refused for good, or answered): drop its spinner. A tap
+  // still queued for a retry keeps it.
+  const settle = useCallback(
+    (vesselId: string | undefined) => setSelecting((id) => (id === vesselId ? null : id)),
+    [],
+  );
   const [now, setNow] = useState(() => new Date());
   const refresh = useCallback(async () => {
     const { data, error } = await client
@@ -174,17 +180,20 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
           );
       if (error) {
         const rejection = permanentScanFailure(error);
-        if (rejection) return rejection;
+        if (rejection) {
+          settle(request.vessel_id);
+          return rejection;
+        }
         throw new Error("Scan delivery unavailable");
       }
       const reply = freezerReply(data);
       remember(nextPending(current, reply));
-      if (request.vessel_id) setSelecting(null);
+      settle(request.vessel_id);
       if (reply.reason === "operator_pin_required") expire();
       if (reply.placed) void refresh().catch(() => undefined);
       return reply;
     },
-    [client, expire, refresh, remember, scope],
+    [client, expire, refresh, remember, scope, settle],
   );
   const { scan, pending, feedback } = useScanAction(scope, send);
   const manual = useManualOptions(client, claims.orgId);
@@ -198,6 +207,8 @@ function LiveLocate({ client, claims, siteName }: StationSession) {
         station: "locate",
         client_action_id: crypto.randomUUID(),
         operator_session: op.proof,
+      }).then((queued) => {
+        if (!queued) settle(vesselId);
       });
     }
   };

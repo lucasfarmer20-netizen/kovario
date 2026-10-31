@@ -9,7 +9,8 @@ import { freezerReply, timeIn } from "./use-freezer-operator";
 const mocks = vi.hoisted(() => ({
   session: null as unknown,
   send: null as null | ((r: ScanRequest) => Promise<ScanReply>),
-  scan: vi.fn(),
+  // Resolves true: the request was queued (useScanAction).
+  scan: vi.fn<(request: ScanRequest) => Promise<boolean>>(async () => true),
 }));
 vi.mock("@/components/intake/use-station-session", () => ({
   useStationSession: () => ({ session: mocks.session, loaded: true }),
@@ -567,4 +568,73 @@ it("#129 locate keeps the exchange list in step 2: the chosen basket framed, ano
   expect(mocks.scan).toHaveBeenCalledWith(
     expect.objectContaining({ raw: "", vessel_id: "vy", station: "locate" }),
   );
+});
+
+/** One exchange basket waiting for blast-in (tapped in, not scanned). */
+const blastWaiting = () => ({
+  waiting: [
+    { id: "vx", weight_lb: 10, intake: { number: "INT-0001", blast_at: null }, asset_tag: null },
+  ],
+});
+const tapBlastIn = async () => {
+  fireEvent.click(await screen.findByRole("button", { name: "Blast in exchange basket INT-0001" }));
+  return screen
+    .getByRole("region", { name: "Waiting for blast-in" })
+    .querySelector(".st-basket-row")!;
+};
+const tapRequest = (station: "blast" | "locate", vessel_id: string): ScanRequest => ({
+  raw: "",
+  vessel_id,
+  station,
+  client_action_id: "tap-1",
+  operator_session: null,
+});
+
+it("#129 blast in: a tap that was never queued clears its spinner, and can be tapped again", async () => {
+  setup([], blastWaiting());
+  mocks.scan.mockResolvedValueOnce(false);
+  render(<BlastStation />);
+  const row = await tapBlastIn();
+  await waitFor(() => expect(row.getAttribute("data-busy")).toBeNull());
+  fireEvent.click(screen.getByRole("button", { name: "Blast in exchange basket INT-0001" }));
+  expect(mocks.scan).toHaveBeenCalledTimes(2);
+});
+
+it("#129 blast in: a refused tap (terminal) clears its spinner; a retryable failure keeps it", async () => {
+  const { rpc } = setup([], blastWaiting());
+  render(<BlastStation />);
+  const row = await tapBlastIn();
+  expect(row.getAttribute("data-busy")).toBe("true");
+  // Network / server failure: the queue retries it, so the row stays in flight.
+  rpc.mockResolvedValueOnce({ data: null, error: { status: 503 } } as never);
+  await expect(mocks.send!(tapRequest("blast", "vx"))).rejects.toThrow();
+  expect(row.getAttribute("data-busy")).toBe("true");
+  // Refused for good (permission): the queue drops it, so the row is live again.
+  rpc.mockResolvedValueOnce({ data: null, error: { code: "42501" } } as never);
+  expect(await mocks.send!(tapRequest("blast", "vx"))).toMatchObject({
+    ok: false,
+    reason: "scan_not_permitted",
+  });
+  await waitFor(() => expect(row.getAttribute("data-busy")).toBeNull());
+  expect(screen.getByRole("button", { name: "Blast in exchange basket INT-0001" })).toBeTruthy();
+});
+
+it("#129 locate: an exchange tap never queued, or refused for good, clears its spinner", async () => {
+  const { rpc } = setup([], {
+    exchange: [{ id: "vx", weight_lb: 10, blast_in_at: null, intake: { number: "INT-0001" } }],
+  });
+  render(<LocateStation />);
+  const button = await screen.findByRole("button", { name: "Select exchange basket INT-0001" });
+  mocks.scan.mockResolvedValueOnce(false);
+  fireEvent.click(button);
+  expect(button.getAttribute("data-busy")).toBe("true");
+  await waitFor(() => expect(button.getAttribute("data-busy")).toBeNull());
+  fireEvent.click(button);
+  expect(button.getAttribute("data-busy")).toBe("true");
+  rpc.mockResolvedValueOnce({ data: null, error: { code: "42501" } } as never);
+  expect(await mocks.send!(tapRequest("locate", "vx"))).toMatchObject({
+    reason: "scan_not_permitted",
+  });
+  await waitFor(() => expect(button.getAttribute("data-busy")).toBeNull());
+  expect(locateHeading()).toBe("No basket scanned");
 });
