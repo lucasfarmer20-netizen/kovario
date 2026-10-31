@@ -2,7 +2,12 @@
 import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { SuspectPicker, type SuspectBinRow, type SuspectRow } from "./suspect-picker";
+import {
+  SuspectPicker,
+  UNLIKELY_SOURCE,
+  type SuspectBinRow,
+  type SuspectRow,
+} from "./suspect-picker";
 
 afterEach(cleanup);
 
@@ -231,4 +236,65 @@ it("#88 a manager moves any bin between members at reconcile", () => {
   fireEvent.click(screen.getByRole("button", { name: "Exchange basket · 30 lb" }));
   fireEvent.click(screen.getByRole("button", { name: "Move exchange basket · 30 lb to INT-0002" }));
   expect(onMove).toHaveBeenCalledWith("v-3", "i2", "i2");
+});
+
+// Split by direction (DECISION-33, #125): flagged INT-0002 is 6 lb under; INT-0001 is 2 lb under
+// (same direction), INT-0003 is 5 lb over (opposite).
+const directionGroup = [
+  row(1, -1, "reconciled", 48),
+  row(2, 0, "reconciled", 44),
+  row(3, 1, "reconciled", 55),
+];
+const directionBins: SuspectBinRow[] = [
+  { id: "v-1", intake_id: "i1", weight_lb: 48, is_exchange: true, asset_tag: null },
+  { id: "v-2", intake_id: "i2", weight_lb: 44, is_exchange: true, asset_tag: null },
+  { id: "v-5", intake_id: "i3", weight_lb: 5, is_exchange: false, asset_tag: { code: "0005" } },
+];
+function DirectionPicker({ rows }: { rows: readonly SuspectRow[] }) {
+  return (
+    <SuspectPicker
+      rows={rows}
+      bins={directionBins}
+      disabled={false}
+      editingReason={false}
+      onEditReason={() => undefined}
+      onMove={() => undefined}
+      onPullBack={() => undefined}
+      onClose={() => undefined}
+    />
+  );
+}
+
+it("PK11 an under-weight flagged order lists the over-weight neighbour as a suspect, the under-weight one below the divider", () => {
+  render(<DirectionPicker rows={directionGroup} />);
+  const suspects = screen.getByRole("list", { name: "Suspects" });
+  const unlikely = screen.getByRole("list", { name: UNLIKELY_SOURCE });
+  expect(
+    within(suspects)
+      .getAllByRole("listitem")
+      .map((li) => li.firstChild?.textContent),
+  ).toEqual(["INT-0003 · +10% · near limit · salmon · 50 lb · reconciled"]);
+  expect(
+    within(unlikely)
+      .getAllByRole("listitem")
+      .map((li) => li.firstChild?.textContent),
+  ).toEqual(["INT-0001 · −4% · within limit · salmon · 50 lb · reconciled"]);
+  const divider = screen.getByRole("heading", { name: "Same direction: unlikely source" });
+  expect(suspects.compareDocumentPosition(divider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(divider.compareDocumentPosition(unlikely) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it("PK11 only the opposite-direction suspect gets a suggested move", () => {
+  render(<DirectionPicker rows={directionGroup} />);
+  const items = within(screen.getByRole("list", { name: "Suggested moves" }))
+    .getAllByRole("listitem")
+    .map((li) => li.textContent ?? "");
+  expect(items).toEqual([expect.stringContaining("Move basket 0005 · 5 lb INT-0003 → INT-0002")]);
+  expect(items.some((t) => t.includes("INT-0001"))).toBe(false);
+});
+
+it("PK11 no divider when no member has the flagged order's direction", () => {
+  render(<Picker rows={group()} />);
+  expect(screen.queryByRole("heading", { name: UNLIKELY_SOURCE })).toBeNull();
+  expect(screen.queryByRole("list", { name: UNLIKELY_SOURCE })).toBeNull();
 });

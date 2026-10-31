@@ -19,6 +19,7 @@ import {
   suspectStatus,
   suspectWaiting,
   suspectsWaiting,
+  type RankedSuspects,
   type Suspect,
   type SuspectBin,
 } from "./suspects";
@@ -38,6 +39,8 @@ function member(
 }
 
 const numbers = (list: readonly { number: string }[]) => list.map((s) => s.number);
+/** Both groups in display order: suspects, then the unlikely ones below the divider. */
+const all = (r: RankedSuspects) => [...r.suspects, ...r.unlikely];
 
 describe("suspect ranking (#88)", () => {
   it("PK1 the opposite-variance neighbour that best cancels the flagged intake ranks first", () => {
@@ -49,16 +52,17 @@ describe("suspect ranking (#88)", () => {
       member("INT-C", 1, 20),
       member("INT-B", 2, 32),
     ]);
-    expect(numbers(ranked)).toEqual(["INT-B", "INT-C", "INT-D"]);
-    expect(ranked[0]).toMatchObject({ opposite: true, diffLb: -18, residualLb: 2 });
-    expect(ranked[2]).toMatchObject({ opposite: false, residualLb: null });
+    expect(numbers(ranked.suspects)).toEqual(["INT-B", "INT-C"]);
+    expect(numbers(ranked.unlikely)).toEqual(["INT-D"]);
+    expect(all(ranked)[0]).toMatchObject({ opposite: true, diffLb: -18, residualLb: 2 });
+    expect(all(ranked)[2]).toMatchObject({ opposite: false, residualLb: null });
   });
 
   it("PK2 an under-weight flagged intake looks for an over-weight suspect", () => {
     const flagged = member("INT-A", 0, 35); // −15 lb
     const ranked = rankSuspects(flagged, [member("INT-B", -1, 40), member("INT-C", 1, 64)]);
-    expect(numbers(ranked)).toEqual(["INT-C", "INT-B"]);
-    expect(ranked[0]).toMatchObject({ opposite: true, diffLb: 14, residualLb: 1 });
+    expect(numbers(all(ranked))).toEqual(["INT-C", "INT-B"]);
+    expect(all(ranked)[0]).toMatchObject({ opposite: true, diffLb: 14, residualLb: 1 });
   });
 
   it("PK3 between equal cancellations, more species in common ranks first", () => {
@@ -68,8 +72,8 @@ describe("suspect ranking (#88)", () => {
       member("INT-C", 1, 30, 50, ["halibut", "salmon"]),
       member("INT-D", 2, 30, 50, ["salmon"]),
     ]);
-    expect(numbers(ranked)).toEqual(["INT-C", "INT-D", "INT-B"]);
-    expect(ranked.map((s) => s.sharedSpecies)).toEqual([2, 1, 0]);
+    expect(numbers(all(ranked))).toEqual(["INT-C", "INT-D", "INT-B"]);
+    expect(all(ranked).map((s) => s.sharedSpecies)).toEqual([2, 1, 0]);
   });
 
   it("PK4 then the smaller order (estimated yield) ranks first", () => {
@@ -79,7 +83,7 @@ describe("suspect ranking (#88)", () => {
       member("INT-B", -1, 190, 200),
       member("INT-C", 1, 20, 30),
     ]);
-    expect(numbers(ranked)).toEqual(["INT-C", "INT-B"]);
+    expect(numbers(all(ranked))).toEqual(["INT-C", "INT-B"]);
   });
 
   it("PK5 cancellation outranks species overlap and size", () => {
@@ -88,7 +92,7 @@ describe("suspect ranking (#88)", () => {
       member("INT-B", -1, 25, 30, ["salmon"]), // −5: residual 15, shares species, small
       member("INT-C", 1, 180, 200, ["lingcod"]), // −20: residual 0
     ]);
-    expect(numbers(ranked)).toEqual(["INT-C", "INT-B"]);
+    expect(numbers(all(ranked))).toEqual(["INT-C", "INT-B"]);
   });
 
   it("PK6 a same-sign or zero variance never outranks an opposite one, however small", () => {
@@ -98,18 +102,20 @@ describe("suspect ranking (#88)", () => {
       member("INT-C", 1, 50), // 0
       member("INT-D", 2, 49.99, 500), // −0.01, huge order
     ]);
-    expect(numbers(ranked)[0]).toBe("INT-D");
+    expect(numbers(all(ranked))[0]).toBe("INT-D");
   });
 
-  it("PK7 waiting members have no variance yet; they rank after known ones, by species and size", () => {
+  it("PK7 waiting members have no variance (or direction) yet; they stay suspects, after opposite ones", () => {
     const flagged = member("INT-A", 0, 70);
     const ranked = rankSuspects(flagged, [
       member("INT-B", 1, 0, 50, ["salmon"], "upstream"),
       member("INT-C", 2, 0, 20, ["salmon"], "at_reconcile"),
       member("INT-D", -1, 60),
     ]);
-    expect(numbers(ranked)).toEqual(["INT-D", "INT-C", "INT-B"]);
-    expect(ranked[1]).toMatchObject({ diffLb: null, opposite: false });
+    // INT-D is +10 lb, the same direction as the flagged +20: unlikely, below the waiting ones.
+    expect(numbers(ranked.suspects)).toEqual(["INT-C", "INT-B"]);
+    expect(numbers(ranked.unlikely)).toEqual(["INT-D"]);
+    expect(ranked.suspects[0]).toMatchObject({ diffLb: null, opposite: false });
   });
 
   it("PK8 cancelled members and the flagged intake are never suspects; ties keep rollstock order", () => {
@@ -120,15 +126,15 @@ describe("suspect ranking (#88)", () => {
       member("INT-C", 2, 50),
       member("INT-B", 1, 50),
     ]);
-    expect(numbers(ranked)).toEqual(["INT-B", "INT-C"]);
+    expect(numbers(all(ranked))).toEqual(["INT-B", "INT-C"]);
   });
 
   it("PK9 cancellation is compared exactly in hundredths of a lb", () => {
     const flagged = member("INT-A", 0, 50.3); // +0.30
     const ranked = rankSuspects(flagged, [member("INT-B", -1, 49.8), member("INT-C", 1, 49.6)]);
     // −0.20 leaves 0.10; −0.40 leaves 0.10: a tie broken by species, size, then rollstock order.
-    expect(ranked.map((s) => s.residualLb)).toEqual([0.1, 0.1]);
-    expect(numbers(ranked)).toEqual(["INT-B", "INT-C"]);
+    expect(all(ranked).map((s) => s.residualLb)).toEqual([0.1, 0.1]);
+    expect(numbers(all(ranked))).toEqual(["INT-B", "INT-C"]);
   });
 
   it("PK10 the ranking is a permutation of the suspects whatever the input order", () => {
@@ -146,12 +152,60 @@ describe("suspect ranking (#88)", () => {
         const members = rows.map((r, i) =>
           member(`INT-${i}`, i + 1, r.actual / 100, r.expected / 100, r.species),
         );
-        const a = rankSuspects(flagged, members);
-        const b = rankSuspects(flagged, [...members].reverse());
+        const a = all(rankSuspects(flagged, members));
+        const b = all(rankSuspects(flagged, [...members].reverse()));
         expect(numbers(a)).toEqual(numbers(b));
         expect([...numbers(a)].sort()).toEqual(numbers(members).sort());
         const firstOther = a.findIndex((s) => !s.opposite);
         if (firstOther >= 0) expect(a.slice(firstOther).every((s) => !s.opposite)).toBe(true);
+      }),
+    );
+  });
+
+  it("PK11 an under-weight flagged order: the over-weight neighbour is a suspect, the under-weight one is unlikely", () => {
+    const flagged = member("INT-A", 0, 35); // −15 lb, flagged
+    const ranked = rankSuspects(flagged, [
+      flagged,
+      member("INT-UNDER", -1, 42), // −8 lb: same direction
+      member("INT-OVER", 1, 63), // +13 lb: opposite
+    ]);
+    expect(numbers(ranked.suspects)).toEqual(["INT-OVER"]);
+    expect(numbers(ranked.unlikely)).toEqual(["INT-UNDER"]);
+    expect(ranked.unlikely[0]).toMatchObject({ opposite: false, diffLb: -8, residualLb: null });
+  });
+
+  it("PK12 every member is in exactly one group: unlikely = same sign as the flagged intake; suspects lead with the opposite ones", () => {
+    const arb = fc.array(
+      fc.record({
+        actual: fc.integer({ min: 0, max: 20000 }),
+        expected: fc.integer({ min: 0, max: 20000 }),
+        waiting: fc.boolean(),
+      }),
+      { minLength: 1, maxLength: 5 },
+    );
+    fc.assert(
+      fc.property(arb, fc.integer({ min: -9000, max: 9000 }), (rows, flaggedDiff) => {
+        const flagged = member("INT-F", 0, 50 + flaggedDiff / 100);
+        const members = rows.map((r, i) =>
+          member(
+            `INT-${i}`,
+            i + 1,
+            r.actual / 100,
+            r.expected / 100,
+            ["salmon"],
+            r.waiting ? "at_reconcile" : "reconciled",
+          ),
+        );
+        const { suspects, unlikely } = rankSuspects(flagged, members);
+        expect([...numbers(suspects), ...numbers(unlikely)].sort()).toEqual(
+          numbers(members).sort(),
+        );
+        for (const u of unlikely) expect(u.diffLb! * flaggedDiff).toBeGreaterThan(0);
+        for (const s of suspects)
+          expect(s.diffLb === null || s.diffLb * flaggedDiff <= 0).toBe(true);
+        const firstOther = suspects.findIndex((s) => !s.opposite);
+        if (firstOther >= 0)
+          expect(suspects.slice(firstOther).every((s) => !s.opposite)).toBe(true);
       }),
     );
   });

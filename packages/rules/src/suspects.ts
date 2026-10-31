@@ -80,6 +80,18 @@ export type RankedSuspect = Suspect & {
   sharedSpecies: number;
 };
 
+/**
+ * The picker's two groups (DECISION-33). **suspects**: the members the flagged intake's fish
+ * could have gone to or come from: opposite variance first, then members with no direction yet
+ * (waiting, or exactly on their expected yield). **unlikely**: members whose variance has the
+ * same sign as the flagged intake's ("Same direction: unlikely source"); never suggested a
+ * move, still listed in case of a double mix-up.
+ */
+export type RankedSuspects = {
+  suspects: RankedSuspect[];
+  unlikely: RankedSuspect[];
+};
+
 function cents(lb: number): number {
   if (!Number.isFinite(lb)) throw new RangeError("weights must be finite");
   return Math.round(lb * 100);
@@ -92,12 +104,13 @@ function diffCents(s: Suspect): number | null {
 /**
  * The flagged intake's suspects, best first: (a) a variance of the opposite sign whose lb
  * difference best cancels the flagged intake's (smallest residual), then (b) more species in
- * common, then (c) the smaller order (estimated yield), then rollstock order. Members whose
- * variance is not opposite follow, by (b), (c) and rollstock order; then members still waiting
- * (no variance yet), the same way.
- * Cancelled members and the flagged intake itself are not suspects.
+ * common, then (c) the smaller order (estimated yield), then rollstock order. Members with no
+ * direction follow: a zero variance, then members still waiting (no variance yet), by (b), (c)
+ * and rollstock order. Members whose variance has the same sign as the flagged intake's are
+ * `unlikely`, by (b), (c) and rollstock order. Cancelled members and the flagged intake itself
+ * are in neither group.
  */
-export function rankSuspects(flagged: Suspect, members: readonly Suspect[]): RankedSuspect[] {
+export function rankSuspects(flagged: Suspect, members: readonly Suspect[]): RankedSuspects {
   const flaggedDiff = diffCents(flagged) ?? 0;
   const flaggedSpecies = new Set(flagged.species);
   const ranked = members
@@ -113,7 +126,12 @@ export function rankSuspects(flagged: Suspect, members: readonly Suspect[]): Ran
         residualLb: opposite ? residual / 100 : null,
         sharedSpecies: new Set(m.species.filter((s) => flaggedSpecies.has(s))).size,
       };
-      return { suspect, residual, size: cents(m.expectedLb) };
+      return {
+        suspect,
+        residual,
+        size: cents(m.expectedLb),
+        same: diff !== null && diff * flaggedDiff > 0,
+      };
     });
   ranked.sort(
     ({ suspect: a, ...x }, { suspect: b, ...y }) =>
@@ -125,7 +143,10 @@ export function rankSuspects(flagged: Suspect, members: readonly Suspect[]): Ran
       a.position - b.position ||
       (a.number < b.number ? -1 : a.number > b.number ? 1 : 0),
   );
-  return ranked.map((r) => r.suspect);
+  return {
+    suspects: ranked.filter((r) => !r.same).map((r) => r.suspect),
+    unlikely: ranked.filter((r) => r.same).map((r) => r.suspect),
+  };
 }
 
 /** Members still waiting, in rollstock order: suggestions wait for every one of them. */
@@ -175,7 +196,7 @@ export function suggestMoves(
   if (!canHoldMove(flagged.status)) return [];
   const flaggedDiff = diffCents(flagged)!;
   const moves: SuggestedMove[] = [];
-  for (const suspect of rankSuspects(flagged, members)) {
+  for (const suspect of rankSuspects(flagged, members).suspects) {
     if (!suspect.opposite || !canHoldMove(suspect.status)) continue;
     const suspectDiff = Math.round(suspect.diffLb! * 100);
     const [from, fromDiff, to, toDiff] =

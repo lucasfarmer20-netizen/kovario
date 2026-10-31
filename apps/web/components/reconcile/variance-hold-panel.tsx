@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Check, Lock, PenLine, Search, ShieldCheck } from "lucide-react";
 import {
   formatVariance,
   SIGNOFF_NOTE_MAX,
@@ -60,33 +61,55 @@ export function VarianceHoldPanel({
   const open = group.find((m) => m.intake_id === openIntakeId);
   const problem = reason ? varianceSignoffProblem(reason, note) : null;
   return (
-    <section className="station-card" aria-label="Variance hold">
-      <h3>
-        VARIANCE HOLD · {flagged?.intake_number} {formatVariance(flagged?.variance_pct ?? null)}{" "}
-        (limit ±{flagged?.limit_pct}%)
+    <section className="station-card rc-hold" aria-label="Variance hold">
+      <h3 className="rc-panel-title">
+        <span className="rc-panel-icon" aria-hidden>
+          <Lock size={22} strokeWidth={2.6} />
+        </span>
+        <span className="rc-panel-kicker">VARIANCE HOLD</span>
+        <span className="st-sr"> · </span>
+        <span className="rc-panel-sub">
+          <span className="st-code">{flagged?.intake_number}</span>{" "}
+          {formatVariance(flagged?.variance_pct ?? null)} (limit ±{flagged?.limit_pct}%)
+        </span>
       </h3>
-      <p>
+      <p className="rc-panel-lead">
         {open?.position === 0
           ? "Send to Blast is refused until the baskets are fixed or a manager signs off."
           : `${open?.intake_number ?? "This order"} is a rollstock neighbour and waits for the hold to clear.`}
       </p>
-      <ul>
+      <ul className="rc-group">
         {group.map((m) => {
           const band = lineBand(m.band);
           return (
-            <li key={m.intake_id} className={`station-band station-band-${band}`}>
-              {m.intake_number} · {formatVariance(m.variance_pct)} · {BAND_LABEL[band]} ·{" "}
-              {memberState(m.state)}
+            <li
+              key={m.intake_id}
+              className={`station-band station-band-${band}`}
+              data-current={m.intake_id === openIntakeId || undefined}
+            >
+              <span className="st-code rc-group-number">{m.intake_number}</span>
+              <span className="st-sr"> · </span>
+              <span className="st-num rc-group-variance">{formatVariance(m.variance_pct)}</span>
+              <span className="st-sr"> · </span>
+              <span className="rc-group-band">{BAND_LABEL[band]}</span>
+              <span className="st-sr"> · </span>
+              <span className="rc-group-state">{memberState(m.state)}</span>
             </li>
           );
         })}
       </ul>
       {onFindSuspects && (
-        <button type="button" disabled={disabled} onClick={onFindSuspects}>
+        <button
+          type="button"
+          className="st-btn-secondary st-btn-block"
+          disabled={disabled}
+          onClick={onFindSuspects}
+        >
+          <Search size={22} aria-hidden />
           Find the fish (suspects)
         </button>
       )}
-      <fieldset>
+      <fieldset className="rc-reasons">
         <legend>Manager sign-off reason</legend>
         {VARIANCE_SIGNOFF_REASONS.map((r) => (
           <button
@@ -96,12 +119,13 @@ export function VarianceHoldPanel({
             disabled={disabled}
             onClick={() => setReason(r)}
           >
+            {reason === r && <Check size={20} strokeWidth={3} aria-hidden />}
             {VARIANCE_SIGNOFF_REASON_LABELS[r]}
           </button>
         ))}
       </fieldset>
       {editingNote ? (
-        <>
+        <div className="rc-note">
           <label>
             Sign-off note{reason === "other" ? " (required)" : ""}
             <input
@@ -114,25 +138,37 @@ export function VarianceHoldPanel({
           <button type="button" onClick={() => onEditNote(false)}>
             Done
           </button>
-        </>
+        </div>
       ) : (
-        <>
-          {note.trim() && <p>Note: {note}</p>}
-          <button type="button" disabled={disabled} onClick={() => onEditNote(true)}>
+        <div className="rc-note">
+          {note.trim() && <p className="rc-note-text">Note: {note}</p>}
+          <button
+            type="button"
+            className="st-btn-secondary"
+            disabled={disabled}
+            onClick={() => onEditNote(true)}
+          >
+            <PenLine size={20} aria-hidden />
             {note.trim() ? "Edit note" : "Add note"}
             {reason === "other" ? " (required)" : ""}
           </button>
-        </>
+        </div>
       )}
       <button
         type="button"
+        className="st-btn-hero st-btn-block rc-signoff"
         disabled={disabled || editingNote || reason === null || problem !== null}
         onClick={() => reason && onSignOff(reason, note)}
       >
+        <ShieldCheck size={26} aria-hidden />
         Manager sign-off
       </button>
       <DisabledReason reason={reason === null && "Tap a reason first"} />
-      {problem && <p role="alert">{problem}</p>}
+      {problem && (
+        <p role="alert" className="rc-problem">
+          {problem}
+        </p>
+      )}
     </section>
   );
 }

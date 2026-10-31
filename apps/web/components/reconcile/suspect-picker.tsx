@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { ArrowRight, Search, Undo2, X } from "lucide-react";
 import type { FilletryClient } from "db";
 import {
   formatVariance,
@@ -15,6 +16,9 @@ import {
 } from "rules";
 import { BAND_LABEL, lineBand } from "@/components/variance/now-in-blast";
 import { DisabledReason } from "@/src/components/station/next-step";
+
+/** The divider above members whose variance has the flagged order's sign (DECISION-33). */
+export const UNLIKELY_SOURCE = "Same direction: unlikely source";
 
 /** One member of public.variance_suspect_group (#88). */
 export type SuspectRow = {
@@ -133,7 +137,9 @@ export function useSuspectGroup(client: FilletryClient, intakeId: string | null)
 
 /**
  * The suspect picker (#88): the hold group, the flagged (or tapped) intake first and its suspects
- * most likely first (rules: rankSuspects), each with variance, species, size and status. Bin
+ * most likely first (rules: rankSuspects), each with variance, species, size and status;
+ * same-direction members follow below the "Same direction: unlikely source" divider, as the
+ * rules group them (DECISION-33), with no suggested move. Bin
  * moves are suggested only once every member is reconciled (rules: suggestMoves); until then the
  * picker names the members still waiting. A manager moves a bin between members at reconcile, or
  * pulls a member in blast back to reconcile with a reason. Wet-glove: plain buttons, no focus
@@ -169,7 +175,8 @@ export function SuspectPicker({
   const number = (id: string) => byId.get(id)?.intake_number ?? id;
   const suspects = rows.map(toSuspect);
   const flagged = center ? toSuspect(center) : null;
-  const ranked = flagged ? rankSuspects(flagged, suspects) : [];
+  const ranked = flagged ? rankSuspects(flagged, suspects) : { suspects: [], unlikely: [] };
+  const grouped = new Set([...ranked.suspects, ...ranked.unlikely].map((s) => s.intakeId));
   const waiting = suspectsWaiting(rows.map((r) => ({ ...r, status: status(r) })));
   const moves: SuggestedMove[] = flagged
     ? suggestMoves(
@@ -203,11 +210,17 @@ export function SuspectPicker({
     setReason("");
   };
   const row = (r: SuspectRow, label?: string) => (
-    <li key={r.intake_id} className={`station-band station-band-${lineBand(r.band)}`}>
+    <li key={r.intake_id} className={`station-band station-band-${lineBand(r.band)} rc-suspect`}>
       {label && <strong>{label} </strong>}
-      {suspectLine(r)}
+      <span className="rc-suspect-line">{suspectLine(r)}</span>
       {r.status === "in_blast" && (
-        <button type="button" disabled={disabled} onClick={() => startPullBack(r.intake_id)}>
+        <button
+          type="button"
+          className="st-btn-secondary"
+          disabled={disabled}
+          onClick={() => startPullBack(r.intake_id)}
+        >
+          <Undo2 size={20} aria-hidden />
           Pull back {r.intake_number}
         </button>
       )}
@@ -215,30 +228,66 @@ export function SuspectPicker({
   );
   if (!center)
     return (
-      <section className="station-card" aria-label="Suspect picker">
-        <h3>SUSPECTS</h3>
+      <section className="station-card rc-suspects" aria-label="Suspect picker">
+        <div className="rc-panel-head">
+          <h3 className="rc-panel-title">
+            <span className="rc-panel-icon" aria-hidden>
+              <Search size={22} strokeWidth={2.6} />
+            </span>
+            <span className="rc-panel-kicker">SUSPECTS</span>
+          </h3>
+          <button type="button" className="st-btn-secondary" onClick={onClose}>
+            <X size={22} aria-hidden />
+            Close suspects
+          </button>
+        </div>
         <p role={error ? "alert" : undefined}>
           {error ? "Suspects unavailable; check connection." : "Loading suspects…"}
         </p>
-        <button type="button" onClick={onClose}>
-          Close suspects
-        </button>
       </section>
     );
   return (
-    <section className="station-card" aria-label="Suspect picker">
-      <h3>
-        SUSPECTS · {center.intake_number} {formatVariance(center.variance_pct)} (limit ±
-        {center.limit_pct}%){center.hold_id ? " · HELD" : ""}
-      </h3>
+    <section className="station-card rc-suspects" aria-label="Suspect picker">
+      <div className="rc-panel-head">
+        <h3 className="rc-panel-title">
+          <span className="rc-panel-icon" aria-hidden>
+            <Search size={22} strokeWidth={2.6} />
+          </span>
+          <span className="rc-panel-kicker">SUSPECTS</span>
+          <span className="st-sr"> · </span>
+          <span className="rc-panel-sub">
+            <span className="st-code">{center.intake_number}</span>{" "}
+            {formatVariance(center.variance_pct)} (limit ±{center.limit_pct}%)
+            {center.hold_id ? " · HELD" : ""}
+          </span>
+        </h3>
+        <button type="button" className="st-btn-secondary" onClick={onClose}>
+          <X size={22} aria-hidden />
+          Close suspects
+        </button>
+      </div>
       {error && <p role="alert">Suspects unavailable; check connection.</p>}
-      <ul aria-label="Flagged order">{row(center, center.hold_id ? "Flagged:" : "Tapped:")}</ul>
+      <ul className="rc-suspect-list" aria-label="Flagged order">
+        {row(center, center.hold_id ? "Flagged:" : "Tapped:")}
+      </ul>
       <h4>Most likely first</h4>
-      <ol aria-label="Suspects">{ranked.map((s) => row(byId.get(s.intakeId)!))}</ol>
+      <ol className="rc-suspect-list" aria-label="Suspects">
+        {ranked.suspects.map((s) => row(byId.get(s.intakeId)!))}
+      </ol>
+      {ranked.unlikely.length > 0 && (
+        <>
+          <h4 className="rc-suspect-divider">{UNLIKELY_SOURCE}</h4>
+          <ul className="rc-suspect-list rc-suspect-unlikely" aria-label={UNLIKELY_SOURCE}>
+            {ranked.unlikely.map((s) => row(byId.get(s.intakeId)!))}
+          </ul>
+        </>
+      )}
       {rows
-        .filter((r) => r.position !== 0 && !ranked.some((s) => s.intakeId === r.intake_id))
+        .filter((r) => r.position !== 0 && !grouped.has(r.intake_id))
         .map((r) => (
-          <p key={r.intake_id}>{suspectLine(r)}</p>
+          <p key={r.intake_id} className="rc-suspect-other">
+            {suspectLine(r)}
+          </p>
         ))}
       <h4>Suggested moves</h4>
       {waiting.length > 0 ? (
@@ -249,19 +298,21 @@ export function SuspectPicker({
       ) : moves.length === 0 ? (
         <p>No basket move brings the group closer; check the baskets or get a manager sign-off.</p>
       ) : (
-        <ul aria-label="Suggested moves">
+        <ul className="rc-moves" aria-label="Suggested moves">
           {moves.map((m) => {
             const moving = bins.find((b) => b.id === m.vesselId);
             const text = `Move ${moving ? movingLabel(moving) : "basket"} ${number(m.fromIntakeId)} → ${number(m.toIntakeId)} (off by ${m.beforeLb} lb → ${m.afterLb} lb)`;
             return (
               <li key={m.vesselId}>
-                {text}
+                <span>{text}</span>
                 {m.pullBack.length > 0 ? (
                   <button
                     type="button"
+                    className="st-btn-secondary"
                     disabled={disabled}
                     onClick={() => startPullBack(m.pullBack[0]!)}
                   >
+                    <Undo2 size={20} aria-hidden />
                     Pull back {number(m.pullBack[0]!)} first
                   </button>
                 ) : (
@@ -270,6 +321,7 @@ export function SuspectPicker({
                     disabled={disabled}
                     onClick={() => onMove(m.vesselId, m.toIntakeId, center.intake_id)}
                   >
+                    <ArrowRight size={20} aria-hidden />
                     Move this basket
                   </button>
                 )}
@@ -284,7 +336,7 @@ export function SuspectPicker({
       ) : (
         <>
           {atReconcile.map((r) => (
-            <fieldset key={r.intake_id}>
+            <fieldset key={r.intake_id} className="rc-move-from">
               <legend>{r.intake_number} baskets</legend>
               {bins
                 .filter((b) => b.intake_id === r.intake_id)
@@ -314,13 +366,14 @@ export function SuspectPicker({
                     setSelectedBin(null);
                   }}
                 >
+                  <ArrowRight size={20} aria-hidden />
                   Move {movingLabel(bin)} to {r.intake_number}
                 </button>
               ))}
         </>
       )}
       {pullBackRow && (
-        <fieldset aria-label="Pull back from blast">
+        <fieldset className="rc-pullback" aria-label="Pull back from blast">
           <legend>Pull {pullBackRow.intake_number} back from blast to reconcile</legend>
           {editingReason ? (
             <>
@@ -350,6 +403,7 @@ export function SuspectPicker({
           <DisabledReason reason={!reason.trim() && "Add a reason first"} />
           <button
             type="button"
+            className="st-btn-secondary"
             onClick={() => {
               onEditReason(false);
               setPullBackFor(null);
@@ -360,9 +414,6 @@ export function SuspectPicker({
           {reason.trim() && problem && <p role="alert">{problem}</p>}
         </fieldset>
       )}
-      <button type="button" onClick={onClose}>
-        Close suspects
-      </button>
     </section>
   );
 }
