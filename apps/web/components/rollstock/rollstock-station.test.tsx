@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   pending: 0,
   send: null as null | ((r: ScanRequest) => Promise<ScanReply>),
   scan: vi.fn(),
+  /** The station's realtime reload (what a postgres change triggers). */
+  reload: null as null | (() => void),
+  tables: {} as Record<string, unknown>,
 }));
 vi.mock("@/components/intake/use-station-session", () => ({
   useStationSession: () => ({ session: mocks.session, loaded: true }),
@@ -41,7 +44,7 @@ afterEach(() => {
   mocks.pending = 0;
 });
 const OPEN_I1 = "Order INT-0001 · tote 1 of 2";
-function setup({ role = "staff", scanned = 1, nextUp = true } = {}) {
+function setup({ role = "staff", scanned = 1, nextUp = true, resume = false } = {}) {
   localStorage.setItem("org:staff:rollstock", "i1");
   const tables: Record<string, unknown> = {
     intake: [
@@ -66,20 +69,38 @@ function setup({ role = "staff", scanned = 1, nextUp = true } = {}) {
             },
           ]
         : []),
+      ...(resume
+        ? [
+            {
+              id: "i3",
+              number: "INT-0003",
+              state: "rollstock",
+              tote_count: 1,
+              intake_line: [],
+            },
+          ]
+        : []),
     ],
     rollstock_tote_progress: [{ intake_id: "i1", scanned }],
   };
+  mocks.tables = tables;
   const from = (name: string) => {
     const q = {
       select: () => q,
       in: () => q,
       order: () => q,
       then: (resolve: (r: unknown) => unknown) =>
-        Promise.resolve({ data: tables[name], error: null }).then(resolve),
+        Promise.resolve({ data: mocks.tables[name], error: null }).then(resolve),
     };
     return q;
   };
-  const channel = { on: () => channel, subscribe: () => channel };
+  const channel = {
+    on: (_event: string, _filter: unknown, callback: () => void) => {
+      mocks.reload = callback;
+      return channel;
+    },
+    subscribe: () => channel,
+  };
   const rpc = vi.fn(async () => ({
     data: { ok: true, reason: "Tote accepted", open_intake_id: "i2" },
     error: null,
@@ -333,8 +354,8 @@ it("#84 Enter manually: a typed tote short code takes the rollstock scan path, f
 
 const MISSING = { ok: false, reason: "Missing totes: 1 of 2 scanned", open_intake_id: "i1" };
 /** Opens INT-0001 (1 of 2 totes), then delivers a tote of INT-0002 that the server refuses. */
-async function refuseNextTote(role = "staff") {
-  const rpc = setup({ role });
+async function refuseNextTote(role = "staff", resume = false) {
+  const rpc = setup({ role, resume });
   render(<RollstockStation />);
   await screen.findByRole("heading", { name: OPEN_I1 });
   rpc.mockResolvedValueOnce({ data: MISSING, error: null });
@@ -439,4 +460,46 @@ it("#128 a remembered open order that has moved on shows as not found, with Clea
   fireEvent.click(screen.getByRole("button", { name: "Clear stale open order" }));
   await screen.findByText("Scan a tote to open an order.");
   expect(localStorage.getItem("org:staff:rollstock")).toBe("");
+});
+const scanner = () => screen.getByLabelText("Station scanner") as HTMLInputElement;
+it("#128 resuming another order while the reason is being typed ends the editing: the scanner and Enter manually come back", async () => {
+  await refuseNextTote("staff", true);
+  const panel = await screen.findByRole("region", { name: "Missing totes" });
+  fireEvent.click(within(panel).getByRole("button", { name: "Add reason" }));
+  fireEvent.change(within(panel).getByLabelText("Override reason"), {
+    target: { value: "Tote lost" },
+  });
+  expect(scanner().disabled).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Resume INT-0003" }));
+  await screen.findByRole("heading", { name: "Order INT-0003 · tote 0 of 1" });
+  expect(screen.queryByRole("region", { name: "Missing totes" })).toBeNull();
+  expect(scanner().disabled).toBe(false);
+  expect(
+    (screen.getByRole("button", { name: "Enter manually" }) as HTMLButtonElement).disabled,
+  ).toBe(false);
+  // Back on INT-0001 its refusal still stands, so the panel returns: editing ended, the reason
+  // cleared rather than carried over.
+  fireEvent.click(screen.getByRole("button", { name: "Resume INT-0001" }));
+  await screen.findByRole("heading", { name: OPEN_I1 });
+  const again = await screen.findByRole("region", { name: "Missing totes" });
+  expect(within(again).getByRole("button", { name: "Add reason" })).toBeTruthy();
+  expect(within(again).getByText("Enter a reason first")).toBeTruthy();
+  expect(scanner().disabled).toBe(false);
+});
+it("#128 a refresh that finds the open order gone while the reason is being typed ends the editing", async () => {
+  await refuseNextTote();
+  const panel = await screen.findByRole("region", { name: "Missing totes" });
+  fireEvent.click(within(panel).getByRole("button", { name: "Add reason" }));
+  expect(scanner().disabled).toBe(true);
+  // Another station moved INT-0001 on: it is no longer listed.
+  mocks.tables = {
+    ...mocks.tables,
+    intake: (mocks.tables.intake as { id: string }[]).filter((i) => i.id !== "i1"),
+  };
+  await act(async () => {
+    mocks.reload!();
+  });
+  expect(await screen.findByText("Open order not found")).toBeTruthy();
+  expect(screen.queryByRole("region", { name: "Missing totes" })).toBeNull();
+  expect(scanner().disabled).toBe(false);
 });

@@ -305,6 +305,19 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
   const order = open ? rollstockOrder(open, counts[open.id] ?? 0) : null;
   const block =
     order && blocked?.openId === order.id ? { next: blocked.raw ? blocked.next : null } : null;
+  // The order whose Missing totes panel is on screen (the view shows it only while totes are
+  // missing). The reason, and its editing mode, belong to that panel: when it goes (missing tote
+  // scanned, another order resumed, the order moved on elsewhere) they go too, so the scanner and
+  // Enter manually are never left paused behind a field that is no longer there.
+  const panelFor =
+    order && block && !(order.scanned >= order.totes && order.totes > 0) ? order.id : null;
+  const [reasonFor, setReasonFor] = useState(panelFor);
+  if (reasonFor !== panelFor) {
+    setReasonFor(panelFor);
+    setEditingReason(false);
+    setOverrideReason("");
+  }
+  const editing = editingReason && panelFor !== null;
   const nextUp = intakes.filter((i) => i.state !== "rollstock" && i.id !== openId);
   const now = new Date();
   const prompt = rollstockNextStep(order, block, nextUp.length, stale);
@@ -317,7 +330,7 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
       site={siteName}
       operator={operator}
       pending={pending}
-      paused={pinOpen || managerOpen || busy || editingReason}
+      paused={pinOpen || managerOpen || busy || editing}
       next={prompt.next}
       nextTone={prompt.tone}
       steps={ROLLSTOCK_STEPS}
@@ -366,7 +379,7 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
           .map((i) => ({ id: i.id, number: i.number }))}
         blocked={block}
         reason={overrideReason}
-        editingReason={editingReason}
+        editingReason={editing}
         sending={waiting ? "Waiting for scans to send" : pending > 0 ? "" : null}
         online={online}
         busy={busy || pinOpen || managerOpen}
