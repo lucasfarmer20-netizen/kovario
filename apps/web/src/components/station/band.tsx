@@ -23,16 +23,19 @@ export function meterPosition(pct: number): number {
  * zones of the org's limit (near is striped and over is hatched, so the zones differ without
  * colour), the limit marked on the scale, a tick at 0 and a needle at the order's variance (red
  * when pinned past ±100%). Decorative: the numbers and the band chip beside it say the same
- * thing in words.
+ * thing in words. `compact` drops the scale (a list of lines, each with its figure and band in
+ * words): the zones still mark the limit.
  */
 export function VarianceMeter({
   variancePct,
   limitPct,
   band,
+  compact = false,
 }: {
   variancePct: number | null;
   limitPct: number;
   band: VarianceBand;
+  compact?: boolean;
 }) {
   const at = meterPosition;
   const near = (limitPct * NEAR_LIMIT_NUMERATOR) / NEAR_LIMIT_DENOMINATOR;
@@ -45,7 +48,7 @@ export function VarianceMeter({
   ];
   const clipped = variancePct !== null && Math.abs(variancePct) > METER_RANGE_PCT;
   return (
-    <div className="st-meter" aria-hidden data-band={band}>
+    <div className="st-meter" aria-hidden data-band={band} data-compact={compact || undefined}>
       <div className="st-meter-track">
         {zones.map(([zone, from, to], n) => (
           <span
@@ -64,16 +67,18 @@ export function VarianceMeter({
           />
         )}
       </div>
-      <div className="st-meter-scale">
-        <span data-edge="start" style={{ left: "0%" }}>
-          −{METER_RANGE_PCT}%
-        </span>
-        <span style={{ left: `${at(-limitPct)}%` }}>−{limitPct}%</span>
-        <span style={{ left: `${at(limitPct)}%` }}>+{limitPct}%</span>
-        <span data-edge="end" style={{ left: "100%" }}>
-          +{METER_RANGE_PCT}%
-        </span>
-      </div>
+      {!compact && (
+        <div className="st-meter-scale">
+          <span data-edge="start" style={{ left: "0%" }}>
+            −{METER_RANGE_PCT}%
+          </span>
+          <span style={{ left: `${at(-limitPct)}%` }}>−{limitPct}%</span>
+          <span style={{ left: `${at(limitPct)}%` }}>+{limitPct}%</span>
+          <span data-edge="end" style={{ left: "100%" }}>
+            +{METER_RANGE_PCT}%
+          </span>
+        </div>
+      )}
     </div>
   );
 }

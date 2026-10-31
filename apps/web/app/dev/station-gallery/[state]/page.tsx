@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { GALLERY_STATE_IDS } from "../state-ids";
 import { GalleryScreen } from "./screen";
 
-/** One Reconcile state, full screen (static props, no DB): /dev/station-gallery/held. */
+/** One station state, full screen (static props, no DB): /dev/station-gallery/held. */
 export function generateStaticParams() {
   return GALLERY_STATE_IDS.map((state) => ({ state }));
 }
