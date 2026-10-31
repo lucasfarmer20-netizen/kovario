@@ -51,10 +51,52 @@ yield, total) → **Save & Print Tote Tags** (locks the record; creates charges;
 print jobs; shows "Reprint", "Print Receipt", "New Intake", manager "Unlock").
 Intake number is the hero element on the tote tag (≥ 100 pt) so it reads across the
 cooler.
+**Design system** (UI pass, #131; `12-DESIGN-SYSTEM.md` "Keyboard stations"; client side only,
+same RPCs, rules and wording): the Intake console has no scanner input, so the keyboard stays in
+the form. Step row `1 Find the customer · 2 Add species lines · 3 Save & print`; the next step
+line names what the order still needs ("Pick the condition for line 2", "Enter the lb for line
+1"). The form (customer, species lines as cards, totes and notes) is the work; the price and
+Save & Print Tote Tags sit in a rail right of it (under it on a phone, sticky on a tablet). The
+saved order shows its number at readout size, as on the tags, its tote tags, then **New Intake**
+as the one filled button with Reprint, Print Receipt, Open customer receipt and Unlock beside
+it. Orders (`/intakes`) are order tiles. Flow changes:
+- Save waits until the order is complete and says why under it, in the next step line's words
+  ("Pick the customer first", "Enter the lb for line 2 first"); before, Save was always live and
+  a tap on an incomplete order showed the problems after the fact. A missing rate warns in the
+  next step line and holds Save. Offline, Save waits: "Needs a connection. The order stays as
+  typed."
+- Picking the customer moves the keyboard to the first line's species (before, focus was lost
+  when the search closed). Once a line's method is set (picked, or the only one), the keyboard
+  moves to its lb. **Add line** focuses the new line's species.
+- Totes have − / + beside the typed count, so a tablet changes it without the keyboard.
+- Dirty fish, Fast Pass, Skin off and Print receipt too are 56 px ticks (the whole label is the
+  target); each line ticks green once complete; Condition and Method say what they wait for.
+- The save result is in the status tile: green "INT-0002 saved; 2 tote tags queued." or red, why
+  and then what to do. With no tote printer the tags read **Not printed** and the next step line
+  says to write the number on each tote.
+- First load shows placeholders in the final layout; no session reads "Sign in or pair this
+  tablet" with **Staff sign in** and **Pair device**.
 
 ## Storage intake (keyboard)
 Customer → location → boxes (weight, description) → **Confirm** → storage box labels
 (QR `FL:SBOX`) + receipt.
+**Design system** (UI pass, #131; client side only, same RPCs): the Cold storage console, keyboard
+like Intake. Step row `1 Find the customer · 2 Add boxes · 3 Confirm & print`; location and the
+boxes are one card, the labels Confirm prints and **Confirm & Print N Labels** in the rail. The
+stored order is the pickup screen: its number at readout size, each box a whole-row tick (72 px:
+weight, description, label code, days stored), the server's quote and **Create Pickup Batch** in
+the rail (step row `1 Tick boxes · 2 Create pickup batch · 3 Charge at the register`), then the
+batches. Flow changes:
+- Confirm waits for the customer and says so ("Pick the customer first"; before, it refused after
+  the tap). A weight that is not a number warns in the next step line ("Box 2: weight must be a
+  number of lb (0 or more).") and holds Confirm. Location, weight and description stay optional.
+- Picking the customer moves the keyboard to Location; **Add box** focuses the new box's weight.
+- Typed box codes (Enter manually) answer in the status tile, like a save, instead of a line in
+  the Boxes card.
+- Force Release / COMP: the reason panel takes the top of the work area; **Manager PIN…** waits
+  for a reason and says so.
+- First load shows placeholders; a failed refresh says "… unavailable. Check the connection and
+  reload."
 
 ## Wave (scan + a few taps)
 Left: holding intakes FIFO with age, lb, species summary, tote count, FAST PASS / DIRTY /

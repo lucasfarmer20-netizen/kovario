@@ -19,6 +19,7 @@ const FLOOR = [
   "components/freezer",
   "components/boxing",
   "components/storage/storage-detail.tsx",
+  "components/storage/storage-view.tsx",
   "components/intake/intake-receipt.tsx",
   "components/allocate/settlement-receipt.tsx",
   "components/register/payment-receipt.tsx",

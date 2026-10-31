@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FRESH, buildIntakeDraft, formatPhone, savePayload, type IntakeDraft } from "rules";
+import { buildIntakeDraft, savePayload } from "rules";
 import { CustomerSearch } from "@/components/customers/customer-search";
 import type { CustomerHit } from "@/components/customers/customer-search-state";
+import { useOnline } from "@/src/components/station/connection-chip";
+import { KeyboardStatus, type KeyboardFeedback } from "@/src/components/station/keyboard-status";
 import {
   createCustomer,
   loadPriceContext,
@@ -14,22 +16,29 @@ import {
   type SaveResult,
 } from "./intake-data";
 import {
-  conditionOptions,
   emptyRow,
-  methodOptions,
-  money,
+  lineGap,
   parseToteCount,
   rowsToLines,
-  skinOffAllowed,
-  speciesOptions,
   updateRow,
   type LineRow,
   type OrgReference,
 } from "./intake-form-state";
-import type { StationSession } from "./use-station-session";
+import {
+  IntakeFormView,
+  IntakeShell,
+  fieldId,
+  intakeNextStep,
+  refusal,
+  type Draft,
+  type IntakeFormValues,
+} from "./intake-view";
+import { sessionLabel, type StationSession } from "./use-station-session";
 
 export type IntakeFormInitial = {
   intakeId: string;
+  /** The order's number: the form is editing an order a manager unlocked. */
+  number?: string;
   customer: CustomerHit;
   rows: LineRow[];
   toteCount: number;
@@ -42,8 +51,9 @@ export type IntakeFormInitial = {
 
 /**
  * Intake form (docs/06-STATIONS-UX.md Intake): customer → species lines → totes → notes →
- * Fast Pass → live price panel → Save & Print Tote Tags. With `initial` it edits an
- * intake a manager unlocked; saving locks it again.
+ * Fast Pass → live price panel → Save & Print Tote Tags, in the Intake console (step row, next
+ * step line, the save result in the status tile). With `initial` it edits an intake a manager
+ * unlocked; saving locks it again.
  */
 export function IntakeForm({
   session,
@@ -55,81 +65,84 @@ export function IntakeForm({
   onSaved: (result: SaveResult) => void;
 }) {
   const { client, claims } = session;
-  const [ref, setRef] = useState<OrgReference | null>(null);
-  const [customer, setCustomer] = useState<CustomerHit | null>(initial?.customer ?? null);
+  const online = useOnline();
+  const [reference, setReference] = useState<OrgReference | null>(null);
   const [ctx, setCtx] = useState<PriceContext | null>(null);
-  const [rows, setRows] = useState<LineRow[]>(initial?.rows ?? [emptyRow()]);
-  const [toteCount, setToteCount] = useState(String(initial?.toteCount ?? 1));
-  const [dirtyFish, setDirtyFish] = useState(initial?.dirtyFish ?? false);
-  const [dirtyNotes, setDirtyNotes] = useState(initial?.dirtyNotes ?? "");
-  const [cutNotes, setCutNotes] = useState(initial?.cutNotes ?? "");
-  const [processingNotes, setProcessingNotes] = useState(initial?.processingNotes ?? "");
-  const [fastPass, setFastPass] = useState(initial?.fastPass ?? false);
-  const [printReceipt, setPrintReceipt] = useState(false);
+  const [values, setValues] = useState<IntakeFormValues>(() => ({
+    customer: initial?.customer ?? null,
+    rows: initial?.rows ?? [emptyRow()],
+    toteCount: String(initial?.toteCount ?? 1),
+    dirtyFish: initial?.dirtyFish ?? false,
+    dirtyNotes: initial?.dirtyNotes ?? "",
+    cutNotes: initial?.cutNotes ?? "",
+    processingNotes: initial?.processingNotes ?? "",
+    fastPass: initial?.fastPass ?? false,
+    printReceipt: false,
+  }));
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState<KeyboardFeedback | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
   // One id per save intent: a retry after a lost response replays; any edit starts a new one.
   const actionId = useRef<string | null>(null);
   const intakeId = initial?.intakeId ?? null;
+  const customerId = values.customer?.id ?? null;
 
   useEffect(() => {
-    loadReference(client).then(setRef, () => setError("Reference data unavailable; reload."));
+    loadReference(client).then(setReference, () =>
+      setLoadError("Species unavailable. Check the connection and reload."),
+    );
   }, [client]);
   useEffect(() => {
-    loadPriceContext(client, customer?.id ?? null, intakeId).then(setCtx, () =>
-      setError("Rates unavailable; reload."),
+    loadPriceContext(client, customerId, intakeId).then(setCtx, () =>
+      setLoadError("Rates unavailable. Check the connection and reload."),
     );
-  }, [client, customer?.id, intakeId]);
+  }, [client, customerId, intakeId]);
 
-  const edit =
-    <T,>(set: (v: T) => void) =>
-    (v: T) => {
-      actionId.current = null;
-      setError("");
-      set(v);
-    };
-  const setRow = (key: string, patch: Partial<LineRow>) =>
-    edit(setRows)(rows.map((r) => (r.key === key && ref ? updateRow(ref, r, patch) : r)));
+  const focusOn = (id: string) => setFocus((f) => ({ id, n: (f?.n ?? 0) + 1 }));
+  /** Every edit starts a new save intent and clears a refusal it may have fixed. */
+  const change = (patch: Partial<IntakeFormValues>) => {
+    actionId.current = null;
+    setFeedback(null);
+    setValues((v) => ({ ...v, ...patch }));
+  };
 
-  const parsed = useMemo(() => rowsToLines(rows), [rows]);
-  const draft = useMemo((): IntakeDraft | { error: string } | null => {
+  const parsed = useMemo(() => rowsToLines(values.rows), [values.rows]);
+  const draft = useMemo((): Draft => {
     if (!ctx || parsed.lines.length === 0) return null;
     try {
-      return buildIntakeDraft(parsed.lines, pricingFrom(ctx, fastPass));
+      return buildIntakeDraft(parsed.lines, pricingFrom(ctx, values.fastPass));
     } catch (err) {
       return { error: err instanceof Error ? err.message : "Line not allowed" };
     }
-  }, [ctx, parsed.lines, fastPass]);
+  }, [ctx, parsed.lines, values.fastPass]);
+  const prompt = intakeNextStep({
+    customer: values.customer !== null,
+    rows: values.rows,
+    toteCount: values.toteCount,
+    priced: ctx !== null,
+    draft,
+    online,
+  });
 
   async function save() {
-    const totes = parseToteCount(toteCount);
-    const problems = [
-      ...(customer ? [] : ["Pick or create the customer."]),
-      ...parsed.errors,
-      ...(totes ? [] : ["Enter the tote count (1 or more)."]),
-      ...(draft && "error" in draft ? [draft.error] : []),
-      ...(draft && "missingRates" in draft && draft.missingRates.length > 0
-        ? [`The rate card has no rate for ${draft.missingRates.join(", ")}.`]
-        : []),
-    ];
-    if (problems.length > 0 || !customer || !totes) {
-      setError(problems.join(" "));
-      return;
-    }
+    const totes = parseToteCount(values.toteCount);
+    // The view holds Save until the order is complete; this is the same check, kept as a guard.
+    if (prompt.saveWhy || !values.customer || !totes || parsed.errors.length > 0) return;
     setSaving(true);
-    setError("");
+    setFeedback(null);
     try {
       const payload = savePayload(
         {
           intakeId,
-          customerId: customer.id,
+          customerId: values.customer.id,
           toteCount: totes,
-          dirtyFish,
-          dirtyNotes,
-          cutNotes,
-          processingNotes,
-          fastPass,
-          printReceipt,
+          dirtyFish: values.dirtyFish,
+          dirtyNotes: values.dirtyNotes,
+          cutNotes: values.cutNotes,
+          processingNotes: values.processingNotes,
+          fastPass: values.fastPass,
+          printReceipt: values.printReceipt,
         },
         parsed.lines,
       );
@@ -138,283 +151,87 @@ export function IntakeForm({
       actionId.current = null;
       onSaved(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed; try again.");
+      setFeedback({
+        ok: false,
+        text: refusal(
+          err instanceof Error ? err.message : "Save did not go through",
+          "Check the order and tap Save again.",
+        ),
+        event: Date.now(),
+      });
     } finally {
       setSaving(false);
     }
   }
 
-  if (!ref) return <p>Loading species…</p>;
-  const species = speciesOptions(ref);
-
   return (
-    <div className="station-workspace intake-workspace">
-      <section className="station-card intake-form" aria-label="Intake">
-        <h2>{intakeId ? "Edit intake" : "New intake"}</h2>
-        {customer ? (
-          <div className="intake-customer">
-            <div>
-              <strong>{customer.name}</strong>{" "}
-              {customer.phone && <span>{formatPhone(customer.phone)}</span>}{" "}
-              {customer.is_lodge_guest && (
-                <span className="station-badge">
-                  Lodge{customer.lodge_name ? ` · ${customer.lodge_name}` : ""}
-                </span>
-              )}
-            </div>
-            <button type="button" onClick={() => edit(setCustomer)(null)}>
-              Change customer
-            </button>
-          </div>
-        ) : (
+    <IntakeShell
+      site={session.siteName}
+      operator={sessionLabel(session)}
+      prompt={prompt}
+      status={
+        <KeyboardStatus
+          feedback={feedback}
+          notice={
+            loadError
+              ? { tone: "error", text: loadError }
+              : !online
+                ? {
+                    tone: "info",
+                    text: "Offline. Saving needs a connection; the order stays as typed.",
+                  }
+                : null
+          }
+        />
+      }
+    >
+      <IntakeFormView
+        reference={reference}
+        ctx={ctx}
+        draft={draft}
+        values={values}
+        editing={initial?.number}
+        focus={focus}
+        saveWhy={prompt.saveWhy}
+        saving={saving}
+        customerSearch={
           <CustomerSearch
             autoFocus
             label="Customer phone or name"
             search={(q) => searchCustomers(client, claims.orgId, q)}
             create={(input) => createCustomer(client, input)}
-            onSelect={edit(setCustomer)}
+            onSelect={(customer) => {
+              change({ customer });
+              // The keyboard goes on to the first line that still needs its species.
+              const row = values.rows.find((r) => lineGap(r) !== null) ?? values.rows[0];
+              if (row) focusOn(fieldId(row.key, "species"));
+            }}
           />
-        )}
-
-        <h3>Species</h3>
-        <table className="intake-lines">
-          <thead>
-            <tr>
-              <th>Species</th>
-              <th>Condition</th>
-              <th>Method</th>
-              <th>lb</th>
-              <th>Fillets %</th>
-              <th>Skin off</th>
-              <th>Notes</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={row.key}>
-                <td>
-                  <select
-                    aria-label={`Line ${i + 1} species`}
-                    value={row.species}
-                    onChange={(e) => setRow(row.key, { species: e.target.value })}
-                  >
-                    <option value="">—</option>
-                    {species.map((o) => (
-                      <option key={o.code} value={o.code}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <select
-                    aria-label={`Line ${i + 1} condition`}
-                    value={row.condition}
-                    disabled={!row.species}
-                    onChange={(e) => setRow(row.key, { condition: e.target.value })}
-                  >
-                    <option value="">—</option>
-                    {conditionOptions(ref, row.species).map((o) => (
-                      <option key={o.code} value={o.code}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <select
-                    aria-label={`Line ${i + 1} method`}
-                    value={row.method}
-                    disabled={!row.condition}
-                    onChange={(e) => setRow(row.key, { method: e.target.value })}
-                  >
-                    <option value="">—</option>
-                    {methodOptions(ref, row.species, row.condition).map((o) => (
-                      <option key={o.code} value={o.code}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <input
-                    aria-label={`Line ${i + 1} lb`}
-                    inputMode="decimal"
-                    size={6}
-                    value={row.lb}
-                    onChange={(e) => setRow(row.key, { lb: e.target.value })}
-                  />
-                </td>
-                <td>
-                  {row.method === FRESH && (
-                    <input
-                      aria-label={`Line ${i + 1} fillets %`}
-                      inputMode="numeric"
-                      size={4}
-                      value={row.filletsPct}
-                      onChange={(e) => setRow(row.key, { filletsPct: e.target.value })}
-                    />
-                  )}
-                </td>
-                <td>
-                  {skinOffAllowed(row.species) && (
-                    <input
-                      type="checkbox"
-                      aria-label={`Line ${i + 1} skin off`}
-                      checked={row.skinOff}
-                      onChange={(e) => setRow(row.key, { skinOff: e.target.checked })}
-                    />
-                  )}
-                </td>
-                <td>
-                  <input
-                    aria-label={`Line ${i + 1} notes`}
-                    value={row.notes}
-                    onChange={(e) => setRow(row.key, { notes: e.target.value })}
-                  />
-                </td>
-                <td>
-                  {rows.length > 1 && (
-                    <button
-                      type="button"
-                      aria-label={`Remove line ${i + 1}`}
-                      onClick={() => edit(setRows)(rows.filter((r) => r.key !== row.key))}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <button type="button" onClick={() => edit(setRows)([...rows, emptyRow()])}>
-          Add line
-        </button>
-
-        <div className="intake-fields">
-          <label>
-            Totes
-            <input
-              inputMode="numeric"
-              size={3}
-              value={toteCount}
-              onChange={(e) => edit(setToteCount)(e.target.value)}
-            />
-          </label>
-          <label className="intake-toggle">
-            <input
-              type="checkbox"
-              checked={dirtyFish}
-              onChange={(e) => edit(setDirtyFish)(e.target.checked)}
-            />
-            Dirty fish
-          </label>
-          {dirtyFish && (
-            <label>
-              Dirty notes
-              <input value={dirtyNotes} onChange={(e) => edit(setDirtyNotes)(e.target.value)} />
-            </label>
-          )}
-          <label>
-            Cut notes
-            <input value={cutNotes} onChange={(e) => edit(setCutNotes)(e.target.value)} />
-          </label>
-          <label>
-            Processing notes
-            <input
-              value={processingNotes}
-              onChange={(e) => edit(setProcessingNotes)(e.target.value)}
-            />
-          </label>
-          <label className="intake-toggle">
-            <input
-              type="checkbox"
-              checked={fastPass}
-              onChange={(e) => edit(setFastPass)(e.target.checked)}
-            />
-            Fast Pass
-          </label>
-          <label className="intake-toggle">
-            <input
-              type="checkbox"
-              checked={printReceipt}
-              onChange={(e) => setPrintReceipt(e.target.checked)}
-            />
-            Print receipt too
-          </label>
-        </div>
-
-        {error && (
-          <p role="alert" className="station-feedback station-rejected">
-            {error}
-          </p>
-        )}
-        <button type="button" className="intake-save" disabled={saving} onClick={() => void save()}>
-          {saving ? "Saving…" : "Save & Print Tote Tags"}
-        </button>
-      </section>
-      <PricePanel ctx={ctx} draft={draft} fastPass={fastPass} />
-    </div>
-  );
-}
-
-function PricePanel({
-  ctx,
-  draft,
-  fastPass,
-}: {
-  ctx: PriceContext | null;
-  draft: IntakeDraft | { error: string } | null;
-  fastPass: boolean;
-}) {
-  return (
-    <aside className="station-card intake-price" aria-label="Price" aria-live="polite">
-      <h2>Price</h2>
-      <p className="station-eyebrow">
-        {ctx?.rate_card?.name ?? "No rate card"}
-        {fastPass && " · Fast Pass"}
-        {!fastPass &&
-          ctx?.customer?.is_lodge_guest &&
-          ctx.customer.lodge_cap !== null &&
-          ` · Lodge cap ${money(ctx.customer.lodge_cap)}/lb`}
-      </p>
-      {!draft ? (
-        <p>Add a line to see the price.</p>
-      ) : "error" in draft ? (
-        <p role="alert">{draft.error}</p>
-      ) : (
-        <>
-          <ul className="intake-yield">
-            {draft.lines.map((l, i) => (
-              <li key={i}>
-                Line {i + 1}: {l.lb} lb → est. {l.estYieldLb ?? "—"} lb
-              </li>
-            ))}
-          </ul>
-          <table className="intake-price-lines">
-            <tbody>
-              {draft.charges.map((c, i) => (
-                <tr key={i}>
-                  <td>{c.description}</td>
-                  <td>{c.qty} lb</td>
-                  <td>{money(c.unitPrice)}/lb</td>
-                  <td>{money(c.amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p>
-            {draft.totalLb} lb in · est. yield {draft.totalEstYieldLb} lb
-            {draft.ribbing && <span className="station-badge">RIBBING</span>}
-          </p>
-          <p className="intake-total">Total {money(draft.totalAmount)}</p>
-          {draft.missingRates.length > 0 && (
-            <p role="alert">No rate for {draft.missingRates.join(", ")}.</p>
-          )}
-        </>
-      )}
-    </aside>
+        }
+        on={{
+          changeCustomer: () => change({ customer: null }),
+          setRow: (key, patch) => {
+            if (!reference) return;
+            const before = values.rows.find((r) => r.key === key);
+            const rows = values.rows.map((r) =>
+              r.key === key ? updateRow(reference, r, patch) : r,
+            );
+            change({ rows });
+            // Once a line's method is set (picked, or the only one), its weight is next.
+            const after = rows.find((r) => r.key === key);
+            if (after && before && !before.method && after.method && !after.lb.trim())
+              focusOn(fieldId(key, "lb"));
+          },
+          addRow: () => {
+            const row = emptyRow();
+            change({ rows: [...values.rows, row] });
+            focusOn(fieldId(row.key, "species"));
+          },
+          removeRow: (key) => change({ rows: values.rows.filter((r) => r.key !== key) }),
+          set: (field, value) => change({ [field]: value } as Partial<IntakeFormValues>),
+          save: () => void save(),
+        }}
+      />
+    </IntakeShell>
   );
 }

@@ -1,46 +1,34 @@
 "use client";
-import { StationsLink } from "@/src/components/station/stations-link";
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { KeyboardStatus } from "@/src/components/station/keyboard-status";
 import { IntakeDetail } from "./intake-detail";
 import { IntakeForm } from "./intake-form";
 import { IntakeList } from "./intake-list";
+import { IntakeFormSkeleton, IntakeShell, SignInNeeded } from "./intake-view";
 import { useStationSession, type StationSession } from "./use-station-session";
 
-function Shell({ session, children }: { session: StationSession | null; children: ReactNode }) {
-  return (
-    <main className="station intake-station">
-      <header>
-        <div>
-          <p className="station-eyebrow">Filletry · {session?.siteName ?? "Intake"}</p>
-          <h1>Intake</h1>
-        </div>
-        <nav className="station-actions" aria-label="Intake">
-          <StationsLink />
-          <Link href="/intake">New Intake</Link>
-          <Link href="/intakes">Intakes</Link>
-        </nav>
-      </header>
-      {children}
-    </main>
-  );
-}
-
+/**
+ * The desk's session first: placeholders while it is read, and, with no session, the Intake
+ * console asking who is at the desk (sign in or pair). Each screen renders its own console.
+ */
 function WithSession({ children }: { children: (session: StationSession) => ReactNode }) {
   const { session, loaded } = useStationSession();
-  if (!loaded) return <Shell session={null}>Opening intake…</Shell>;
-  if (!session)
-    return (
-      <Shell session={null}>
-        <p>Sign in as staff or pair this tablet as a station to take intakes.</p>
-        <div className="station-actions">
-          <Link href="/login">Staff sign in</Link>
-          <Link href="/pair">Pair device</Link>
-        </div>
-      </Shell>
-    );
-  return <Shell session={session}>{children(session)}</Shell>;
+  if (session) return <>{children(session)}</>;
+  return (
+    <IntakeShell
+      site="Intake"
+      operator={null}
+      prompt={
+        loaded
+          ? { next: "Sign in or pair this tablet", step: 0 }
+          : { next: "Opening the order form", step: 0 }
+      }
+      status={<KeyboardStatus feedback={null} />}
+    >
+      {loaded ? <SignInNeeded what="take orders" /> : <IntakeFormSkeleton />}
+    </IntakeShell>
+  );
 }
 
 /** /intake: a new intake; saving opens the saved view with its post-save header. */

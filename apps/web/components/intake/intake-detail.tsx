@@ -1,16 +1,9 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import {
-  CONDITIONS,
-  METHODS,
-  SPECIES,
-  formatPhone,
-  isConditionCode,
-  isMethodCode,
-  isSpeciesCode,
-} from "rules";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { CONDITIONS, METHODS, SPECIES, isConditionCode, isMethodCode, isSpeciesCode } from "rules";
 import { ManagerPinOverlay } from "@/src/components/station/pin-overlay";
+import { KeyboardStatus, type KeyboardFeedback } from "@/src/components/station/keyboard-status";
 import { IntakeForm } from "./intake-form";
 import {
   loadCustomer,
@@ -20,8 +13,17 @@ import {
   unlockIntake,
   type LoadedIntake,
 } from "./intake-data";
-import { STATE_LABELS, coolerBadge, intakeTimeline, lineToRow, money } from "./intake-form-state";
-import { managerElevation, type StationSession } from "./use-station-session";
+import { STATE_LABELS, coolerBadge, intakeTimeline, lineToRow } from "./intake-form-state";
+import {
+  IntakeSavedSkeleton,
+  IntakeSavedView,
+  IntakeShell,
+  refusal,
+  savedNextStep,
+  type Prompt,
+  type SavedIntake,
+} from "./intake-view";
+import { managerElevation, sessionLabel, type StationSession } from "./use-station-session";
 import type { CustomerHit } from "@/components/customers/customer-search-state";
 
 const name = {
@@ -30,10 +32,72 @@ const name = {
   method: (c: string) => (isMethodCode(c) ? METHODS[c].name : c),
 };
 
+/** The loaded rows as the saved view shows them. */
+export function savedIntake(data: LoadedIntake, now: Date): SavedIntake | null {
+  const { intake, lines, charges, totes } = data;
+  if (!intake) return null;
+  const badge = coolerBadge(intake.state, intake.intake_at, now);
+  const editable = intake.state === "draft" || intake.state === "holding";
+  return {
+    number: intake.number,
+    customer: intake.customer?.name ?? null,
+    phone: intake.customer?.phone ?? null,
+    chips: [
+      STATE_LABELS[intake.state] ?? intake.state,
+      ...(badge ? [badge] : []),
+      ...(intake.locked ? ["Locked"] : []),
+      ...(intake.is_lodge_guest ? ["Lodge"] : []),
+    ],
+    flags: [
+      ...(intake.fast_pass ? ["FAST PASS"] : []),
+      ...(intake.dirty_fish ? ["DIRTY"] : []),
+      ...(intake.ribbing ? ["RIBBING"] : []),
+    ],
+    lines: lines.map((l) => ({
+      id: l.id,
+      name: name.species(l.species_code),
+      detail: [
+        name.condition(l.condition_code),
+        name.method(l.method_code) +
+          (l.fillets_pct !== null ? ` ${l.fillets_pct}/${100 - l.fillets_pct}` : ""),
+        ...(l.skin_off ? ["skin off"] : []),
+        ...(l.notes ? [l.notes] : []),
+      ].join(" · "),
+      lb: l.lb,
+      estYield: l.est_yield_lb,
+    })),
+    totalLb: intake.total_incoming_lb,
+    totalEstYield: intake.total_est_yield_lb,
+    toteCount: intake.tote_count,
+    notes: [
+      ...(intake.dirty_notes ? [{ label: "Dirty fish", text: intake.dirty_notes }] : []),
+      ...(intake.cut_notes ? [{ label: "Cut", text: intake.cut_notes }] : []),
+      ...(intake.processing_notes ? [{ label: "Processing", text: intake.processing_notes }] : []),
+    ],
+    charges: charges.map((c) => ({
+      id: c.id,
+      description: c.description,
+      qty: c.qty,
+      unitPrice: c.unit_price,
+      amount: c.amount,
+      state: c.state,
+    })),
+    timeline: intakeTimeline(intake),
+    totes: totes.map((t) => ({
+      no: t.tote_no,
+      of: t.of_count,
+      qr: t.qr,
+      queued: t.print_job_id !== null,
+    })),
+    canUnlock: intake.locked && editable,
+    receiptHref: `/intake/receipt/${intake.id}`,
+  };
+}
+
 /**
- * A saved intake: read-only while locked, with the post-save header (Reprint, Print Receipt,
- * New Intake, manager Unlock), lines, charges with their per-lb rates, tote tags and the
- * timeline of timestamps. Unlocking switches to the edit form; saving locks it again.
+ * A saved intake: read-only while locked, with the post-save actions (New Intake, Reprint, Print
+ * Receipt, manager Unlock), tote tags, lines, charges with their per-lb rates and the timeline.
+ * Unlocking switches to the edit form; saving locks it again.
  */
 export function IntakeDetail({
   session,
@@ -45,10 +109,13 @@ export function IntakeDetail({
   notice?: string;
 }) {
   const { client } = session;
+  const router = useRouter();
   const [data, setData] = useState<LoadedIntake | null>(null);
   const [customer, setCustomer] = useState<CustomerHit | null>(null);
-  const [message, setMessage] = useState(notice ?? "");
-  const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState<KeyboardFeedback | null>(
+    notice ? { ok: true, text: notice, event: 0 } : null,
+  );
+  const [loadError, setLoadError] = useState("");
   const [pinOpen, setPinOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -64,189 +131,101 @@ export function IntakeDetail({
         setData(loaded);
         setCustomer(hit);
         setNow(new Date());
+        setLoadError("");
       })
-      .catch(() => live && setError("Intake unavailable; reload."));
+      .catch(() => live && setLoadError("Order unavailable. Check the connection and reload."));
     return () => {
       live = false;
     };
   }, [client, intakeId, version]);
 
+  const say = (ok: boolean, text: string) => setFeedback({ ok, text, event: Date.now() });
   async function run(label: string, fn: () => Promise<{ printer_missing: boolean }>) {
     setBusy(true);
-    setError("");
     try {
       const r = await fn();
-      setMessage(
-        r.printer_missing ? `${label}: no printer is set up for this site.` : `${label}: queued.`,
+      say(
+        true,
+        r.printer_missing ? `${label}: no printer is set up for this site.` : `${label} queued.`,
       );
+      refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : `${label} failed.`);
+      say(false, refusal(err instanceof Error ? err.message : `${label} failed`, "Tap it again."));
     } finally {
       setBusy(false);
     }
   }
 
-  if (!data) return <p>{error || "Loading intake…"}</p>;
-  const { intake, lines, charges, totes } = data;
-  if (!intake) return <p role="alert">Intake not found.</p>;
+  const intake = data?.intake ?? null;
+  const shell = (prompt: Prompt, body: ReactNode) => (
+    <IntakeShell
+      site={session.siteName}
+      operator={sessionLabel(session)}
+      prompt={prompt}
+      status={
+        <KeyboardStatus
+          feedback={feedback}
+          notice={loadError ? { tone: "error", text: loadError } : null}
+        />
+      }
+    >
+      {body}
+    </IntakeShell>
+  );
+
+  if (!data) return shell({ next: "Opening the order", step: 3 }, <IntakeSavedSkeleton />);
+  if (!intake)
+    return shell(
+      { next: "Tap New Intake to start an order", step: 0, tone: "warn" },
+      <section className="station-card st-hero-empty" aria-label="Order">
+        <h2>Order not found</h2>
+        <p>It may have been cancelled. Start a new order, or open one from Orders.</p>
+      </section>,
+    );
 
   if (!intake.locked && customer && (intake.state === "draft" || intake.state === "holding")) {
     return (
-      <>
-        <p className="station-feedback">Unlocked — edit and save to lock {intake.number} again.</p>
-        <IntakeForm
-          session={session}
-          initial={{
-            intakeId: intake.id,
-            customer,
-            rows: lines.map(lineToRow),
-            toteCount: intake.tote_count,
-            dirtyFish: intake.dirty_fish,
-            dirtyNotes: intake.dirty_notes ?? "",
-            cutNotes: intake.cut_notes ?? "",
-            processingNotes: intake.processing_notes ?? "",
-            fastPass: intake.fast_pass,
-          }}
-          onSaved={(r) => {
-            setMessage(
-              r.printer_missing
-                ? `${r.number} saved. No tote printer is set up for this site.`
-                : `${r.number} saved; ${r.tote_jobs_queued} tote tags queued.`,
-            );
-            refresh();
-          }}
-        />
-      </>
+      <IntakeForm
+        session={session}
+        initial={{
+          intakeId: intake.id,
+          number: intake.number,
+          customer,
+          rows: data.lines.map(lineToRow),
+          toteCount: intake.tote_count,
+          dirtyFish: intake.dirty_fish,
+          dirtyNotes: intake.dirty_notes ?? "",
+          cutNotes: intake.cut_notes ?? "",
+          processingNotes: intake.processing_notes ?? "",
+          fastPass: intake.fast_pass,
+        }}
+        onSaved={(r) => {
+          say(
+            true,
+            r.printer_missing
+              ? `${r.number} saved. No tote printer is set up for this site.`
+              : `${r.number} saved; ${r.tote_jobs_queued} tote tags queued.`,
+          );
+          refresh();
+        }}
+      />
     );
   }
 
-  const total = charges.reduce((s, c) => s + (c.amount ?? 0), 0);
-  const badge = coolerBadge(intake.state, intake.intake_at, now);
-  return (
+  const saved = savedIntake(data, now)!;
+  return shell(
+    savedNextStep(saved),
     <>
-      <section className="station-card intake-header" aria-label="Intake header">
-        <div>
-          <p className="intake-number">{intake.number}</p>
-          <p>
-            <strong>{intake.customer?.name}</strong>
-            {intake.customer?.phone && ` · ${formatPhone(intake.customer.phone)}`}
-          </p>
-          <div className="station-chips">
-            <span className="station-badge">{STATE_LABELS[intake.state] ?? intake.state}</span>
-            {badge && <span className="station-badge">{badge}</span>}
-            {intake.locked && <span className="station-badge">Locked</span>}
-            {intake.fast_pass && <span className="station-badge">FAST PASS</span>}
-            {intake.dirty_fish && <span className="station-badge">DIRTY</span>}
-            {intake.ribbing && <span className="station-badge">RIBBING</span>}
-            {intake.is_lodge_guest && <span className="station-badge">Lodge</span>}
-          </div>
-        </div>
-        <div className="station-actions">
-          <Link href={`/intake/receipt/${intake.id}`}>Open customer receipt</Link>
-          <button
-            disabled={busy}
-            onClick={() => void run("Tote tags", () => reprintToteTags(client, intake.id))}
-          >
-            Reprint
-          </button>
-          <button
-            disabled={busy}
-            onClick={() => void run("Receipt", () => printReceipt(client, intake.id))}
-          >
-            Print Receipt
-          </button>
-          <Link href="/intake">New Intake</Link>
-          {intake.locked && (intake.state === "draft" || intake.state === "holding") && (
-            <button disabled={busy} onClick={() => setPinOpen(true)}>
-              Unlock
-            </button>
-          )}
-        </div>
-      </section>
-      {message && <p className="station-feedback station-ok">{message}</p>}
-      {error && (
-        <p className="station-feedback station-rejected" role="alert">
-          {error}
-        </p>
-      )}
-
-      <div className="station-workspace">
-        <section className="station-card">
-          <h2>Lines</h2>
-          <table className="intake-lines">
-            <thead>
-              <tr>
-                <th>Species</th>
-                <th>Condition</th>
-                <th>Method</th>
-                <th>lb</th>
-                <th>Est. yield</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((l) => (
-                <tr key={l.id}>
-                  <td>{name.species(l.species_code)}</td>
-                  <td>{name.condition(l.condition_code)}</td>
-                  <td>
-                    {name.method(l.method_code)}
-                    {l.fillets_pct !== null && ` ${l.fillets_pct}/${100 - l.fillets_pct}`}
-                    {l.skin_off && " · skin off"}
-                  </td>
-                  <td>{l.lb}</td>
-                  <td>{l.est_yield_lb ?? "—"}</td>
-                  <td>{l.notes}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p>
-            {intake.total_incoming_lb} lb in · est. yield {intake.total_est_yield_lb} lb ·{" "}
-            {intake.tote_count} totes
-          </p>
-          {intake.dirty_notes && <p>Dirty: {intake.dirty_notes}</p>}
-          {intake.cut_notes && <p>Cut: {intake.cut_notes}</p>}
-          {intake.processing_notes && <p>Processing: {intake.processing_notes}</p>}
-
-          <h2>Charges</h2>
-          <table className="intake-price-lines">
-            <tbody>
-              {charges.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.description}</td>
-                  <td>{c.qty} lb</td>
-                  <td>{money(c.unit_price)}/lb</td>
-                  <td>{money(c.amount)}</td>
-                  <td>{c.state === "open" ? "" : c.state}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="intake-total">Total {money(total)}</p>
-        </section>
-        <section className="station-card">
-          <h2>Timeline</h2>
-          <ol className="intake-timeline">
-            {intakeTimeline(intake).map((e) => (
-              <li key={e.label}>
-                <span>{e.label}</span>{" "}
-                <time dateTime={e.at}>{new Date(e.at).toLocaleString()}</time>
-              </li>
-            ))}
-          </ol>
-          <h2>Tote tags</h2>
-          <ul>
-            {totes.map((t) => (
-              <li key={t.tote_no}>
-                Tote {t.tote_no} of {t.of_count} · <code>{t.qr}</code>
-                {t.print_job_id ? "" : " · not queued"}
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
-
+      <IntakeSavedView
+        intake={saved}
+        busy={busy || pinOpen}
+        on={{
+          newIntake: () => router.push("/intake"),
+          reprint: () => void run("Tote tags", () => reprintToteTags(client, intake.id)),
+          printReceipt: () => void run("Receipt", () => printReceipt(client, intake.id)),
+          unlock: () => setPinOpen(true),
+        }}
+      />
       {pinOpen && (
         <ManagerPinOverlay
           onClose={() => setPinOpen(false)}
@@ -258,12 +237,12 @@ export function IntakeDetail({
             } catch (err) {
               return { ok: false, reason: err instanceof Error ? err.message : "Unlock failed" };
             }
-            setMessage(`${intake.number} unlocked.`);
+            say(true, `${intake.number} unlocked. Change it, then save to lock it again.`);
             refresh();
             return { ok: true };
           }}
         />
       )}
-    </>
+    </>,
   );
 }
