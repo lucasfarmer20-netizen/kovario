@@ -1,15 +1,10 @@
 "use client";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { Check, Inbox, Plus, ScanBarcode, Snowflake, Trash2 } from "lucide-react";
-import {
-  formatVariance,
-  isSpeciesCode,
-  SPECIES,
-  type ManualOptions,
-  type VarianceBand,
-} from "rules";
+import { formatVariance, type ManualOptions, type VarianceBand } from "rules";
 import { BAND_LABEL } from "@/components/variance/now-in-blast";
 import { VarianceMeter } from "@/src/components/station/band";
+import { speciesName } from "@/src/components/station/species-name";
 import { BasketTile } from "@/src/components/station/basket-tile";
 import { ManualEntry } from "@/src/components/station/manual-entry";
 import { DisabledReason } from "@/src/components/station/next-step";
@@ -86,10 +81,8 @@ export type ReconcileViewProps = {
   };
 };
 
-/** "Reds" for salmon_reds; an unknown code as is. */
-export function speciesName(code: string): string {
-  return isSpeciesCode(code) ? SPECIES[code].name : code;
-}
+// Shared now (Wave and Rollstock show species too); re-exported for existing imports.
+export { speciesName };
 
 const lb = (n: number) => `${n.toFixed(2)} lb`;
 

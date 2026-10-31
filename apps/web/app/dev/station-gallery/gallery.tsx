@@ -14,6 +14,7 @@ import { ScaleReadout } from "@/src/components/station/scale-readout";
 import { FeedbackBanner } from "@/src/components/station/scan-feedback";
 import { GALLERY_STATES } from "./reconcile-states";
 import { BLAST_STATES, LOCATE_STATES } from "./freezer-states";
+import { ROLLSTOCK_STATES } from "./rollstock-states";
 import { StateFrames } from "./state-frames";
 import { WAVE_GALLERY_STATES } from "./wave-states";
 
@@ -106,6 +107,7 @@ export function StationGallery() {
           <a href="#blast">Blast</a>
           <a href="#locate">Locate</a>
           <a href="#wave">Wave</a>
+          <a href="#rollstock">Rollstock</a>
         </nav>
       </header>
 
@@ -552,6 +554,14 @@ export function StationGallery() {
         note="Tap orders into the wave, scan each tote, Complete wave. The forward action sits under the card, above the wave's orders."
       >
         <StateFrames states={WAVE_GALLERY_STATES} />
+      </Section>
+
+      <div id="rollstock" />
+      <Section
+        title="Rollstock, every state"
+        note="Scan only. Three steps: open an order (its first tote), scan its totes, then the next order (its first tote moves this one on). The open order is the hero; NEXT UP is below it; Finish queue is outlined until it is the next step."
+      >
+        <StateFrames states={ROLLSTOCK_STATES} />
       </Section>
     </main>
   );
