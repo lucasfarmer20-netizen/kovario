@@ -10,7 +10,7 @@ in the same PR.
   colours (`bg-st-brand`, `text-st-ink-2`, …). shadcn `--primary` / `--ring` follow the brand.
 - **Components:** `apps/web/src/components/station/` (exported from `index.ts`).
 - **Gallery:** `/dev/station-gallery` shows the tokens, every component in every state, and
-  Reconcile, Blast and Locate in each of their states at 1280 × 800 and 400 px; each state is its
+  Reconcile, Blast, Locate and Wave in each of their states at 1280 × 800 and 400 px; each state is its
   own page (`/dev/station-gallery/<state>`). Static props, no DB. A new station adds its states
   here: its ids to `state-ids.ts`, its screens to `[state]/screen.tsx`, its frames with
   `StateFrames`.
@@ -138,7 +138,8 @@ shimmer stop.
 | `ScaleReadout` | Scale head: reading, its state in words (stable, reading used, no reading), the basket Accept writes to |
 | `BasketTile` | A basket: code, weight, and a scale / spinner / check at its right edge |
 | `BasketRow` | A basket in a list (Blast, Locate; Boxing next): name over a meta line (order · lb · time); the right edge is a hint, a status or one action, and `busy` puts a spinner there; with `onSelect` the whole row is a toggle (frame, **Selected**, `aria-pressed`) |
-| `OrderTile` | An order in a queue: number, HELD (lock + word), species, expected lb, age |
+| `OrderTile` | An order in a queue: number, HELD (lock + word), species, expected lb, age; `pressed` makes it a toggle (frame + *Added* with a check + `aria-pressed`, Wave), `flags` adds badges (FAST PASS, DIRTY, RIBBING) |
+| `CountProgress` | A count toward a total, *3 / 5 totes*: readout-size figure, what is left in words, a bar that fills; green with a check at parity (Wave; Rollstock and Boxing count the same way) |
 | `StationNotice` | An inline notice with a tone (ok / info / error) |
 | `QueueList` | Realtime queue list |
 
@@ -150,7 +151,8 @@ Card parts (the same rules as Reconcile's `rc-*` parts): `st-card-head` + `st-co
 card's heading and its count), `st-list` (rows or tiles), `st-empty` (an empty list: icon, what is
 missing, where it comes from), `st-hero-empty` + `st-hero-art` (nothing open: art, what to scan),
 `st-item` / `st-item-head` / `st-facts` (the open item: its name, then its facts as chips),
-`st-expect` (a dashed box saying what the station waits for), `st-skeleton-list`.
+`st-expect` (a dashed box saying what the station waits for), `st-skeleton-list` (a loading
+list) and `st-skeleton-stack` (a loading card).
 `StationShell` takes `defaultManualOpen` so a gallery state can show **Enter manually** open.
 
 ### Lists that rank
@@ -180,6 +182,24 @@ so *device offline* is a dead scanner (**Enter manually** open); they have no ma
 | Held / needs a manager | The panel takes the top of the work area, with the manager path (PIN or account) |
 | Done / signed off | Green confirmation in the feedback area; the next action is live |
 | Offline / N pending | Connection chip state; controls that need the server say so |
+
+### Wave (#127)
+
+How Wave meets each state above (gallery: `/dev/station-gallery/wave-<state>`):
+
+| State | Wave |
+| --- | --- |
+| Loading | `loading`: queue and card skeletons |
+| Operator needed | `pin` |
+| Nothing open / queue empty | `no-selection` (tap orders or Suggest FIFO fill); `empty-queue` (orders come from the Intake station) |
+| Empty item | `started`: a wave with no totes scanned; every tote expected, Complete says why it waits |
+| In progress | `selecting` (tapped orders framed, *Added*), `scanning` (count and per-order tote ticks) |
+| Device offline | `manual-tote`: Wave has no scale or printer; with the scanner down, Enter manually reads the tote number |
+| Rejected scan | `rejected` |
+| Warning / over limit | `refused`: a refused Complete leads the next step line in red, Complete is restyled, Cancel wave becomes the filled button. The weight target is a suggestion, so the tapped weight is shown against it with no verdict |
+| Held / needs a manager | Not at Wave: no manager gate, and orders reach Wave before any variance hold. `draft` shows a wave whose start did not go through |
+| Done | `done`: green confirmation, the next wave live |
+| Offline / N pending | `offline`: Complete and Cancel need the server and say so |
 
 ## Layout
 

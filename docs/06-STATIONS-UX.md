@@ -60,6 +60,27 @@ Customer → location → boxes (weight, description) → **Confirm** → storag
 Left: holding intakes FIFO with age, lb, species summary, tote count, FAST PASS / DIRTY /
 RIBBING badges. Tap to add to wave until target lb; **Start Verification** → scan each
 tote; counter `scanned / expected`; **Complete — Start Processing** enables at parity.
+**UI pass** (#127; client side only, same RPCs, rules and wording): the queue tiles are toggles
+(framed, *Added* with a check); the new-wave card shows the tapped orders, lb and totes against
+the org's target band (a suggestion, no verdict). Flow changes:
+- **One tap starts the wave.** **Start Verification** on the new-wave card creates the wave and
+  starts it (`create_wave`, then `advance_wave`); there is no separate Create wave step. If the
+  start does not go through, the wave stays in draft with **Start Verification** on it.
+- **The open wave opens itself.** With exactly one draft or verifying wave, the station shows it on
+  load (a reopened tablet lands on the wave being checked). **New wave**, or tapping an order in
+  the queue, goes back to the new-wave card; the open wave stays one tap away in the rail.
+- **Scans find the wave.** A tote scanned while the new-wave card is on screen goes to the one
+  wave being verified, and the screen switches to it.
+- **Totes tick off per order.** Each order in the wave lists its totes, ticked as they are
+  scanned; orders with a tote still to scan come first, so the missing tote is at the top.
+  The count (`scanned / expected`) still comes from exact counts and gates Complete.
+- **The forward action stays at hand.** Start Verification / Complete sits right under the card,
+  above the wave's orders, and pins to the bottom of a phone once it can be used. Complete and
+  Cancel say why they wait (totes left, pending scans, offline).
+- **A refused update says what to do.** A refused Complete puts the reply in the next step line
+  (warning) and makes **Cancel wave — Return to holding** the filled button until another tote is
+  scanned. Starting and completing confirm in words ("Wave WAVE-0012 complete. Its orders are in
+  processing.").
 
 ## Rollstock (scan only)
 Big panel: OPEN AT ROLLSTOCK (intake number, species summary, tote X/Y, notes badges)
