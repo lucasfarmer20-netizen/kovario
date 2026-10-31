@@ -396,8 +396,8 @@ export function IntakeFormView(props: IntakeFormViewProps) {
           </div>
         </section>
 
-        <section className="station-card" aria-label="Totes and notes">
-          <h2>Totes and notes</h2>
+        <section className="station-card" aria-label="Tote count and notes">
+          <h2>Tote count and notes</h2>
           <div className="st-form">
             <div className="st-fields">
               <div className="st-field">
