@@ -112,7 +112,9 @@ export function rollstockNextStep(
 export function RollstockView(props: RollstockViewProps) {
   const { loading, order, stale, nextUp, resume, blocked, sending, busy, on } = props;
   const complete = order ? order.scanned >= order.totes && order.totes > 0 : false;
-  const finishNext = complete && nextUp.length === 0 && !blocked;
+  // Same rule as rollstockNextStep: a refusal for missing totes only counts while totes are
+  // missing, so once the last one is scanned Finish queue is the step and the filled button.
+  const finishNext = complete && nextUp.length === 0;
   const hero = loading ? (
     // The shape of the open order card it becomes, so nothing jumps.
     <section className="station-card st-item" aria-busy="true" aria-label="Opening rollstock">

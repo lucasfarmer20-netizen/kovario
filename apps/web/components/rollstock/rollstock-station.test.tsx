@@ -503,3 +503,31 @@ it("#128 a refresh that finds the open order gone while the reason is being type
   expect(screen.queryByRole("region", { name: "Missing totes" })).toBeNull();
   expect(scanner().disabled).toBe(false);
 });
+it("#128 Finish refused for missing totes, then the missing tote scanned: Finish queue is the step and the filled button", async () => {
+  const rpc = setup({ nextUp: false });
+  render(<RollstockStation />);
+  await screen.findByRole("heading", { name: OPEN_I1 });
+  rpc.mockResolvedValueOnce({ data: MISSING, error: null });
+  fireEvent.click(screen.getByRole("button", { name: "Finish queue" }));
+  await screen.findByRole("region", { name: "Missing totes" });
+  // The missing tote turns up: the server accepts it and INT-0001 stays open, every tote in.
+  mocks.tables = { ...mocks.tables, rollstock_tote_progress: [{ intake_id: "i1", scanned: 2 }] };
+  rpc.mockResolvedValueOnce({
+    data: { ok: true, reason: "Tote accepted", open_intake_id: "i1" },
+    error: null,
+  });
+  await act(async () => {
+    await mocks.send!({
+      raw: "FL:TOTE:INT-0001:2",
+      station: "rollstock",
+      client_action_id: "scan-missing",
+      operator_session: null,
+    });
+  });
+  await screen.findByRole("heading", { name: "Order INT-0001 · tote 2 of 2" });
+  expect(screen.queryByRole("region", { name: "Missing totes" })).toBeNull();
+  expect(screen.getByTestId("next-step").textContent).toBe("Tap Finish queue");
+  expect(screen.getByRole("button", { name: "Finish queue" }).className).not.toContain(
+    "st-btn-secondary",
+  );
+});

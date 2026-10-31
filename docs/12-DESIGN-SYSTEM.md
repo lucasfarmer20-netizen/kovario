@@ -142,6 +142,7 @@ shimmer stop.
 | `CountProgress` | A count toward a total, *3 / 5 totes*: readout-size figure, what is left in words, a bar that fills; green with a check at parity (Wave; Rollstock's totes of the open order; Boxing next) |
 | `StationNotice` | An inline notice with a tone (ok / info / error) |
 | `QueueList` | Realtime queue list |
+| `speciesName` | A species code in the floor's words ("Reds" for `salmon_reds`), from the rules engine's species table |
 | `useLasting` | A value once it has held for a while: a "Waiting for scans to send" reason shows only once the wait lasts (Locate, Rollstock) |
 
 Shared classes: buttons are filled by default (brand); `st-btn-secondary` (outlined),

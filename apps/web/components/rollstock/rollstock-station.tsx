@@ -8,8 +8,8 @@ import {
   useStationSession,
   type StationSession,
 } from "@/components/intake/use-station-session";
-import { speciesName } from "@/components/reconcile/reconcile-view";
 import { StationShell } from "@/src/components/station/station-shell";
+import { speciesName } from "@/src/components/station/species-name";
 import { ScanFeedback } from "@/src/components/station/scan-feedback";
 import { StationNotice, type NoticeTone } from "@/src/components/station/notice";
 import { useOnline } from "@/src/components/station/connection-chip";
