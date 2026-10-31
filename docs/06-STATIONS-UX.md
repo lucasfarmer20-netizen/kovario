@@ -265,6 +265,26 @@ with tick + "Lbs left" input (an exchange basket has no tag to scan: it is ticke
 notes panel (DIRTY, cut/processing notes, RIBBING,
 SMOKING SPLIT links). **Complete** runs the release function. Pick list printable.
 Manager: Release-by-Tag.
+**UI pass** (#130; client side only, same RPCs, rules and wording): the party card counts what is
+ticked (`2 / 6 ticked`); boxes (by angler) and the pick list (walk order, location first) are
+whole-row tick targets, framed with *Ticked*; the notes and the queue sit in the rail. Flow changes:
+- **The queue stays at hand.** *Ready to box* is in the rail of the party screen too, so the next
+  party is one tap away; there is no separate **Queue** link to go back through.
+- **The next receipt opens the next party.** Once a party has nothing left (no planned box, no
+  basket), or when it did not load (*Party not found*), a scanned or typed boxing QR is read as the
+  queue reads it and opens that party. While
+  something is left, another party's QR is still refused (I11).
+- **Tick every box.** With two or more boxes unticked, one tap ticks them all; each is still a box
+  tick (I1, I3), and baskets are never ticked by it.
+- **Complete says why it waits.** Nothing ticked, an Lbs-left fault, a scan still being checked,
+  or offline; it no longer warns only after the tap. An Lbs-left fault shows on its line as it is
+  typed (the rules engine's words), and a ticked line says what Complete will do (*Full pull* or
+  *Split: 10 lb stays in the basket*).
+- **A refusal leads the screen.** An I8 refusal with a basket left puts the pointer in the next
+  step line (warning) and frames the pick list red; with no basket left (DECISION-23) the manager
+  override panel takes the top of the work area. Complete is restyled until a tick changes.
+- **Replies have one place.** Scan results go in the scan tile; Complete and manager-tool replies
+  go under it.
 
 ## Register (keyboard + terminal)
 Customer search → **Load outstanding** (settlements, storage batches, open charges) →

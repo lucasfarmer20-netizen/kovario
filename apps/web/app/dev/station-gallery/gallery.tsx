@@ -18,6 +18,7 @@ import { ROLLSTOCK_STATES } from "./rollstock-states";
 import { INTAKE_STATES, STORAGE_STATES } from "./desk-states";
 import { StateFrames } from "./state-frames";
 import { WAVE_GALLERY_STATES } from "./wave-states";
+import { BOXING_GALLERY_STATES } from "./boxing-states";
 
 const STEPS = ["Add baskets", "Weigh", "Send to Blast"] as const;
 const noop = () => undefined;
@@ -109,6 +110,7 @@ export function StationGallery() {
           <a href="#locate">Locate</a>
           <a href="#wave">Wave</a>
           <a href="#rollstock">Rollstock</a>
+          <a href="#boxing">Boxing</a>
           <a href="#intake">Intake station</a>
           <a href="#storage">Storage</a>
         </nav>
@@ -565,6 +567,14 @@ export function StationGallery() {
         note="Scan only. Three steps: open an order (its first tote), scan its totes, then the next order (its first tote moves this one on). The open order is the hero; NEXT UP is below it; Finish queue is outlined until it is the next step."
       >
         <StateFrames states={ROLLSTOCK_STATES} />
+      </Section>
+
+      <div id="boxing" />
+      <Section
+        title="Boxing / will-call, every state"
+        note="Open a party (scan the receipt's boxing QR or tap it in the queue), tick each box and basket, Complete. Boxes by angler, the pick list in walk order; notes and the queue in the rail."
+      >
+        <StateFrames states={BOXING_GALLERY_STATES} />
       </Section>
 
       <div id="intake" />

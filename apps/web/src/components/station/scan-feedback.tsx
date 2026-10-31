@@ -71,6 +71,8 @@ export function ScanFeedback({
   const visible = feedback !== null && feedback.event !== expiredEvent;
   useEffect(() => {
     const unlock = () => {
+      // No Web Audio (an old browser, jsdom): the tile still shows; it is just silent.
+      if (typeof AudioContext === "undefined") return;
       audio.current ??= new AudioContext();
       void audio.current.resume().catch(() => undefined);
     };
