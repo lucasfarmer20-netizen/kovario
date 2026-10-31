@@ -5,7 +5,8 @@ import { stationMessage } from "./messages";
 import { useShownScannerPaused } from "./scanner-context";
 import type { ScanReply } from "./scan-queue";
 
-export type FeedbackTone = "ok" | "rejected" | "idle" | "paused";
+/** "keyboard": the idle tile of a keyboard station (no scanner): what typing does. */
+export type FeedbackTone = "ok" | "rejected" | "idle" | "paused" | "keyboard";
 
 /**
  * The scan tile: one fixed-height place for what the last scan did. Accepted is green with a
@@ -38,7 +39,7 @@ export function FeedbackBanner({
               <Check size={30} strokeWidth={3.2} />
             ) : tone === "rejected" ? (
               <X size={30} strokeWidth={3.2} />
-            ) : tone === "paused" ? (
+            ) : tone === "paused" || tone === "keyboard" ? (
               <Keyboard size={22} />
             ) : (
               <ScanLine size={22} />

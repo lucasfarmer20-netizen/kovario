@@ -149,7 +149,7 @@ it("matrix-filtered lines, live price panel, and Save sends the rules engine's p
   );
 });
 
-it("Save is refused with the reasons when the form is incomplete", async () => {
+it("Save waits, and says why, until the order is complete (next step names the missing field)", async () => {
   const { client, rpc } = fakeClient({ intake_price_context: CONTEXT });
   render(
     <IntakeForm
@@ -182,7 +182,10 @@ it("Save is refused with the reasons when the form is incomplete", async () => {
   );
   await screen.findByLabelText("Line 1 species");
   pick("Line 1 species", "salmon_silvers");
-  fireEvent.click(screen.getByText("Save & Print Tote Tags"));
-  expect((await screen.findByRole("alert")).textContent).toContain("Line 1: pick a condition.");
+  const save = screen.getByRole("button", { name: "Save & Print Tote Tags" }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  expect(screen.getByText("Pick the condition for line 1 first")).toBeTruthy();
+  expect(screen.getByTestId("next-step").textContent).toBe("Pick the condition for line 1");
+  fireEvent.click(save);
   expect(rpc.mock.calls.some(([name]) => name === "save_intake")).toBe(false);
 });

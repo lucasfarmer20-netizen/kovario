@@ -151,6 +151,50 @@ export function rowsToLines(rows: LineRow[]): { lines: IntakeLine[]; errors: str
   return { lines, errors };
 }
 
+/** Which field of a line is missing, in the order the form asks for them. */
+export type LineGap = "species" | "condition" | "method" | "lb" | "filletsPct";
+
+/**
+ * The first field a line still needs (null when it is complete), with the same checks as
+ * rowsToLines, so the next step line and Save's reason name what Save would refuse.
+ */
+export function lineGap(row: LineRow): LineGap | null {
+  if (!isSpeciesCode(row.species)) return "species";
+  if (!isConditionCode(row.condition)) return "condition";
+  if (!isMethodCode(row.method)) return "method";
+  const lb = parseNumber(row.lb);
+  if (lb === null || lb <= 0 || lb > 9999) return "lb";
+  if (row.method === FRESH) {
+    const pct = parseNumber(row.filletsPct);
+    if (pct === null || pct < 0 || pct > 100) return "filletsPct";
+  }
+  return null;
+}
+
+const GAP_PROMPT: Record<LineGap, (n: number) => string> = {
+  species: (n) => `Pick the species for line ${n}`,
+  condition: (n) => `Pick the condition for line ${n}`,
+  method: (n) => `Pick the method for line ${n}`,
+  lb: (n) => `Enter the lb for line ${n}`,
+  filletsPct: (n) => `Enter fillets % (0–100) for line ${n}`,
+};
+
+/**
+ * What the species lines still need, as a next step ("Pick the condition for line 2"), or null
+ * when every line is complete. Blank lines are skipped, as on save; with none filled in, line 1
+ * asks for its species.
+ */
+export function linesPrompt(rows: LineRow[]): string | null {
+  let filled = 0;
+  for (const [i, row] of rows.entries()) {
+    if (isBlankRow(row)) continue;
+    filled += 1;
+    const gap = lineGap(row);
+    if (gap) return GAP_PROMPT[gap](i + 1);
+  }
+  return filled === 0 ? GAP_PROMPT.species(1) : null;
+}
+
 /** A saved line back into an editable row (manager unlock → edit). */
 export function lineToRow(line: {
   species_code: string;

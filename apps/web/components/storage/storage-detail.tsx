@@ -1,11 +1,16 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { encode, formatPhone } from "rules";
 import { ManagerPinOverlay } from "@/src/components/station/pin-overlay";
 import { ManualEntry, useManualOptions } from "@/src/components/station/manual-entry";
+import { KeyboardStatus, type KeyboardFeedback } from "@/src/components/station/keyboard-status";
 import { money } from "@/components/intake/intake-form-state";
-import { managerElevation, type StationSession } from "@/components/intake/use-station-session";
+import { refusal, type Prompt } from "@/components/intake/intake-view";
+import {
+  managerElevation,
+  sessionLabel,
+  type StationSession,
+} from "@/components/intake/use-station-session";
 import {
   cancelPickupBatch,
   createPickupBatch,
@@ -21,17 +26,65 @@ import {
   type PickupReceipt,
   type Quote,
 } from "./storage-data";
+import { BATCH_STATE_LABELS, STORAGE_STATE_LABELS, boxRollup, toggleBox } from "./storage-state";
 import {
-  BATCH_STATE_LABELS,
-  STORAGE_STATE_LABELS,
-  boxRollup,
-  daysLabel,
-  toggleBox,
-} from "./storage-state";
-import { NextStep } from "@/src/components/station/next-step";
+  PICKUP_STEPS,
+  StorageDetailSkeleton,
+  StorageDetailView,
+  StorageShell,
+  pickupNextStep,
+  type StorageBatch,
+  type StorageBox,
+  type StorageOrder,
+} from "./storage-view";
 
 type Batch = LoadedStorageIntake["batches"][number];
 type Release = { batch: Batch; mode: "manual" | "comp"; reason: string };
+
+/** The loaded rows as the pickup screen shows them. */
+export function storageOrder(data: LoadedStorageIntake): {
+  order: StorageOrder;
+  boxes: StorageBox[];
+  batches: StorageBatch[];
+} | null {
+  const { intake, boxes, batches } = data;
+  if (!intake) return null;
+  const boxLabel = new Map(boxes.map((b) => [b.storage_box_id, b.label]));
+  return {
+    order: {
+      number: intake.number,
+      customer: intake.customer?.name ?? null,
+      phone: intake.customer?.phone ? formatPhone(intake.customer.phone) : null,
+      chips: [
+        STORAGE_STATE_LABELS[intake.state] ?? intake.state,
+        boxRollup(intake.active_box_count, intake.box_count),
+        ...(intake.location ? [intake.location.code] : []),
+        ...(intake.paid_at ? [`Paid · ${intake.payment_ref}`] : []),
+      ],
+      notes: intake.notes,
+    },
+    boxes: boxes.map((b) => ({
+      id: b.storage_box_id ?? "",
+      label: b.label ?? "",
+      stored: b.state === "stored",
+      weight: b.weight_lb,
+      description: b.description,
+      days: b.days_stored,
+      qr: encode("SBOX", { storageNumber: intake.number, boxNo: b.box_no ?? 0 }),
+    })),
+    batches: batches.map((b) => ({
+      id: b.id,
+      number: b.number,
+      code: b.state,
+      state: BATCH_STATE_LABELS[b.state] ?? b.state,
+      releaseFailed: b.release_failed,
+      boxes: b.box_ids.map((id) => boxLabel.get(id) ?? "?").join(", "),
+      amount: b.amount,
+      paymentRef: b.payment_ref,
+      notes: b.notes,
+    })),
+  };
+}
 
 /**
  * A storage intake: boxes with their days stored (the storage_box_days view), the pickup
@@ -55,8 +108,10 @@ export function StorageDetail({
   const [receipt, setReceipt] = useState<PickupReceipt | null>(null);
   const [release, setRelease] = useState<Release | null>(null);
   const [pinOpen, setPinOpen] = useState(false);
-  const [message, setMessage] = useState(notice ?? "");
-  const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState<KeyboardFeedback | null>(
+    notice ? { ok: true, text: notice, event: 0 } : null,
+  );
+  const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
   const [typing, setTyping] = useState(false);
   const manual = useManualOptions(client, session.claims.orgId);
@@ -64,12 +119,17 @@ export function StorageDetail({
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
   // One id per "create batch" intent; changing the selection starts a new one.
   const batchActionId = useRef<string | null>(null);
+  const say = (ok: boolean, text: string) => setFeedback({ ok, text, event: Date.now() });
 
   useEffect(() => {
     let live = true;
     loadStorageIntake(client, storageIntakeId).then(
-      (loaded) => live && setData(loaded),
-      () => live && setError("Storage order unavailable; reload."),
+      (loaded) => {
+        if (!live) return;
+        setData(loaded);
+        setLoadError("");
+      },
+      () => live && setLoadError("Storage order unavailable. Check the connection and reload."),
     );
     return () => {
       live = false;
@@ -82,7 +142,12 @@ export function StorageDetail({
     const key = selected.join();
     quotePickup(client, storageIntakeId, selected).then(
       (quote) => live && setPriced({ key, quote }),
-      (err: unknown) => live && setError(err instanceof Error ? err.message : "Quote failed."),
+      (err: unknown) =>
+        live &&
+        say(
+          false,
+          refusal(err instanceof Error ? err.message : "Quote failed", "Tick the boxes again."),
+        ),
     );
     return () => {
       live = false;
@@ -91,13 +156,12 @@ export function StorageDetail({
 
   async function run<T>(label: string, fn: () => Promise<T>, done: (r: T) => string) {
     setBusy(true);
-    setError("");
     try {
       const r = await fn();
-      setMessage(done(r));
+      say(true, done(r));
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : `${label} failed.`);
+      say(false, refusal(err instanceof Error ? err.message : `${label} failed`, "Tap it again."));
     } finally {
       setBusy(false);
     }
@@ -108,81 +172,66 @@ export function StorageDetail({
       ? "Labels: no label printer is set up for this site."
       : `Labels: ${r.label_jobs_queued} queued.`;
 
-  if (!data) return <p>{error || "Loading storage order…"}</p>;
-  const { intake, boxes, batches } = data;
-  if (!intake) return <p role="alert">Storage order not found.</p>;
-  const boxLabel = new Map(boxes.map((b) => [b.storage_box_id, b.label]));
+  const mapped = data ? storageOrder(data) : null;
+  const pending = mapped?.batches.some((b) => b.code === "pending") ?? false;
+  const prompt: Prompt = !data
+    ? { next: "Opening the storage order", step: 0 }
+    : !mapped
+      ? { next: "Tap New Storage to start one", step: 0, tone: "warn" }
+      : release
+        ? { next: "Enter the reason, then a manager PIN", step: 2, tone: "warn" }
+        : pickupNextStep(selected.length, pending);
+  const shell = (body: ReactNode) => (
+    <StorageShell
+      site={session.siteName}
+      operator={sessionLabel(session)}
+      prompt={prompt}
+      steps={PICKUP_STEPS}
+      status={
+        <KeyboardStatus
+          feedback={feedback}
+          notice={loadError ? { tone: "error", text: loadError } : null}
+        />
+      }
+    >
+      {body}
+    </StorageShell>
+  );
+
+  if (!data) return shell(<StorageDetailSkeleton />);
+  if (!mapped || !data.intake)
+    return shell(
+      <section className="station-card st-hero-empty" aria-label="Storage order">
+        <h2>Storage order not found</h2>
+        <p>It may have been cancelled. Open one from the Storage Queue.</p>
+      </section>,
+    );
+  const intake = data.intake;
   const quote = priced?.key === selected.join() ? priced.quote : null;
-  // Pickup next step (docs/11-FLOOR-WORDING.md): tick → create the batch → charge at the register.
-  const charging = selected.length === 0 && batches.some((b) => b.state === "pending");
-  const pickup = selected.length
-    ? { next: "Tap Create Pickup Batch", step: 1 }
-    : charging
-      ? { next: "Charge the pickup at the register", step: 2 }
-      : { next: "Tick each box going home", step: 0 };
 
-  return (
+  return shell(
     <>
-      <section className="station-card intake-header" aria-label="Storage order header">
-        <div>
-          <p className="intake-number">{intake.number}</p>
-          <p>
-            <strong>{intake.customer?.name}</strong>
-            {intake.customer?.phone && ` · ${formatPhone(intake.customer.phone)}`}
-          </p>
-          <div className="station-chips">
-            <span className="station-badge">
-              {STORAGE_STATE_LABELS[intake.state] ?? intake.state}
-            </span>
-            <span className="station-badge">
-              {boxRollup(intake.active_box_count, intake.box_count)}
-            </span>
-            {intake.location && <span className="station-badge">{intake.location.code}</span>}
-            {intake.paid_at && <span className="station-badge">Paid · {intake.payment_ref}</span>}
-          </div>
-          {intake.notes && <p>{intake.notes}</p>}
-        </div>
-        <div className="station-actions">
-          <button
-            disabled={busy}
-            onClick={() =>
-              void run(
-                "Labels",
-                async () => printLabels(client, await loadLabelData(client, intake.id)),
-                printed,
-              )
-            }
-          >
-            Reprint Labels
-          </button>
-          <button
-            disabled={busy}
-            // Receipts print from the browser: the agent prints PDFs only from an HTTPS URL
-            // and there is no PDF render/upload pipeline yet.
-            onClick={() => window.print()}
-          >
-            Print Receipt
-          </button>
-          <Link href="/storage">New Storage</Link>
-        </div>
-      </section>
-      {message && <p className="station-feedback station-ok">{message}</p>}
-      {error && (
-        <p className="station-feedback station-rejected" role="alert">
-          {error}
-        </p>
-      )}
-
-      <div className="station-workspace">
-        <section className="station-card" aria-label="Boxes">
-          <h2>Boxes</h2>
-          {/* Freezer pickups: a box code typed into this field is checked against the storage
-              master and logged in scan_log (issue #84); an accepted box joins the selection. */}
-          <NextStep
-            next={pickup.next}
-            steps={["Tick boxes", "Create pickup batch", "Charge at the register"]}
-            step={pickup.step}
-          />
+      <StorageDetailView
+        order={mapped.order}
+        boxes={mapped.boxes}
+        selected={selected}
+        quote={quote}
+        batches={mapped.batches}
+        release={
+          release
+            ? {
+                number: release.batch.number,
+                amount: release.batch.amount,
+                mode: release.mode,
+                reason: release.reason,
+              }
+            : null
+        }
+        receipt={receipt}
+        busy={busy || pinOpen}
+        manual={
+          // Freezer pickups: a box code typed here is checked against the storage master and
+          // logged in scan_log (issue #84); an accepted box joins the selection.
           <ManualEntry
             open={typing}
             onOpenChange={setTyping}
@@ -197,248 +246,71 @@ export function StorageDetail({
                     batchActionId.current = null;
                     setSelected((ids) => (ids.includes(boxId) ? ids : [...ids, boxId]));
                   }
-                  setError(reply.ok ? "" : reply.reason);
-                  setMessage(reply.ok ? reply.reason : "");
+                  say(reply.ok, reply.reason);
                 },
-                () => {
-                  setMessage("");
-                  setError("Code not recorded; check the connection and enter it again.");
-                },
+                () => say(false, "Code not recorded; check the connection and enter it again."),
               );
             }}
           />
-          <table className="intake-lines">
-            <thead>
-              <tr>
-                <th>Pick up</th>
-                <th>Box</th>
-                <th>Weight</th>
-                <th>Description</th>
-                <th>Days stored</th>
-                <th>Label QR</th>
-              </tr>
-            </thead>
-            <tbody>
-              {boxes.map((b) => {
-                const id = b.storage_box_id ?? "";
-                const stored = b.state === "stored";
-                return (
-                  <tr key={id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        aria-label={`Pick up ${b.label}`}
-                        disabled={!stored || busy}
-                        checked={selected.includes(id)}
-                        onChange={() => {
-                          batchActionId.current = null;
-                          setSelected(toggleBox(selected, id, stored));
-                        }}
-                      />
-                    </td>
-                    <td>
-                      {b.label}
-                      {!stored && " · picked up"}
-                    </td>
-                    <td>{b.weight_lb === null ? "—" : `${b.weight_lb} lb`}</td>
-                    <td>{b.description}</td>
-                    <td>{b.days_stored === null ? "—" : daysLabel(b.days_stored)}</td>
-                    <td>
-                      <code>
-                        {encode("SBOX", { storageNumber: intake.number, boxNo: b.box_no ?? 0 })}
-                      </code>
-                    </td>
-                  </tr>
+        }
+        on={{
+          toggle: (id, stored) => {
+            batchActionId.current = null;
+            setSelected(toggleBox(selected, id, stored));
+          },
+          createBatch: () =>
+            void run(
+              "Pickup batch",
+              async () => {
+                batchActionId.current ??= crypto.randomUUID();
+                const r = await createPickupBatch(
+                  client,
+                  batchActionId.current,
+                  intake.id,
+                  selected,
                 );
-              })}
-            </tbody>
-          </table>
-
-          <h2>Pickup</h2>
-          {selected.length === 0 ? (
-            <p className="station-hint">Tick the boxes going home today.</p>
-          ) : quote ? (
-            <>
-              <table className="intake-price-lines">
-                <tbody>
-                  {quote.boxes.map((l) => (
-                    <tr key={l.box_id}>
-                      <td>{l.label}</td>
-                      <td>{daysLabel(l.days)}</td>
-                      <td>{money(quote.rate)}/box-day</td>
-                      <td>{money(l.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="intake-total">
-                {quote.box_days} box-days · Total {money(quote.amount)}
-              </p>
-              <div className="station-actions">
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void run(
-                      "Pickup batch",
-                      async () => {
-                        batchActionId.current ??= crypto.randomUUID();
-                        const r = await createPickupBatch(
-                          client,
-                          batchActionId.current,
-                          intake.id,
-                          selected,
-                        );
-                        batchActionId.current = null;
-                        setSelected([]);
-                        return r;
-                      },
-                      (r) =>
-                        `${r.number} for ${money(r.amount)} is ready to charge at the register` +
-                        (r.superseded.length > 0 ? ` (replaces ${r.superseded.join(", ")}).` : "."),
-                    )
-                  }
-                >
-                  Create Pickup Batch
-                </button>
-              </div>
-            </>
-          ) : (
-            <p>Pricing…</p>
-          )}
-        </section>
-
-        <section className="station-card" aria-label="Pickup batches">
-          <h2>Pickup batches</h2>
-          {batches.length === 0 && <p>No pickups yet.</p>}
-          <ul className="station-queue">
-            {batches.map((b) => (
-              <li key={b.id}>
-                <strong>{b.number}</strong>
-                <span className="station-badge">{BATCH_STATE_LABELS[b.state] ?? b.state}</span>
-                {b.release_failed && <span className="station-badge">RELEASE FAILED</span>}
-                <span>
-                  {b.box_ids.map((id) => boxLabel.get(id) ?? "?").join(", ")} · {money(b.amount)}
-                </span>
-                {b.payment_ref && <span>Ref {b.payment_ref}</span>}
-                <div className="station-actions">
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void pickupReceipt(client, b.id).then(setReceipt, () =>
-                        setError("Receipt unavailable."),
-                      )
-                    }
-                  >
-                    Receipt
-                  </button>
-                  {b.state === "pending" && !b.release_failed && (
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void run(
-                          "Cancel",
-                          () => cancelPickupBatch(client, b.id),
-                          () => `${b.number} cancelled.`,
-                        )
-                      }
-                    >
-                      Cancel
-                    </button>
-                  )}
-                  {b.state !== "released" && (
-                    <>
-                      <button
-                        disabled={busy}
-                        onClick={() => setRelease({ batch: b, mode: "manual", reason: "" })}
-                      >
-                        Force Release
-                      </button>
-                      <button
-                        disabled={busy}
-                        onClick={() => setRelease({ batch: b, mode: "comp", reason: "" })}
-                      >
-                        COMP
-                      </button>
-                    </>
-                  )}
-                </div>
-                {b.notes && <pre className="storage-notes">{b.notes}</pre>}
-              </li>
-            ))}
-          </ul>
-
-          {release && (
-            <form
-              className="station-card"
-              aria-label={release.mode === "comp" ? "COMP batch" : "Force Release batch"}
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!release.reason.trim()) {
-                  setError("Enter a reason.");
-                  return;
-                }
-                setPinOpen(true);
-              }}
-            >
-              <h3>
-                {release.mode === "comp"
-                  ? `COMP ${release.batch.number} — waive ${money(release.batch.amount)}`
-                  : `Force Release ${release.batch.number}`}
-              </h3>
-              <label>
-                Reason{" "}
-                <input
-                  autoFocus
-                  value={release.reason}
-                  onChange={(e) => setRelease({ ...release, reason: e.target.value })}
-                />
-              </label>
-              <div className="station-actions">
-                <button type="submit">Manager PIN…</button>
-                <button type="button" onClick={() => setRelease(null)}>
-                  Back
-                </button>
-              </div>
-            </form>
-          )}
-
-          {receipt && (
-            <section
-              className="station-card storage-receipt"
-              aria-label={`Receipt ${receipt.number}`}
-            >
-              <h3>
-                Receipt {receipt.number} · {receipt.storage_number} · {receipt.date}
-              </h3>
-              <table className="intake-price-lines">
-                <tbody>
-                  {receipt.lines.map((l) => (
-                    <tr key={l.box_id}>
-                      <td>{l.label}</td>
-                      <td>{daysLabel(l.days)}</td>
-                      <td>{money(l.rate)}/box-day</td>
-                      <td>{money(l.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="intake-total">
-                Total {money(receipt.total)}
-                {receipt.payment_ref && ` · ${receipt.payment_ref}`}
-              </p>
-              <div className="station-actions">
-                <button type="button" onClick={() => window.print()}>
-                  Print
-                </button>
-                <button type="button" onClick={() => setReceipt(null)}>
-                  Close
-                </button>
-              </div>
-            </section>
-          )}
-        </section>
-      </div>
-
+                batchActionId.current = null;
+                setSelected([]);
+                return r;
+              },
+              (r) =>
+                `${r.number} for ${money(r.amount)} is ready to charge at the register` +
+                (r.superseded.length > 0 ? ` (replaces ${r.superseded.join(", ")}).` : "."),
+            ),
+          reprintLabels: () =>
+            void run(
+              "Labels",
+              async () => printLabels(client, await loadLabelData(client, intake.id)),
+              printed,
+            ),
+          // Receipts print from the browser: the agent prints PDFs only from an HTTPS URL and
+          // there is no PDF render/upload pipeline yet.
+          printReceipt: () => window.print(),
+          receipt: (id) =>
+            void pickupReceipt(client, id).then(setReceipt, () =>
+              say(false, "Receipt unavailable. Check the connection and tap Receipt again."),
+            ),
+          closeReceipt: () => setReceipt(null),
+          cancelBatch: (id) => {
+            const b = data.batches.find((x) => x.id === id);
+            void run(
+              "Cancel",
+              () => cancelPickupBatch(client, id),
+              () => `${b?.number} cancelled.`,
+            );
+          },
+          startRelease: (id, mode) => {
+            const b = data.batches.find((x) => x.id === id);
+            if (b) setRelease({ batch: b, mode, reason: "" });
+          },
+          releaseReason: (reason) => setRelease((r) => (r ? { ...r, reason } : r)),
+          confirmRelease: () => {
+            if (!release?.reason.trim()) return;
+            setPinOpen(true);
+          },
+          cancelRelease: () => setRelease(null),
+        }}
+      />
       {pinOpen && release && (
         <ManagerPinOverlay
           onClose={() => setPinOpen(false)}
@@ -453,7 +325,7 @@ export function StorageDetail({
                 release.reason.trim(),
                 elevation.token,
               );
-              setMessage(`${release.batch.number} released (${r.payment_ref}).`);
+              say(true, `${release.batch.number} released (${r.payment_ref}).`);
             } catch (err) {
               return { ok: false, reason: err instanceof Error ? err.message : "Release failed" };
             }
@@ -463,6 +335,6 @@ export function StorageDetail({
           }}
         />
       )}
-    </>
+    </>,
   );
 }

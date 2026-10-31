@@ -584,7 +584,8 @@
   background: transparent;
 }
 .station-feedback[data-tone="idle"],
-.station-feedback[data-tone="paused"] {
+.station-feedback[data-tone="paused"],
+.station-feedback[data-tone="keyboard"] {
   border-color: var(--st-line);
   background: var(--st-surface);
   color: var(--st-ink-2);
@@ -611,7 +612,8 @@
   color: #fff;
 }
 .station-feedback[data-tone="idle"] .st-feedback-icon,
-.station-feedback[data-tone="paused"] .st-feedback-icon {
+.station-feedback[data-tone="paused"] .st-feedback-icon,
+.station-feedback[data-tone="keyboard"] .st-feedback-icon {
   width: 40px;
   height: 40px;
   background: var(--st-sunken);
@@ -2716,6 +2718,313 @@ form.station-manual .station-actions > button[type="button"] {
   }
 }
 
+/* ---- Keyboard stations (Intake, Storage intake; docs/12 "Keyboard stations") ------------------
+   A form on the station tokens: no scanner input, so the keyboard stays in the fields. Every
+   field, toggle and button is still a 56 px target (Intake is on the floor). */
+/* The summary rail (Intake's price, Storage's labels) on the right of the form from 1100 px. */
+@media (min-width: 1100px) {
+  .st-floor[data-rail="end"]:has(> .st-rail) {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  }
+  .st-floor[data-rail="end"] > .st-rail {
+    order: 0;
+  }
+}
+.st-form {
+  display: grid;
+  gap: var(--st-4);
+  min-width: 0;
+}
+/* Fields wrap by the card's own width: four across on a tablet, one per row on a phone. */
+.st-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr));
+  gap: var(--st-3);
+  align-items: end;
+  min-width: 0;
+}
+.st-field {
+  display: grid;
+  gap: var(--st-1);
+  min-width: 0;
+}
+.st-field-wide {
+  grid-column: 1 / -1;
+}
+/* Two cells (a description beside its weight); the whole row on a phone's two columns. */
+.st-field-span2 {
+  grid-column: span 2;
+}
+.st-field > :is(span, label):first-child {
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+  font-weight: 650;
+}
+.st-form input:not(.station-scan-input),
+.st-form select,
+.st-form textarea {
+  width: 100%;
+  min-width: 0;
+}
+.st-form select,
+.st-form textarea {
+  min-height: var(--st-touch);
+  padding: 10px 14px;
+  border: 2px solid var(--st-line-strong);
+  border-radius: var(--st-r-md);
+  background: var(--st-surface);
+  color: var(--st-ink);
+  font: inherit;
+  font-size: var(--st-fs-body);
+}
+.st-form textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+.st-form select:focus,
+.st-form textarea:focus {
+  border-color: var(--st-brand);
+}
+.st-form select:focus-visible,
+.st-form textarea:focus-visible {
+  outline: 4px solid var(--st-focus);
+  outline-offset: 3px;
+}
+.st-form select:disabled {
+  background: var(--st-sunken);
+  border-color: var(--st-line);
+  color: var(--st-ink-3);
+}
+/* Customer search inside a form: its options are wet-glove targets too. */
+.st-form [role="option"] {
+  min-height: var(--st-touch);
+  font-size: var(--st-fs-body);
+}
+/* A line of the form (a species line, a box): its name and Remove, then its fields. */
+.st-line {
+  display: grid;
+  gap: var(--st-3);
+  padding: var(--st-3) var(--st-4) var(--st-4);
+  border: 1.5px solid var(--st-line);
+  border-left: 6px solid var(--st-line-strong);
+  border-radius: var(--st-r-md);
+  background: var(--st-sunken);
+  animation: st-enter var(--st-dur-enter) var(--st-ease-out);
+}
+.st-line[data-complete] {
+  border-left-color: var(--st-within-edge);
+}
+.st-line-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--st-2);
+}
+.station .st-line-head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-2);
+  margin: 0;
+}
+.st-line[data-complete] .st-line-head h3 svg {
+  color: var(--st-within);
+}
+/* A yes/no choice: the whole label is the target; the tick reads by fill, check and frame. */
+.st-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-3);
+  min-height: var(--st-touch);
+  padding: 8px 18px 8px 12px;
+  border: 2px solid var(--st-line-strong);
+  border-radius: var(--st-r-md);
+  background: var(--st-surface);
+  color: var(--st-ink);
+  font-weight: 650;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--st-dur-state) var(--st-ease),
+    border-color var(--st-dur-state) var(--st-ease);
+}
+.station .st-toggle input {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  opacity: 0;
+  cursor: inherit;
+}
+.st-toggle-box {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--st-line-strong);
+  border-radius: 8px;
+  background: var(--st-surface);
+  color: var(--st-on-brand);
+}
+.st-toggle-box svg {
+  opacity: 0;
+}
+.st-toggle:has(input:checked) {
+  border-color: var(--st-brand);
+  background: var(--st-brand-soft);
+  box-shadow: inset 0 0 0 1px var(--st-brand);
+}
+.st-toggle:has(input:checked) .st-toggle-box {
+  border-color: var(--st-brand);
+  background: var(--st-brand);
+  animation: st-pop var(--st-dur-enter) var(--st-ease-out);
+}
+.st-toggle:has(input:checked) .st-toggle-box svg {
+  opacity: 1;
+}
+.st-toggle:has(input:focus-visible) {
+  outline: 4px solid var(--st-focus);
+  outline-offset: 3px;
+}
+.st-toggle:has(input:disabled) {
+  border-color: var(--st-line);
+  background: var(--st-sunken);
+  color: var(--st-ink-3);
+  cursor: not-allowed;
+}
+/* A whole-row tick (Storage pickup: each box going home), ≥ 72 px. */
+.st-toggle-row {
+  display: flex;
+  width: 100%;
+  min-height: var(--st-touch-lg);
+  padding-block: 10px;
+}
+.st-toggle-main {
+  display: grid;
+  flex: 1 1 10rem;
+  gap: 2px;
+  min-width: 0;
+}
+.st-toggle-meta {
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.st-toggle-end {
+  margin-left: auto;
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+}
+/* A count with − / + beside the typed field (totes). */
+.st-stepper {
+  display: flex;
+  align-items: stretch;
+  gap: var(--st-2);
+}
+.station .st-stepper input {
+  width: 96px;
+  flex: none;
+  text-align: center;
+  font-size: var(--st-fs-title);
+  font-weight: 720;
+  font-variant-numeric: tabular-nums;
+}
+/* A summary list: label left, figure right (Intake's price, a saved order's lines). */
+.st-summary {
+  display: grid;
+  margin: 0;
+}
+.st-summary > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px var(--st-3);
+  padding: var(--st-2) 0;
+  border-bottom: 1px solid var(--st-line);
+}
+.st-summary dt {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.st-summary dd {
+  margin: 0 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.st-summary-sub {
+  display: block;
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+  font-weight: 550;
+}
+.station .st-summary-total {
+  margin: var(--st-3) 0 var(--st-2);
+  /* A readout that fits the rail on one line ("Total $1,234.50"). */
+  font-size: clamp(32px, 3.2vw, 44px);
+  font-weight: 780;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+/* The customer an order is for: name at title size. */
+.station .st-customer-name {
+  margin: var(--st-1) 0 var(--st-2);
+  font-size: var(--st-fs-title);
+  overflow-wrap: anywhere;
+}
+/* Estimated yield per line, above the charges. */
+.st-yield {
+  display: grid;
+  gap: 2px;
+  margin-bottom: var(--st-2);
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* A saved order's number at readout size, as printed on its tags. */
+.st-hero-number {
+  display: block;
+  font-family: var(--st-mono);
+  font-size: clamp(48px, 7vw, 88px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+/* The forward action of a form and the alternatives after it. */
+.st-commit {
+  display: grid;
+  gap: var(--st-3);
+}
+.st-commit .station-actions > * {
+  flex: 1 1 12rem;
+}
+.station a.st-link-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-color: var(--st-line-strong);
+  background: var(--st-surface);
+  color: var(--st-brand);
+  font-weight: 650;
+  text-decoration: none;
+  box-shadow: var(--st-e1);
+}
 /* Intake desk (docs/06-STATIONS-UX.md Intake): keyboard station on the station tokens. */
 .intake-workspace {
   grid-template-columns: 1.6fr 1fr;
@@ -2831,13 +3140,16 @@ form.station-manual .station-actions > button[type="button"] {
    page without station controls. */
 @media print {
   .storage-station header,
+  .storage-station .station-command,
   .storage-station .station-actions,
   .storage-station .station-feedback,
+  .storage-station .station-manual,
+  .storage-station button,
+  .storage-station .st-toggle-box,
   .storage-station input[type="checkbox"] {
     display: none;
   }
-  .storage-station:has(.storage-receipt) .intake-header,
-  .storage-station:has(.storage-receipt) .station-workspace > section > :not(.storage-receipt) {
+  .storage-station:has(.storage-receipt) .st-floor > * > :not(.storage-receipt) {
     display: none;
   }
 }

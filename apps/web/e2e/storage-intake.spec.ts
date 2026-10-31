@@ -29,7 +29,9 @@ test("storage intake: intake → pickup batch → register payment → release",
 
   await test.step("pickup batch: tick Box 1, quote, Create Pickup Batch", async () => {
     await page.getByRole("checkbox", { name: "Pick up Box 1" }).check();
-    await expect(page.getByText(/1 box-days · Total \$1\.00/)).toBeVisible();
+    const quote = page.getByRole("region", { name: "Pickup quote" });
+    await expect(quote).toContainText("1 box-days");
+    await expect(quote).toContainText("Total $1.00");
     await page.getByRole("button", { name: "Create Pickup Batch" }).click();
     const ready = page.getByText(/SPB-\d+ for \$1\.00 is ready to charge at the register/);
     await expect(ready).toBeVisible();

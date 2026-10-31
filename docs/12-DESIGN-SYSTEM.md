@@ -10,7 +10,8 @@ in the same PR.
   colours (`bg-st-brand`, `text-st-ink-2`, …). shadcn `--primary` / `--ring` follow the brand.
 - **Components:** `apps/web/src/components/station/` (exported from `index.ts`).
 - **Gallery:** `/dev/station-gallery` shows the tokens, every component in every state, and
-  Reconcile, Blast, Locate, Wave and Rollstock in each of their states at 1280 × 800 and 400 px;
+  Reconcile, Blast, Locate, Wave, Rollstock, Intake and Storage intake in each of their states at
+  1280 × 800 and 400 px;
   each state is its own page (`/dev/station-gallery/<state>`). Static props, no DB. A new station
   adds its states here: its ids to `state-ids.ts`, its screens to `[state]/screen.tsx`, its frames with
   `StateFrames`.
@@ -125,7 +126,7 @@ shimmer stop.
 
 | Component | What it is |
 | --- | --- |
-| `StationShell` | Full-screen frame: console bar (station, site, operator chip, `ConnectionChip`), command area (next step + scan feedback), one `ScanInput`; `nextTone` for warnings |
+| `StationShell` | Full-screen frame: console bar (station, site, operator chip, `ConnectionChip`), command area (next step + scan feedback), one `ScanInput`; `nextTone` for warnings. `scanner={false}` is a keyboard station (no `ScanInput`, no Enter manually; below); `nav` adds console-bar links, `className` print rules |
 | `NextStep` | Step row (done steps show a check, current has `aria-current="step"`) and the next step line. A one-step station (Blast) has no step row (docs/11 prompt grammar 3) |
 | `DisabledReason` | The why under a disabled control |
 | `ScanInput` | The single hidden-but-focused scanner input |
@@ -143,6 +144,8 @@ shimmer stop.
 | `StationNotice` | An inline notice with a tone (ok / info / error) |
 | `QueueList` | Realtime queue list |
 | `speciesName` | A species code in the floor's words ("Reds" for `salmon_reds`), from the rules engine's species table |
+| `Tick` | A yes/no choice as a 56 px tick (Dirty fish, Fast Pass): a real checkbox whose whole label is the target, ticked by fill, check and frame; `row` makes it a whole-row tick in a list (72 px, Storage pickup's boxes; Boxing next) with a meta line and a right edge |
+| `KeyboardStatus` | A keyboard station's status column: the scan tile's place and height, saying what a save or print did (green / red), idle "Keyboard ready" (`FeedbackBanner tone="keyboard"`), a notice under it |
 | `useLasting` | A value once it has held for a while: a "Waiting for scans to send" reason shows only once the wait lasts (Locate, Rollstock) |
 
 Shared classes: buttons are filled by default (brand); `st-btn-secondary` (outlined),
@@ -162,6 +165,19 @@ it). Panels that take the top of the work area (`st-panel`, `st-panel-title` / `
 `-kicker` / `-sub` / `-lead`, and `st-note` / `st-note-text` for a note typed in an editing mode)
 are Reconcile's hold-panel rules under station-neutral names.
 `StationShell` takes `defaultManualOpen` so a gallery state can show **Enter manually** open.
+
+Form parts (keyboard stations, Intake first; Register and Shipping next): `st-form` around fields
+(its `select` and `textarea` are 56 px like inputs, and a customer search's options too),
+`st-fields` (a grid that wraps by the card's width: four across on a tablet, two on a phone),
+`st-field` (label over control; `st-field-span2` two cells, `st-field-wide` the whole row),
+`st-line` (one line of a form, a species line or a box: its name and Remove, then its fields;
+`data-complete` turns its edge green with a check), `st-stepper` (− / + beside a typed count),
+`st-summary` (label left, figure right; `st-summary-sub` a caption, `st-summary-total` the total
+as a readout), `st-yield`, `st-customer-name`, `st-hero-number` (a saved order's number at
+readout size, as printed), `st-commit` (the forward action, alternatives under it) and
+`st-link-secondary` (a link that looks like an outlined button). `st-floor[data-rail="end"]`
+puts the rail right of the work from 1100 px: a form's summary and its forward action (Intake's
+price and Save) rather than a queue.
 
 ### Lists that rank
 
@@ -211,6 +227,61 @@ How Wave meets each state above (gallery: `/dev/station-gallery/wave-<state>`):
 | Held / needs a manager | Not at Wave: no manager gate, and orders reach Wave before any variance hold. `draft` shows a wave whose start did not go through |
 | Done | `done`: green confirmation, the next wave live |
 | Offline / N pending | `offline`: Complete and Cancel need the server and say so |
+
+### Intake (#131)
+
+Gallery: `/dev/station-gallery/intake-<state>`.
+
+| State | Intake |
+| --- | --- |
+| Loading | `loading`: the form's cards and the price rail as placeholders |
+| Operator needed | `signin`: no staff sign-in or paired tablet; Identify operator, **Staff sign in** / **Pair device**. The desk has no operator PIN: the sign-in is the operator |
+| Nothing open / queue empty | `new` (a new order: find the customer); `orders-empty` (orders come from the Intake desk) |
+| Empty item | `customer`: a customer and no lines; Condition and Method say what they wait for, the price says when it shows, Save says why it waits |
+| In progress | `filling` (line 1 ticked green, the next step names line 2's lb), `ready` (live price, Save filled), `orders` |
+| Device offline | `no-printer`: the tote printer is the desk's device; tags read **Not printed** and the next step line says to write the number on each tote (the manual path) |
+| Rejected scan | `rejected`: no scanner, so the nearest case is a refused save: red in the status tile, why then what to do |
+| Warning / over limit | `no-rate`: the rate card has no rate for a line; the next step line warns, Save is held and says why |
+| Held / needs a manager | `unlock` (manager PIN sheet over a locked order), `unlocked` (the Unlocked panel takes the top of the form) |
+| Done | `saved`: green in the status tile, every step ticked, New Intake filled |
+| Offline / N pending | `offline`: Save needs the server and says so; nothing is queued on the tablet |
+
+### Storage intake (#131)
+
+Gallery: `/dev/station-gallery/storage-<state>`.
+
+| State | Storage intake |
+| --- | --- |
+| Loading | `loading` |
+| Operator needed | `signin` (as Intake) |
+| Nothing open / queue empty | `new`; `queue-empty` (storage orders come from New Storage) |
+| Empty item | `customer`: location, weight and description are optional on the server, so Confirm is live; the next step line says what usually comes next |
+| In progress | `boxes`, `pickup` (boxes ticked, the quote, Create Pickup Batch filled), `charge`, `queue` |
+| Device offline | `no-printer`: the status tile says no label printer is set up; Reprint Labels retries |
+| Rejected scan | `typed-box`: a typed box code from another order, refused in the status tile; `rejected` (Confirm refused) |
+| Warning / over limit | `bad-weight`: a weight that is not a number warns and holds Confirm |
+| Held / needs a manager | `release` (Force Release / COMP panel at the top: reason, then **Manager PIN…**), `release-pin` |
+| Done | `stored`: green "STG-0009 stored; 3 box labels queued." |
+| Offline / N pending | `offline`: Confirm needs the server and says so |
+
+## Keyboard stations
+
+Intake and Storage intake are typed at a desk on the floor, so they are built from this system
+with three differences from the scan stations (WP-07: the always-focused scanner input would take
+the keyboard away from the form):
+
+- **No scanner input.** `StationShell scanner={false}`: the console bar, step row and next step
+  line stay; there is no `ScanInput` and no shell **Enter manually** (a station that reads a
+  printed code, as Storage pickup does for box labels, puts its own `ManualEntry` where the codes
+  are). Focus moves with the form instead: to the next field the order needs once one is filled.
+- **The status column says what a save did.** `KeyboardStatus` takes the scan tile's place and
+  height: green for a save or print, red with why and what to do; idle it reads *Keyboard ready*.
+- **The forward action waits and says why.** Save / Confirm stay disabled with the reason
+  (`DisabledReason`) in the same words as the next step line, rather than refusing after the tap.
+
+Everything else is the floor's: 56 px targets for every field, tick and button (hero 72 px),
+18 px text minimum, colour plus shape plus words, the states table above, and no sideways
+scrolling at 400 px or 1280 × 800.
 
 ## Layout
 

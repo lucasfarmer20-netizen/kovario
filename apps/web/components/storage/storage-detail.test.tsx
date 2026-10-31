@@ -101,7 +101,8 @@ it("pickup wizard: days from the box view, tick boxes → server quote → Creat
 
   fireEvent.click(screen.getByLabelText("Pick up Box 1"));
   fireEvent.click(screen.getByLabelText("Pick up Box 3"));
-  await screen.findByText("6 box-days · Total $4.50");
+  await screen.findByText("6 box-days");
+  expect(screen.getByText("Total $4.50")).toBeTruthy();
   expect(rpc).toHaveBeenLastCalledWith("storage_pickup_quote", {
     p_storage_intake_id: "si-1",
     p_box_ids: ["b-1", "b-3"],
@@ -154,8 +155,11 @@ it("storage form: refuses without a customer; Confirm sends the boxes, then queu
   fireEvent.change(screen.getByLabelText("Box 1 weight"), { target: { value: "20" } });
   fireEvent.click(screen.getByText("Add box"));
   fireEvent.change(screen.getByLabelText("Box 2 description"), { target: { value: " kings " } });
-  fireEvent.click(screen.getByText("Confirm & Print 2 Labels"));
-  await screen.findByText("Pick or create the customer.");
+  // Confirm waits for the customer and says so (it used to refuse after the tap).
+  const confirm = screen.getByRole("button", { name: "Confirm & Print 2 Labels" });
+  expect((confirm as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText("Pick the customer first")).toBeTruthy();
+  fireEvent.click(confirm);
   expect(rpc).not.toHaveBeenCalledWith("confirm_storage_intake", expect.anything());
 
   fireEvent.change(screen.getByLabelText("Customer phone or name"), { target: { value: "907" } });
@@ -219,14 +223,13 @@ it("#84 freezer pickup Enter manually: every typed box code is checked and logge
   );
   expect(screen.getByText("Box 2 selected for pickup.")).toBeTruthy();
   expect(screen.getByTestId("next-step").textContent).toBe("Tap Create Pickup Batch");
+  // Replies land in the status tile (docs/12: one place for feedback), red with why and what to do.
   enter("STG-0008-1");
-  await waitFor(() =>
-    expect(screen.getByRole("alert").textContent).toBe("STG-0008-1 is not on STG-0007."),
-  );
+  await screen.findByText("STG-0008-1 is not on STG-0007.");
   enter("STG-0007-9");
-  await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("No box 9 on STG-0007."));
+  await screen.findByText("No box 9 on STG-0007.");
   enter("hello");
-  await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/Not a box code/));
+  await screen.findByText(/^Not a box code/);
   expect((screen.getByLabelText("Pick up Box 1") as HTMLInputElement).checked).toBe(false);
   expect((screen.getByLabelText("Pick up Box 2") as HTMLInputElement).checked).toBe(true);
   // Accepted and rejected codes alike reach the server (validated, logged), flagged manual.

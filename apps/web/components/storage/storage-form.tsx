@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { formatPhone } from "rules";
 import { CustomerSearch } from "@/components/customers/customer-search";
-import type { CustomerHit } from "@/components/customers/customer-search-state";
 import { createCustomer, searchCustomers } from "@/components/intake/intake-data";
-import type { StationSession } from "@/components/intake/use-station-session";
+import { refusal } from "@/components/intake/intake-view";
+import { sessionLabel, type StationSession } from "@/components/intake/use-station-session";
+import { useOnline } from "@/src/components/station/connection-chip";
+import { KeyboardStatus, type KeyboardFeedback } from "@/src/components/station/keyboard-status";
 import {
   confirmStorageIntake,
   listLocations,
@@ -12,11 +13,23 @@ import {
   type ConfirmResult,
   type LabelsQueued,
 } from "./storage-data";
-import { confirmPayload, emptyBox, type BoxRow } from "./storage-state";
+import { confirmPayload, emptyBox } from "./storage-state";
+import {
+  STORAGE_STEPS,
+  StorageFormView,
+  StorageShell,
+  LOCATION_FIELD_ID,
+  boxFieldId,
+  storageNextStep,
+  type StorageFormValues,
+} from "./storage-view";
+
+const NO_CUSTOMER = "Pick or create the customer.";
 
 /**
  * Storage intake (docs/06-STATIONS-UX.md): customer → location → boxes (weight,
- * description) → Confirm → storage box labels (QR FL:SBOX) + optional receipt.
+ * description) → Confirm → storage box labels (QR FL:SBOX) + optional receipt, in the Cold
+ * storage console (step row, next step line, the confirm result in the status tile).
  */
 export function StorageForm({
   session,
@@ -27,43 +40,53 @@ export function StorageForm({
   onConfirmed: (result: ConfirmResult, labels: LabelsQueued | { error: string }) => void;
 }) {
   const { client, claims } = session;
-  const [customer, setCustomer] = useState<CustomerHit | null>(null);
-  const [locations, setLocations] = useState<{ id: string; code: string }[]>([]);
-  const [locationId, setLocationId] = useState("");
-  const [rows, setRows] = useState<BoxRow[]>(() => [emptyBox()]);
-  const [notes, setNotes] = useState("");
+  const online = useOnline();
+  const [locations, setLocations] = useState<{ id: string; code: string }[] | null>(null);
+  const [values, setValues] = useState<StorageFormValues>(() => ({
+    customer: null,
+    locationId: "",
+    rows: [emptyBox()],
+    notes: "",
+  }));
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState<KeyboardFeedback | null>(null);
+  const [loadError, setLoadError] = useState("");
   // One id per confirm intent: a retry after a lost response replays; any edit starts a new one.
   const actionId = useRef<string | null>(null);
 
   useEffect(() => {
-    listLocations(client).then(setLocations, () => setError("Locations unavailable; reload."));
+    listLocations(client).then(setLocations, () => {
+      setLocations([]);
+      setLoadError("Locations unavailable. Check the connection and reload.");
+    });
   }, [client]);
 
-  const edit =
-    <T,>(set: (v: T) => void) =>
-    (v: T) => {
-      actionId.current = null;
-      setError("");
-      set(v);
-    };
-  const setRow = (key: string, patch: Partial<BoxRow>) =>
-    edit(setRows)(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const change = (patch: Partial<StorageFormValues>) => {
+    actionId.current = null;
+    setFeedback(null);
+    setValues((v) => ({ ...v, ...patch }));
+  };
+  const focusLater = (id: string) =>
+    requestAnimationFrame(() => document.getElementById(id)?.focus());
+
+  const built = confirmPayload({
+    customerId: values.customer?.id ?? null,
+    locationId: values.locationId,
+    notes: values.notes,
+    rows: values.rows,
+  });
+  const prompt = storageNextStep({
+    customer: values.customer !== null,
+    location: values.locationId !== "",
+    rows: values.rows,
+    problems: "errors" in built ? built.errors.filter((e) => e !== NO_CUSTOMER) : [],
+    online,
+  });
 
   async function confirm() {
-    const built = confirmPayload({
-      customerId: customer?.id ?? null,
-      locationId,
-      notes,
-      rows,
-    });
-    if ("errors" in built) {
-      setError(built.errors.join(" "));
-      return;
-    }
+    if (prompt.confirmWhy || "errors" in built) return;
     setSaving(true);
-    setError("");
+    setFeedback(null);
     try {
       actionId.current ??= crypto.randomUUID();
       const result = await confirmStorageIntake(client, actionId.current, built.payload);
@@ -74,120 +97,75 @@ export function StorageForm({
       }));
       onConfirmed(result, labels);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Confirm failed; try again.");
+      setFeedback({
+        ok: false,
+        text: refusal(
+          err instanceof Error ? err.message : "Confirm did not go through",
+          "Check the boxes and tap Confirm again.",
+        ),
+        event: Date.now(),
+      });
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="station-workspace intake-workspace">
-      <section className="station-card intake-form" aria-label="Storage intake">
-        <h2>New storage intake</h2>
-        {customer ? (
-          <div className="intake-customer">
-            <div>
-              <strong>{customer.name}</strong>{" "}
-              {customer.phone && <span>{formatPhone(customer.phone)}</span>}
-            </div>
-            <button type="button" onClick={() => edit(setCustomer)(null)}>
-              Change customer
-            </button>
-          </div>
-        ) : (
+    <StorageShell
+      site={session.siteName}
+      operator={sessionLabel(session)}
+      prompt={prompt}
+      steps={STORAGE_STEPS}
+      status={
+        <KeyboardStatus
+          feedback={feedback}
+          notice={
+            loadError
+              ? { tone: "error", text: loadError }
+              : !online
+                ? {
+                    tone: "info",
+                    text: "Offline. Confirm needs a connection; the boxes stay as typed.",
+                  }
+                : null
+          }
+        />
+      }
+    >
+      <StorageFormView
+        loading={locations === null}
+        locations={locations ?? []}
+        values={values}
+        confirmWhy={prompt.confirmWhy}
+        saving={saving}
+        customerSearch={
           <CustomerSearch
             autoFocus
             label="Customer phone or name"
             search={(q) => searchCustomers(client, claims.orgId, q)}
             create={(input) => createCustomer(client, input)}
-            onSelect={edit(setCustomer)}
+            onSelect={(customer) => {
+              change({ customer });
+              // The keyboard goes on to where it is stored, then the boxes below it.
+              focusLater(LOCATION_FIELD_ID);
+            }}
           />
-        )}
-
-        <div className="intake-fields">
-          <label>
-            Location{" "}
-            <select value={locationId} onChange={(e) => edit(setLocationId)(e.target.value)}>
-              <option value="">— not placed yet —</option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.code}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <h3>Boxes</h3>
-        <table className="intake-lines">
-          <thead>
-            <tr>
-              <th>Box</th>
-              <th>Weight lb</th>
-              <th>Description</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={row.key}>
-                <td>Box {i + 1}</td>
-                <td>
-                  <input
-                    aria-label={`Box ${i + 1} weight`}
-                    inputMode="decimal"
-                    size={6}
-                    value={row.weight}
-                    onChange={(e) => setRow(row.key, { weight: e.target.value })}
-                  />
-                </td>
-                <td>
-                  <input
-                    aria-label={`Box ${i + 1} description`}
-                    value={row.description}
-                    onChange={(e) => setRow(row.key, { description: e.target.value })}
-                  />
-                </td>
-                <td>
-                  {rows.length > 1 && (
-                    <button
-                      type="button"
-                      aria-label={`Remove box ${i + 1}`}
-                      onClick={() => edit(setRows)(rows.filter((r) => r.key !== row.key))}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="station-actions">
-          <button type="button" onClick={() => edit(setRows)([...rows, emptyBox()])}>
-            Add box
-          </button>
-        </div>
-
-        <div className="intake-fields">
-          <label>
-            Notes <textarea value={notes} onChange={(e) => edit(setNotes)(e.target.value)} />
-          </label>
-        </div>
-
-        {error && (
-          <p className="station-feedback station-rejected" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="station-actions">
-          <button type="button" disabled={saving} onClick={() => void confirm()}>
-            {saving
-              ? "Confirming…"
-              : `Confirm & Print ${rows.length} Label${rows.length === 1 ? "" : "s"}`}
-          </button>
-        </div>
-      </section>
-    </div>
+        }
+        on={{
+          changeCustomer: () => change({ customer: null }),
+          location: (locationId) => change({ locationId }),
+          setRow: (key, patch) =>
+            change({ rows: values.rows.map((r) => (r.key === key ? { ...r, ...patch } : r)) }),
+          addRow: () => {
+            const row = emptyBox();
+            change({ rows: [...values.rows, row] });
+            focusLater(boxFieldId(row.key));
+          },
+          removeRow: (key) => change({ rows: values.rows.filter((r) => r.key !== key) }),
+          notes: (notes) => change({ notes }),
+          confirm: () => void confirm(),
+        }}
+      />
+    </StorageShell>
   );
 }

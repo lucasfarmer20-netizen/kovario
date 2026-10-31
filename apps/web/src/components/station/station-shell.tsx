@@ -25,14 +25,20 @@ export function StationShell({
   status,
   online: onlineOverride,
   defaultManualOpen = false,
+  scanner = true,
+  nav,
+  className,
   children,
 }: {
   name: string;
   site: string;
   operator: string | null;
   pending: number;
-  /** Hardware scans and typed codes alike; `method` is "manual" for "Enter manually". */
-  onScan: (raw: string, parsed: ParseResult, method: EntryMethod) => void;
+  /**
+   * Hardware scans and typed codes alike; `method` is "manual" for "Enter manually". Not
+   * needed on a keyboard station (`scanner={false}`).
+   */
+  onScan?: (raw: string, parsed: ParseResult, method: EntryMethod) => void;
   paused?: boolean;
   /** Typed-code reading for this station (org slug, tag digits, accepted kinds). */
   manual?: ManualOptions;
@@ -56,6 +62,16 @@ export function StationShell({
   online?: boolean;
   /** "Enter manually" starts open (previews in the station gallery). */
   defaultManualOpen?: boolean;
+  /**
+   * false: a keyboard station (Intake, Storage intake). No always-focused `ScanInput` (it would
+   * take the keyboard away from the form) and no shell "Enter manually"; the console bar, the
+   * step row, the next step line and the status column stay.
+   */
+  scanner?: boolean;
+  /** Extra console-bar links before Stations (Intake: New Intake, Orders). */
+  nav?: ReactNode;
+  /** Extra classes on the station root (print rules, e.g. `storage-station`). */
+  className?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultManualOpen);
@@ -67,9 +83,10 @@ export function StationShell({
     setWasHidden(hideManual);
     if (hideManual) setOpen(false);
   }
-  const typing = open && !hideManual;
+  const manualShown = scanner && !hideManual;
+  const typing = open && manualShown;
   return (
-    <main className="station">
+    <main className={className ? `station ${className}` : "station"}>
       <ScannerPaused value={Boolean(paused) || typing}>
         <header className="station-topbar">
           <div className="st-brandline">
@@ -87,29 +104,32 @@ export function StationShell({
               <UserRound size={20} aria-hidden />
               {operator ?? "Identify operator"}
             </span>
+            {nav}
             <StationsLink />
           </div>
         </header>
         <div className="station-command">
           <div className="station-command-main">
             <NextStep next={next} steps={steps} step={step} tone={nextTone} />
-            {!hideManual && (
+            {manualShown && (
               <ManualEntry
                 open={typing}
                 onOpenChange={setOpen}
                 disabled={paused}
                 options={manual}
                 label={manualLabel}
-                onSubmit={(text, parsed) => onScan(text, parsed, "manual")}
+                onSubmit={(text, parsed) => onScan?.(text, parsed, "manual")}
               />
             )}
           </div>
           <div className="station-command-status">{status}</div>
         </div>
-        <ScanInput
-          onScan={(raw, parsed) => onScan(raw, parsed, "scan")}
-          paused={paused || typing}
-        />
+        {scanner && (
+          <ScanInput
+            onScan={(raw, parsed) => onScan?.(raw, parsed, "scan")}
+            paused={paused || typing}
+          />
+        )}
         {children}
       </ScannerPaused>
     </main>

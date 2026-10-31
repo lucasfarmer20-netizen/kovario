@@ -50,6 +50,24 @@ export function useStationSession(): { session: StationSession | null; loaded: b
   return { session, loaded };
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Owner",
+  manager: "Manager",
+  staff: "Staff",
+  cashier: "Cashier",
+};
+
+/**
+ * Who is at a keyboard station, for the console bar's operator chip: a paired tablet, or the
+ * signed-in account's role. These desks have no operator PIN; with no session the chip asks to
+ * identify the operator (sign in or pair).
+ */
+export function sessionLabel(session: StationSession | null): string | null {
+  if (!session) return null;
+  if (session.claims.deviceId) return "Station tablet";
+  return ROLE_LABELS[session.claims.appRole] ?? "Signed in";
+}
+
 /** Verifies a manager PIN with the `elevate` Edge Function; returns the elevation token. */
 export async function managerElevation(
   client: FilletryClient,
