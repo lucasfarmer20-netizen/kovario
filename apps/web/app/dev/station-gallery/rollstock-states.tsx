@@ -46,15 +46,16 @@ const PLAIN: RollstockOrder = {
   flags: [],
   notes: [],
 };
-const row = (id: string, number: string, detail: string, age: string): RollstockNextRow => ({
-  id,
-  number,
-  detail,
-  age,
-});
+const row = (
+  id: string,
+  number: string,
+  detail: string,
+  age: string,
+  flags: string[] = [],
+): RollstockNextRow => ({ id, number, detail, age, flags });
 const NEXT_UP = [
   row("i2", "INT-2142", "Lingcod, Rockfish · 2 totes · Processing", "6h since drop-off"),
-  row("i4", "INT-2144", "Reds · 1 tote · Processing", "5h since drop-off"),
+  row("i4", "INT-2144", "Reds · 1 tote · Processing", "5h since drop-off", ["FAST PASS"]),
   row("i5", "INT-2146", "Kings · 3 totes · Cooler bypass", "2h since drop-off"),
 ];
 
@@ -88,7 +89,7 @@ export const ROLLSTOCK_STATES: RollstockState[] = [
   {
     id: "rollstock-open",
     title: "Order open, totes to scan",
-    note: "The hero: number and tote count, flags as badges, notes, one pip per tote. Step 1 ticks off. An order opens with its first tote, so this is Rollstock's nearest to an empty item.",
+    note: "The hero: number and tote count, flags as badges, the count of totes scanned, notes. Step 1 ticks off. An order opens with its first tote, so this is Rollstock's nearest to an empty item.",
     order: ORDER,
     nextUp: NEXT_UP,
     feedback: { tone: "ok", text: "Tote accepted" },
@@ -96,7 +97,7 @@ export const ROLLSTOCK_STATES: RollstockState[] = [
   {
     id: "rollstock-totes-in",
     title: "Every tote scanned",
-    note: "The tally turns green and step 2 ticks off. Scanning the next order's tote moves this one on; Finish queue stays outlined.",
+    note: "The count turns green and step 2 ticks off. Scanning the next order's tote moves this one on; Finish queue stays outlined.",
     order: { ...ORDER, scanned: 3 },
     nextUp: NEXT_UP,
     feedback: { tone: "ok", text: "Tote accepted" },

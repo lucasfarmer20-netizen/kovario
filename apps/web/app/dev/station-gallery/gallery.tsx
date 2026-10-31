@@ -16,6 +16,7 @@ import { GALLERY_STATES } from "./reconcile-states";
 import { BLAST_STATES, LOCATE_STATES } from "./freezer-states";
 import { ROLLSTOCK_STATES } from "./rollstock-states";
 import { StateFrames } from "./state-frames";
+import { WAVE_GALLERY_STATES } from "./wave-states";
 
 const STEPS = ["Add baskets", "Weigh", "Send to Blast"] as const;
 const noop = () => undefined;
@@ -105,6 +106,7 @@ export function StationGallery() {
           <a href="#reconcile">Reconcile</a>
           <a href="#blast">Blast</a>
           <a href="#locate">Locate</a>
+          <a href="#wave">Wave</a>
           <a href="#rollstock">Rollstock</a>
         </nav>
       </header>
@@ -544,6 +546,14 @@ export function StationGallery() {
         note="Two steps: scan basket, then its location. Exchange baskets are one tap each, in both steps."
       >
         <StateFrames states={LOCATE_STATES} />
+      </Section>
+
+      <div id="wave" />
+      <Section
+        title="Wave, every state"
+        note="Tap orders into the wave, scan each tote, Complete wave. The forward action sits under the card, above the wave's orders."
+      >
+        <StateFrames states={WAVE_GALLERY_STATES} />
       </Section>
 
       <div id="rollstock" />

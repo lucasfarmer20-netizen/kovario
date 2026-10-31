@@ -70,9 +70,7 @@ function toteOrder(raw: string | null): string | null {
   const parsed = parse(raw);
   return parsed.ok && parsed.value.kind === "TOTE" ? parsed.value.intakeNumber : null;
 }
-const species = (i: Intake) => [
-  ...new Set(i.intake_line.map((l) => speciesName(l.species_code))),
-];
+const species = (i: Intake) => [...new Set(i.intake_line.map((l) => speciesName(l.species_code)))];
 const toteCount = (n: number) => `${n} ${n === 1 ? "tote" : "totes"}`;
 /** The open order as the hero shows it: flags as badges, notes with what each is about. */
 export function rollstockOrder(i: Intake, scanned: number): RollstockOrder {
@@ -361,6 +359,7 @@ function LiveRollstock({ client, claims, siteName }: StationSession) {
             .filter(Boolean)
             .join(" · "),
           age: `${hoursInCooler(new Date(i.intake_at), now)}h since drop-off`,
+          flags: rollstockOrder(i, 0).flags,
         }))}
         resume={intakes
           .filter((i) => i.state === "rollstock" && i.id !== openId)

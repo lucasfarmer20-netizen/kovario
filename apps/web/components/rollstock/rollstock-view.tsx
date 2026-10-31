@@ -2,7 +2,6 @@
 import {
   CircleCheck,
   CircleSlash,
-  Flag,
   Inbox,
   PenLine,
   ScanBarcode,
@@ -11,7 +10,7 @@ import {
 } from "lucide-react";
 import { DisabledReason } from "@/src/components/station/next-step";
 import { OrderTile } from "@/src/components/station/order-tile";
-import { Tally } from "@/src/components/station/tally";
+import { CountProgress } from "@/src/components/station/count-progress";
 
 /** The order open at rollstock. */
 export type RollstockOrder = {
@@ -28,7 +27,13 @@ export type RollstockOrder = {
   notes: readonly { label: string; text: string }[];
 };
 /** An order on its way to rollstock (pulled from the cooler, or in it: a bypass). */
-export type RollstockNextRow = { id: string; number: string; detail: string; age: string };
+export type RollstockNextRow = {
+  id: string;
+  number: string;
+  detail: string;
+  age: string;
+  flags?: readonly string[];
+};
 /** An order at rollstock that is not the open one (another station's, or left open). */
 export type RollstockResumeRow = { id: string; number: string };
 /**
@@ -74,8 +79,6 @@ export const ROLLSTOCK_STEPS = ["Open an order", "Scan its totes", "Next order"]
 /** The override needs a reason of at least this many characters (rollstock_scan_advance). */
 export const OVERRIDE_REASON_MIN = 3;
 
-const totes = (n: number) => `${n} ${n === 1 ? "tote" : "totes"}`;
-
 /**
  * The next step line and current step (docs/11-FLOOR-WORDING.md, Rollstock): scan a tote to
  * open an order, then the next tote. Once every tote is in and nothing is next up, the step is
@@ -87,8 +90,7 @@ export function rollstockNextStep(
   nextUp: number,
   stale = false,
 ): { next: string; step: number; tone?: "warn" } {
-  if (!order)
-    return { next: stale ? "Tap Clear stale open order" : "Scan a tote", step: 0 };
+  if (!order) return { next: stale ? "Tap Clear stale open order" : "Scan a tote", step: 0 };
   const complete = order.scanned >= order.totes && order.totes > 0;
   if (blocked && !complete)
     return {
@@ -102,7 +104,7 @@ export function rollstockNextStep(
 
 /**
  * The Rollstock floor (docs/06-STATIONS-UX.md Rollstock): scan only. The open order is the hero:
- * its number and tote count, species, note badges and notes, a tally of its totes and what to
+ * its number and tote count, species, note badges and notes, its tote count and what to
  * scan next. NEXT UP is below it; Finish queue is de-emphasised, the filled button only when it
  * is the next step. When the server refuses to move an order on with totes missing, the manager
  * path takes the top. Presentational: the live station and the gallery both render it.
@@ -125,27 +127,34 @@ export function RollstockView(props: RollstockViewProps) {
           <p className="st-eyebrow">Open at rollstock</p>
           <h2>
             Order <span className="st-code">{order.number}</span>
-            <span className="st-item-sub"> · tote {order.scanned} of {order.totes}</span>
+            <span className="st-item-sub">
+              {" "}
+              · tote {order.scanned} of {order.totes}
+            </span>
           </h2>
         </div>
-        {(order.species.length > 0 || order.flags.length > 0) && (
-          <ul className="st-facts" aria-label="Order details">
-            {order.flags.map((f) => (
-              <li key={f} className="st-fact-flag">
-                <Flag size={18} aria-hidden />
-                {f}
-              </li>
-            ))}
+        {order.species.length > 0 && (
+          <ul className="st-facts" aria-label="Species">
             {order.species.map((s) => (
               <li key={s}>{s}</li>
             ))}
           </ul>
         )}
+        {order.flags.length > 0 && (
+          <p className="st-order-flags" aria-label="Order flags">
+            {order.flags.map((f) => (
+              <span key={f} className="station-badge st-badge-flag">
+                {f}
+              </span>
+            ))}
+          </p>
+        )}
       </div>
-      <Tally
+      <CountProgress
         done={order.scanned}
         total={order.totes}
-        label={`Totes scanned for ${order.number}`}
+        noun={order.totes === 1 ? "tote" : "totes"}
+        label={complete ? "Every tote scanned" : `${order.totes - order.scanned} to scan`}
       />
       {order.notes.length > 0 && (
         <dl className="st-notes">
@@ -158,25 +167,23 @@ export function RollstockView(props: RollstockViewProps) {
         </dl>
       )}
       <p className="st-expect">
-        {complete ? (
-          <CircleCheck size={28} aria-hidden />
-        ) : (
-          <ScanBarcode size={28} aria-hidden />
-        )}
+        {complete ? <CircleCheck size={28} aria-hidden /> : <ScanBarcode size={28} aria-hidden />}
         <span>
-          {complete ? (
+          {complete && nextUp.length > 0 ? (
             <>
-              <strong>Every tote scanned</strong>
+              <strong>Scan the next order&apos;s tote</strong>
               <br />
-              {nextUp.length > 0
-                ? "Scan the next order's tote: this one moves on to reconcile."
-                : "Last order? Tap Finish queue to send it to reconcile."}
+              This order then moves on to reconcile.
+            </>
+          ) : complete ? (
+            <>
+              <strong>Last order? Tap Finish queue</strong>
+              <br />
+              It sends this order to reconcile.
             </>
           ) : (
             <>
-              <strong>
-                Scan its next tote: {totes(order.totes - order.scanned)} to go
-              </strong>
+              <strong>Scan its next tote</strong>
               <br />
               Every tote is scanned before the order moves on to reconcile.
             </>
@@ -210,7 +217,9 @@ export function RollstockView(props: RollstockViewProps) {
   return (
     <div className="st-floor">
       <div className="st-main">
-        {order && blocked && !complete && <MissingTotes {...props} order={order} blocked={blocked} />}
+        {order && blocked && !complete && (
+          <MissingTotes {...props} order={order} blocked={blocked} />
+        )}
         {hero}
         <section className="station-card" aria-label="Next up">
           <h2 className="st-card-head">
@@ -226,7 +235,7 @@ export function RollstockView(props: RollstockViewProps) {
             <ul className="st-list">
               {nextUp.map((i) => (
                 <li key={i.id}>
-                  <OrderTile number={i.number} detail={i.detail} age={i.age} />
+                  <OrderTile number={i.number} detail={i.detail} age={i.age} flags={i.flags} />
                 </li>
               ))}
             </ul>
@@ -247,7 +256,9 @@ export function RollstockView(props: RollstockViewProps) {
               <span>Also open at rollstock</span>
               <span className="st-count st-num">{resume.length}</span>
             </h2>
-            <p className="station-hint">Left open at another station. Resume one to finish it here.</p>
+            <p className="station-hint">
+              Left open at another station. Resume one to finish it here.
+            </p>
             <ul className="st-list">
               {resume.map((i) => (
                 <li key={i.id}>
@@ -298,7 +309,9 @@ function Finish(props: RollstockViewProps & { primary: boolean }) {
  * server refused to move it on. Scanning the missing tote clears it; otherwise a manager approves
  * with a reason (manager PIN, or a manager account directly) and the refused order opens.
  */
-function MissingTotes(props: RollstockViewProps & { order: RollstockOrder; blocked: RollstockBlock }) {
+function MissingTotes(
+  props: RollstockViewProps & { order: RollstockOrder; blocked: RollstockBlock },
+) {
   const { order, blocked, reason, editingReason, busy, on } = props;
   const why = serverWhy(props);
   const short = reason.trim().length < OVERRIDE_REASON_MIN;
@@ -312,14 +325,13 @@ function MissingTotes(props: RollstockViewProps & { order: RollstockOrder; block
         <span className="st-panel-kicker">MISSING TOTES</span>
         <span className="st-sr"> · </span>
         <span className="st-panel-sub">
-          <span className="st-code">{order.number}</span> · {order.scanned} of {order.totes}{" "}
-          scanned
+          <span className="st-code">{order.number}</span> · {order.scanned} of {order.totes} scanned
         </span>
       </h2>
       <p className="st-panel-lead">
         {order.number} moves on to reconcile once every tote is scanned. Scan the missing{" "}
-        {missing === 1 ? "tote" : "totes"}, or a manager approves finishing it with{" "}
-        {order.scanned} of {order.totes}
+        {missing === 1 ? "tote" : "totes"}, or a manager approves finishing it with {order.scanned}{" "}
+        of {order.totes}
         {blocked.next ? `; then ${blocked.next} opens.` : "."}
       </p>
       {editingReason ? (
@@ -332,11 +344,7 @@ function MissingTotes(props: RollstockViewProps & { order: RollstockOrder; block
         >
           <label>
             Override reason
-            <input
-              autoFocus
-              value={reason}
-              onChange={(e) => on.reasonChange(e.target.value)}
-            />
+            <input autoFocus value={reason} onChange={(e) => on.reasonChange(e.target.value)} />
           </label>
           <button type="submit">Done</button>
         </form>
