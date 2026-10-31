@@ -127,6 +127,18 @@ coloured within (green) / near (amber, ≥ 2/3 of the limit) / over (red), with 
 Only the station's own site is listed (v1.2, #96): `now_in_blast` filters by the paired device's
 site (`app.station_site_id()`), so a multi-site org's blast and reconcile screens show one
 rollstock line. Managers in Admin, and a device with no site, see every site.
+**Design system** (UI pass, #129; `12-DESIGN-SYSTEM.md`; client side only, same RPCs): the
+released baskets and the in-blast baskets are two lists of basket rows side by side (one column on
+a phone, waiting first); the "now in blast" lines sit in the rail with a compact variance meter
+under each. One step, so no step row. Flow changes:
+- A waiting row shows how long since its order was sent to blast; a tagged row says **Scan**. An
+  exchange row's **Blast in** is outlined while scanning leads, and is the filled button when only
+  exchange baskets wait (the next step line is then the tap).
+- **Blast in** lands on the tapped row at once: a spinner replaces the button (so a second tap
+  sends nothing) until the refresh moves the basket to In blast.
+- First load shows placeholders in the final layout; a failed refresh says "Refresh unavailable;
+  check connection." under the scan tile. Nothing waiting and nothing in the blast each say so;
+  both empty reads "Blast freezer empty" and where baskets come from.
 
 ## Locate (scan only)
 Two-step loop: scan vessel tag (shows intake, species) → scan location → placement
@@ -134,6 +146,22 @@ written; both reset. Reject archived/unknown locations. No capacity hints.
 Exchange (untagged) baskets awaiting a shelf (occupied, unlocated, intake sent to blast) are
 listed under step 1; tapping one (`locate_vessel_by_id`) makes it the pending vessel, keyed by
 id, and the location is then scanned or typed through `locate_scan` as usual (v1.1, #86).
+**Design system** (UI pass, #129; `12-DESIGN-SYSTEM.md`; client side only, same RPCs): the step
+row ticks "Scan basket" off once a basket is scanned. Step 1 is a card saying what to scan; step 2
+names the basket (order, species) and the location it waits for ("Scan its location", with the
+label format). Flow changes:
+- Each exchange basket is one whole-row tap target (≥ 72 px) instead of a Select button beside
+  its text.
+- The exchange list stays in step 2 with the chosen basket framed (**Selected**, `aria-pressed`):
+  switching to another exchange basket is one tap (was **Scan a different basket**, then
+  **Select**). Tapping the chosen basket again sends nothing. The tapped row shows a spinner until
+  the reply lands.
+- Step 2 says a wrong basket is fixed by scanning the right one (`locate_scan` already replaces
+  the pending basket on a basket scan); **Scan a different basket** stays for clearing it.
+- While scans are still sending, the exchange rows and **Scan a different basket** wait and say
+  "Waiting for scans to send" (shown once the wait lasts, so a quick round trip never flashes it).
+- First load shows a placeholder card; a failed refresh says "Refresh unavailable; check
+  connection." under the scan tile (it used to empty the list silently).
 
 ## Counter allocation (tablet)
 Create session from one or more intakes (customer search / scan boxing QR) → anglers

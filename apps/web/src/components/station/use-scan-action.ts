@@ -55,14 +55,21 @@ export function useScanAction(scope: string, send: (request: ScanRequest) => Pro
       queue.current = null;
     };
   }, [scope, send]);
-  const scan = async (request: ScanRequest) => {
+  /**
+   * Queues the request and delivers what it can. Resolves true once it is queued (it will be sent,
+   * now or on reconnect), false when it was not (station starting, storage failure), so a caller
+   * showing a tap as in flight knows to undo that.
+   */
+  const scan = async (request: ScanRequest): Promise<boolean> => {
     const instance = queue.current;
     if (!instance) {
       show({ ok: false, reason: "Station is starting. Scan again." });
-      return;
+      return false;
     }
+    let queued = false;
     try {
       await instance.enqueue(request);
+      queued = true;
       if (request.vessel_id) {
         // A tap names a listed vessel: nothing to parse locally.
         show({ ok: true, reason: "Sent — pending confirmation" });
@@ -79,6 +86,7 @@ export function useScanAction(scope: string, send: (request: ScanRequest) => Pro
     } catch {
       show({ ok: false, reason: "Scan could not be saved. Scan again." });
     }
+    return queued;
   };
   return { pending, feedback, scan };
 }

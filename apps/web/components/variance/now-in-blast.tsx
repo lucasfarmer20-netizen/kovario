@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Database, FilletryClient } from "db";
 import { formatVariance, VARIANCE_BANDS, type VarianceBand } from "rules";
+import { VarianceMeter } from "@/src/components/station/band";
 
 /**
  * "Now in blast" lines (#87): every intake sent to blast while any of its vessels is not yet on
@@ -92,16 +93,19 @@ export function NowInBlastList({
   lines,
   error = false,
   onSelect,
+  meter = false,
 }: {
   lines: readonly NowInBlastLine[];
   error?: boolean;
   onSelect?: (line: NowInBlastLine) => void;
+  /** A compact variance meter under each line (the Blast station, #129). */
+  meter?: boolean;
 }) {
   return (
     <section className="station-card" aria-label="Now in blast">
       <h2>NOW IN BLAST ({lines.length})</h2>
       {error && <p role="alert">Blast lines unavailable; check connection.</p>}
-      <ul className="station-blast-lines">
+      <ul className="station-blast-lines" data-meter={meter || undefined}>
         {lines.map((line) => {
           const band = lineBand(line.band);
           const text = nowInBlastText(line);
@@ -115,6 +119,14 @@ export function NowInBlastList({
                 <>
                   {text} · {BAND_LABEL[band]}
                 </>
+              )}
+              {meter && line.limit_pct !== null && (
+                <VarianceMeter
+                  variancePct={line.variance_pct}
+                  limitPct={line.limit_pct}
+                  band={band}
+                  compact
+                />
               )}
             </li>
           );

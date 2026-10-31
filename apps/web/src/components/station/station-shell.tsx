@@ -24,6 +24,7 @@ export function StationShell({
   step,
   status,
   online: onlineOverride,
+  defaultManualOpen = false,
   children,
 }: {
   name: string;
@@ -53,9 +54,11 @@ export function StationShell({
   status: ReactNode;
   /** Overrides navigator.onLine (previews in the station gallery). */
   online?: boolean;
+  /** "Enter manually" starts open (previews in the station gallery). */
+  defaultManualOpen?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultManualOpen);
   const online = useOnline() && onlineOverride !== false;
   // A hidden field is closed: the scanner must not stay paused behind it, nor the field reopen
   // (and take focus) when it shows again.
