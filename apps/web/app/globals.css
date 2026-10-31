@@ -2048,7 +2048,8 @@ form.station-manual .station-actions > button[type="button"] {
 
 /* Hold and suspect panels */
 .rc-hold,
-.rc-suspects {
+.rc-suspects,
+.st-hold {
   display: grid;
   gap: var(--st-3);
   border-top: 6px solid var(--st-over);
@@ -2064,7 +2065,8 @@ form.station-manual .station-actions > button[type="button"] {
   scroll-margin-top: var(--st-3);
 }
 .station .rc-hold p,
-.station .rc-suspects p {
+.station .rc-suspects p,
+.station .st-hold p {
   margin: 0;
 }
 .rc-panel-head {
@@ -2074,13 +2076,15 @@ form.station-manual .station-actions > button[type="button"] {
   justify-content: space-between;
   gap: var(--st-3);
 }
-.rc-panel-title {
+.rc-panel-title,
+.st-panel-title {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   column-gap: var(--st-3);
   align-items: center;
 }
-.rc-panel-icon {
+.rc-panel-icon,
+.st-panel-icon {
   grid-row: span 2;
   display: grid;
   place-items: center;
@@ -2094,7 +2098,8 @@ form.station-manual .station-actions > button[type="button"] {
   background: var(--st-brand-soft);
   color: var(--st-brand);
 }
-.rc-panel-kicker {
+.rc-panel-kicker,
+.st-panel-kicker {
   font-size: var(--st-fs-label);
   letter-spacing: 0.1em;
   color: var(--st-over);
@@ -2102,11 +2107,13 @@ form.station-manual .station-actions > button[type="button"] {
 .rc-suspects .rc-panel-kicker {
   color: var(--st-brand);
 }
-.rc-panel-sub {
+.rc-panel-sub,
+.st-panel-sub {
   font-size: var(--st-fs-title);
   font-weight: 750;
 }
-.rc-panel-lead {
+.rc-panel-lead,
+.st-panel-lead {
   color: var(--st-ink-2);
   font-size: var(--st-fs-label);
   font-weight: 550;
@@ -2505,6 +2512,335 @@ form.station-manual .station-actions > button[type="button"] {
   animation: st-pop var(--st-dur-enter) var(--st-ease-out);
 }
 
+/* ---- Boxing / will-call (docs/06 Boxing): the party, its boxes and pick list, Complete ------ */
+.bx-party .st-item-head {
+  align-items: flex-start;
+}
+.bx-party h2 .st-code {
+  display: block;
+}
+.bx-party-name {
+  display: block;
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-title);
+  font-weight: 650;
+  letter-spacing: 0;
+}
+/* Wide: the count and the payment ref side by side under the party's name. */
+@container (min-width: 760px) {
+  .bx-party {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+    align-items: end;
+  }
+  .bx-party > :not(.st-progress, .bx-pay) {
+    grid-column: 1 / -1;
+  }
+  /* The figure stays whole ("0 / 6 ticked"); what is left wraps under it. */
+  .bx-party .st-progress {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.bx-field {
+  display: grid;
+  gap: var(--st-2);
+  min-width: 0;
+}
+.bx-group {
+  display: grid;
+  gap: var(--st-2);
+}
+.bx-group + .bx-group {
+  margin-top: var(--st-4);
+}
+.bx-group h3 {
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* Boxes sit two or three to a row when there is room. */
+.bx-group .st-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+}
+.bx-tick-all {
+  margin-bottom: var(--st-4);
+}
+.station .bx-expect {
+  margin: var(--st-4) 0 0 !important;
+}
+/* A whole-row tick: the checkbox covers the row (the row is the target, ≥ 72 px); ticked reads
+   by a frame, a check and the word Ticked. */
+label.bx-tick {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  font-weight: 600;
+  transition:
+    background-color var(--st-dur-state) var(--st-ease),
+    border-color var(--st-dur-state) var(--st-ease);
+}
+.station input.bx-check {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+label.bx-tick:active {
+  background: var(--st-brand-soft);
+  border-color: var(--st-brand);
+}
+label.bx-tick[data-checked] {
+  border: 2px solid var(--st-brand);
+  background: var(--st-brand-soft);
+  box-shadow:
+    inset 0 0 0 1px var(--st-brand),
+    var(--st-e2);
+}
+label.bx-tick:has(> .bx-check:focus-visible) {
+  outline: 4px solid var(--st-focus);
+  outline-offset: 3px;
+}
+label.bx-tick:has(> .bx-check:disabled) {
+  cursor: not-allowed;
+  background: var(--st-sunken);
+  transition: background-color 120ms var(--st-ease) 200ms;
+}
+.bx-tick .st-basket-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bx-hint {
+  white-space: nowrap;
+}
+.bx-box {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 2.5px solid var(--st-line-strong);
+  border-radius: 8px;
+  background: var(--st-surface);
+}
+/* The pick list: walk order first, the location in bold mono, Lbs left on the line. */
+.bx-picklist {
+  container-type: inline-size;
+}
+.bx-picklist[data-tone="warn"] {
+  border-color: var(--st-over);
+  box-shadow:
+    inset 0 0 0 1px var(--st-over),
+    var(--st-e1);
+}
+.bx-picklist-head {
+  flex-wrap: wrap;
+  margin-bottom: var(--st-4);
+}
+.station .bx-picklist-head h2 {
+  margin: 0;
+}
+.bx-walk {
+  color: var(--st-ink);
+  font-size: var(--st-fs-body);
+  font-weight: 760;
+}
+.bx-location {
+  color: var(--st-ink);
+  font-weight: 720;
+}
+.bx-lines {
+  gap: var(--st-3);
+}
+.bx-line {
+  display: grid;
+  gap: var(--st-2);
+  min-width: 0;
+}
+.bx-left {
+  display: flex;
+  align-items: center;
+  gap: var(--st-3);
+  color: var(--st-ink-2);
+  font-size: var(--st-fs-label);
+}
+.station .bx-left input {
+  width: 9rem;
+  font-variant-numeric: tabular-nums;
+}
+.station .bx-left input[aria-invalid="true"] {
+  border-color: var(--st-over);
+  box-shadow: inset 0 0 0 1px var(--st-over);
+}
+.station .bx-issue,
+.station .bx-action {
+  margin: 0 2px;
+  font-size: var(--st-fs-label);
+  font-weight: 650;
+}
+.station .bx-issue {
+  color: var(--st-over);
+}
+.station .bx-action {
+  color: var(--st-ink-2);
+}
+/* Wide enough: Lbs left sits on the line's right edge, over the tick row (the field, not the
+   row, takes taps there). */
+@container (min-width: 600px) {
+  .bx-line {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .bx-line > .bx-tick {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding-right: calc(15rem + 28px);
+  }
+  .bx-line > .bx-left {
+    grid-column: 2;
+    grid-row: 1;
+    z-index: 2;
+    width: 15rem;
+    margin-right: 14px;
+    justify-content: flex-end;
+  }
+  .bx-line > .bx-issue,
+  .bx-line > .bx-action {
+    grid-column: 1 / -1;
+  }
+}
+.bx-commit {
+  display: grid;
+}
+.bx-commit[data-tone="warn"] button:not(:disabled) {
+  background: var(--st-surface);
+  color: var(--st-over);
+  border-color: var(--st-over);
+}
+@media (max-width: 1099px) {
+  /* Usable: Complete stays at hand at the bottom of the screen while the party is open. */
+  .bx-commit[data-ready] {
+    position: sticky;
+    bottom: var(--st-2);
+    z-index: 3;
+    margin-inline: calc(var(--st-2) * -1);
+    padding: var(--st-2);
+    border-radius: var(--st-r-lg);
+    background: color-mix(in srgb, var(--st-surface) 88%, transparent);
+    backdrop-filter: blur(8px);
+    box-shadow: var(--st-e2);
+  }
+}
+.bx-result {
+  display: grid;
+  gap: var(--st-3);
+}
+.bx-last {
+  display: grid;
+  gap: var(--st-2);
+  text-align: left;
+}
+.bx-last li {
+  display: flex;
+  align-items: center;
+  gap: var(--st-2);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.bx-last svg {
+  flex: none;
+  color: var(--st-within-edge);
+}
+.station .bx-hero p {
+  max-width: 36rem;
+  margin: 0;
+}
+.bx-done .st-hero-art {
+  background: var(--st-within-soft);
+  color: var(--st-within);
+}
+.bx-done .bx-last {
+  margin-top: var(--st-3);
+}
+.bx-hold .bx-field {
+  margin-top: var(--st-2);
+}
+/* Notes (rail): per order, its flags as badges, then the notes and lines. */
+.bx-note + .bx-note {
+  margin-top: var(--st-4);
+  padding-top: var(--st-4);
+  border-top: 1px solid var(--st-line);
+}
+.bx-note h3 {
+  margin-bottom: var(--st-2);
+  overflow-wrap: anywhere;
+}
+.station .bx-note p {
+  margin: 0 0 var(--st-2);
+  font-size: var(--st-fs-label);
+}
+.station .bx-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-2);
+}
+.bx-flags .station-badge {
+  border-color: var(--st-ink-2);
+  letter-spacing: 0.04em;
+  white-space: normal;
+}
+/* Manager tools: closed by default, a 56 px summary row. */
+.bx-tools summary {
+  display: flex;
+  align-items: center;
+  gap: var(--st-3);
+  min-height: var(--st-touch);
+  padding-inline: var(--st-2);
+  border-radius: var(--st-r-md);
+  color: var(--st-brand);
+  font-size: var(--st-fs-body);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.bx-tools summary::-webkit-details-marker {
+  display: none;
+}
+.bx-tools summary:focus-visible {
+  outline: 4px solid var(--st-focus);
+  outline-offset: 3px;
+}
+.bx-tools-body {
+  display: grid;
+  gap: var(--st-5);
+  margin-top: var(--st-4);
+}
+.bx-tools-body > section {
+  display: grid;
+  gap: var(--st-3);
+  justify-items: start;
+}
+.bx-tools-body > section > .st-list,
+.bx-tools-body > section > .bx-field {
+  width: 100%;
+}
+.station .bx-tools-body p {
+  margin: 0;
+}
+.bx-fields {
+  display: grid;
+  gap: var(--st-3);
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+}
+
 /* ---- /dev/station-gallery ----------------------------------------------------------------- */
 .st-gallery-section {
   margin: 0 0 var(--st-7);
@@ -2810,13 +3146,26 @@ form.station-manual .station-actions > button[type="button"] {
     display: none;
   }
 }
-/* Boxing pick list prints alone, in walk order (shelf, basket, species, lb); the tick column
-   is left blank for a pen. */
+/* Boxing pick list prints alone, in walk order (location, basket, species, lb); each unticked
+   line keeps its empty box for a pen. */
 @media print {
-  .station:has(.boxing-picklist) > :not(.boxing-workspace),
-  .boxing-workspace > :not(.boxing-picklist),
-  .boxing-picklist button,
-  .boxing-picklist input {
+  .station:has(.bx-picklist) * {
+    visibility: hidden;
+  }
+  .station .bx-picklist,
+  .station .bx-picklist * {
+    visibility: visible;
+  }
+  .station .bx-picklist {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    border: 0;
+    box-shadow: none;
+  }
+  .bx-picklist button,
+  .bx-picklist .bx-left {
     display: none;
   }
 }

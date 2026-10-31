@@ -8,10 +8,14 @@ import {
   useStationSession,
   type StationSession,
 } from "@/components/intake/use-station-session";
+import { useOnline } from "@/src/components/station/connection-chip";
 import { ManagerPinOverlay } from "@/src/components/station/pin-overlay";
 import { StationShell } from "@/src/components/station/station-shell";
 import { useManualOptions, type EntryMethod } from "@/src/components/station/manual-entry";
 import { stationMessage } from "@/src/components/station/messages";
+import { StationNotice, type NoticeTone } from "@/src/components/station/notice";
+import { ScanFeedback } from "@/src/components/station/scan-feedback";
+import type { ScanReply } from "@/src/components/station/scan-queue";
 import {
   boxingQueue,
   boxingScan,
@@ -25,36 +29,55 @@ import {
   type ReleaseReply,
 } from "./boxing-data";
 import {
+  BOXING_STEPS,
+  boxingPrompt,
   completePayload,
+  completeWhy,
   emptyTicks,
   lbsValue,
   lineIssues,
+  nothingLeft,
   nothingTicked,
   reproject,
   scanTick,
   setLbsLeft,
+  tickBoxes,
   toggleBox,
   toggleVessel,
-  vesselLabel,
+  type I8Blocked,
   type Ticks,
   type Wizard,
 } from "./boxing-state";
-import { DisabledReason } from "@/src/components/station/next-step";
+import { BoxingPartyView, BoxingQueueView, type BoxingQueueItem } from "./boxing-view";
 
-type Feedback = { tone: "ok" | "warn" | "error"; text: string } | null;
+/** The scan tile: what the last scan did (accepted / rejected), or null between scans. */
+type Tile = (ScanReply & { event: number }) | null;
+/** A reply to a tap (Complete, manager tools) under the scan tile. */
+type Notice = { tone: NoticeTone; text: string };
+const NO_NOTICE: Notice = { tone: "info", text: "" };
 const SCAN_UNRECORDED = "Scan not recorded; check the connection and scan again.";
-const BOXING_STEPS = ["Open order", "Tick boxes and baskets", "Complete"] as const;
 
-function Status({ feedback }: { feedback: Feedback }) {
-  if (!feedback) return null;
+let scanEvent = 0;
+/** A scan result for the tile; every result is a new event, so the same text still animates. */
+const scanTile = (ok: boolean, text: string): Tile => ({ ok, reason: text, event: ++scanEvent });
+
+/** The scan tile and the reply under it (docs/12: one place for scan feedback). */
+function Status({ tile, notice }: { tile: Tile; notice: Notice }) {
   return (
-    <p
-      role={feedback.tone === "error" ? "alert" : "status"}
-      className={`station-feedback ${feedback.tone === "ok" ? "station-ok" : "station-rejected"}`}
-    >
-      {feedback.text}
-    </p>
+    <>
+      <ScanFeedback feedback={tile} idle />
+      <StationNotice tone={notice.tone} text={notice.text} />
+    </>
   );
+}
+
+/** Queue rows from public.allocation_session_list: "Pat Party · 2 of 3 boxes left". */
+function queueItems(rows: Awaited<ReturnType<typeof boxingQueue>>): BoxingQueueItem[] {
+  return rows.map((r) => ({
+    id: r.session_id,
+    number: r.number,
+    detail: `${r.party_name ?? "Party"} · ${r.planned_count} of ${r.box_count} boxes left`,
+  }));
 }
 
 function NeedSession({ children }: { children: (session: StationSession) => ReactNode }) {
@@ -78,59 +101,45 @@ export function BoxingQueueStation() {
 function BoxingQueue({ client, claims, siteName }: StationSession) {
   const manual = useManualOptions(client, claims.orgId);
   const router = useRouter();
-  const [rows, setRows] = useState<Awaited<ReturnType<typeof boxingQueue>> | null>(null);
-  const [feedback, setFeedback] = useState<Feedback>(null);
+  const [rows, setRows] = useState<BoxingQueueItem[] | null>(null);
+  const [tile, setTile] = useState<Tile>(null);
+  const [notice, setNotice] = useState<Notice>(NO_NOTICE);
   useEffect(() => {
     let live = true;
     boxingQueue(client).then(
-      (r) => live && setRows(r),
-      () => live && setFeedback({ tone: "error", text: "Queue unavailable; reload." }),
+      (r) => live && setRows(queueItems(r)),
+      () => {
+        if (!live) return;
+        setRows([]);
+        setNotice({ tone: "error", text: "Queue unavailable; reload." });
+      },
     );
     return () => {
       live = false;
     };
   }, [client]);
+  const prompt = boxingPrompt(null, emptyTicks());
   return (
     <StationShell
       name="Boxing / will-call"
       site={siteName}
       operator={null}
       pending={0}
-      next="Scan the boxing QR or tap an order"
+      next={prompt.next}
       steps={BOXING_STEPS}
-      step={0}
+      step={prompt.step}
       manualLabel="Boxing code (on the receipt)"
-      status={<Status feedback={feedback} />}
+      status={<Status tile={tile} notice={notice} />}
       manual={{ ...manual, accept: ["BOX"] }}
       onScan={async (raw, _parsed, method) => {
         // The server resolves the receipt and logs the scan (typed or scanned) in scan_log.
         const reply = await boxingScan(client, raw, null, null, method).catch(() => null);
-        if (!reply) setFeedback({ tone: "error", text: SCAN_UNRECORDED });
+        if (!reply) setTile(scanTile(false, SCAN_UNRECORDED));
         else if (reply.ok && reply.session_id) router.push(`/boxing/${reply.session_id}`);
-        else setFeedback({ tone: "error", text: stationMessage(reply.reason) });
+        else setTile(scanTile(false, stationMessage(reply.reason)));
       }}
     >
-      <section className="station-card" aria-label="Boxing queue">
-        <h2>Ready to box</h2>
-        {!rows ? (
-          <p>Loading…</p>
-        ) : rows.length === 0 ? (
-          <p>No priced party has boxes left to hand over.</p>
-        ) : (
-          <ul className="station-queue">
-            {rows.map((r) => (
-              <li key={r.session_id}>
-                <Link href={`/boxing/${r.session_id}`}>
-                  {r.number} · {r.party_name ?? "Party"}
-                </Link>
-                <span className="station-badge">
-                  {r.planned_count} of {r.box_count} boxes left
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <BoxingQueueView queue={rows} onOpen={(id) => router.push(`/boxing/${id}`)} />
     </StationShell>
   );
 }
@@ -139,7 +148,8 @@ function BoxingQueue({ client, claims, siteName }: StationSession) {
 export function BoxingStation({ sessionId }: { sessionId: string }) {
   return (
     <NeedSession>
-      {(session) => <BoxingParty session={session} sessionId={sessionId} />}
+      {/* Keyed: opening another party from the rail starts a clean form (I15). */}
+      {(session) => <BoxingParty key={sessionId} session={session} sessionId={sessionId} />}
     </NeedSession>
   );
 }
@@ -167,7 +177,12 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
   const scansInFlight = useRef(0);
   const [validating, setValidating] = useState(0);
   const [notices, setNotices] = useState<string[]>([]);
-  const [feedback, setFeedback] = useState<Feedback>(null);
+  const [tile, setTile] = useState<Tile>(null);
+  const [notice, setNotice] = useState<Notice>(NO_NOTICE);
+  const [failed, setFailed] = useState(false);
+  const [queue, setQueue] = useState<BoxingQueueItem[] | null>(null);
+  const online = useOnline();
+  const router = useRouter();
   const [reply, setReply] = useState<ReleaseReply | null>(null);
   const [paymentRef, setPaymentRef] = useState("");
   const [busy, setBusy] = useState(false);
@@ -181,7 +196,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
    * tote is left (DECISION-23), `tote_left` otherwise. Never inferred from the local
    * (possibly stale) pick list.
    */
-  const [i8Blocked, setI8Blocked] = useState<"none" | "tote_left" | "override">("none");
+  const [i8Blocked, setI8Blocked] = useState<I8Blocked>("none");
   const [i8Reason, setI8Reason] = useState("");
 
   function setWizard(next: Wizard) {
@@ -199,11 +214,6 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     setTicks(next);
     setI8Blocked("none");
   }
-
-  const typing = {
-    onFocus: () => setEditing(true),
-    onBlur: () => setEditing(false),
-  };
 
   /** Fresh projection (I15): keep ticks for still-eligible records, or start clean. */
   async function refresh(reset: boolean) {
@@ -227,8 +237,20 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     );
   }
 
+  /** The queue rail: the other parties, one tap away. A failed load leaves the last one. */
+  function loadQueue() {
+    return boxingQueue(client).then(
+      (rows) => setQueue(queueItems(rows)),
+      () => setQueue((current) => current ?? []),
+    );
+  }
+
   useEffect(() => {
     let live = true;
+    void boxingQueue(client).then(
+      (rows) => live && setQueue(queueItems(rows)),
+      () => live && setQueue([]),
+    );
     loadWizard(client, sessionId).then(
       async (next) => {
         if (!live) return;
@@ -240,15 +262,35 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
         );
         if (live) setEmptied(rows);
       },
-      () => live && setFeedback({ tone: "error", text: "Party not found." }),
+      () => {
+        if (!live) return;
+        setFailed(true);
+        setNotice({ tone: "error", text: "Party not found." });
+      },
     );
     return () => {
       live = false;
     };
   }, [client, sessionId]);
 
+  /**
+   * Flow (docs/06 Boxing): once this party has nothing left, the station reads the next
+   * receipt's boxing QR as the queue does, so the next party opens without going back.
+   */
+  async function openFromScan(raw: string, method: EntryMethod) {
+    const reply = await boxingScan(client, raw, null, null, method).catch(() => null);
+    if (!reply) setTile(scanTile(false, SCAN_UNRECORDED));
+    else if (!reply.ok || !reply.session_id) setTile(scanTile(false, stationMessage(reply.reason)));
+    else if (reply.session_id !== sessionId) router.push(`/boxing/${reply.session_id}`);
+    else {
+      await refresh(false).catch(() => undefined);
+      setTile(scanTile(true, `${wizardRef.current?.number ?? "Party"} refreshed`));
+    }
+  }
+
   async function onScan(raw: string, method: EntryMethod) {
     if (!wizardRef.current) return;
+    if (nothingLeft(wizardRef.current)) return openFromScan(raw, method);
     // The server validates the code against the masters and this party's pick list (I11),
     // and logs it in scan_log; ticks stay a local projection (I15). The form stays live
     // meanwhile, so the reply is applied to the latest form state below.
@@ -262,22 +304,22 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     }
     if (epoch !== formEpoch.current) {
       // Complete ran (or the form reset) while this was validated: never tick the new form.
-      setFeedback({ tone: "warn", text: "That scan arrived after Complete; scan it again." });
+      setTile(scanTile(false, "That scan arrived after Complete; scan it again."));
       return;
     }
     if (!reply) {
-      setFeedback({ tone: "error", text: SCAN_UNRECORDED });
+      setTile(scanTile(false, SCAN_UNRECORDED));
       return;
     }
     if (!reply.ok) {
       if (reply.reason === "operator_pin_required") op.expire();
-      setFeedback({ tone: "error", text: stationMessage(reply.reason) });
+      setTile(scanTile(false, stationMessage(reply.reason)));
       return;
     }
     if (reply.kind === "BOX") {
       // Additive re-scan: re-project, keeping ticks on still-eligible records (P15).
       await refresh(false);
-      setFeedback({ tone: "ok", text: `${wizardRef.current?.number ?? "Party"} refreshed` });
+      setTile(scanTile(true, `${wizardRef.current?.number ?? "Party"} refreshed`));
       return;
     }
     const form = wizardRef.current;
@@ -285,14 +327,16 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     const outcome = scanTick(form, ticksRef.current, raw);
     if (outcome.kind === "ticked") {
       updateTicks(() => outcome.ticks);
-      setFeedback({ tone: "ok", text: outcome.message });
+      setTile(scanTile(true, outcome.message));
     } else {
       // The server saw it on the pick list but this projection is stale: re-project.
       await refresh(false).catch(() => undefined);
-      setFeedback({
-        tone: "error",
-        text: outcome.kind === "rejected" ? `${outcome.message}; list refreshed` : "Scan again",
-      });
+      setTile(
+        scanTile(
+          false,
+          outcome.kind === "rejected" ? `${outcome.message}; list refreshed` : "Scan again",
+        ),
+      );
     }
   }
 
@@ -300,21 +344,21 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     const form = wizardRef.current;
     if (!form || busy || !op.allowed()) return;
     if (scansInFlight.current > 0) {
-      setFeedback({ tone: "warn", text: "A scan is still being checked; Complete when it lands." });
+      setNotice({ tone: "info", text: "A scan is still being checked; Complete when it lands." });
       return;
     }
     const current = ticksRef.current;
     const issues = lineIssues(form, current);
     if (issues.length > 0) {
-      setFeedback({ tone: "error", text: issues.map((i) => i.message).join(" · ") });
+      setNotice({ tone: "error", text: issues.map((i) => i.message).join(" · ") });
       return;
     }
     const payload = completePayload(form, current);
     // Scans started from here on belong to the form Complete is about to replace.
     formEpoch.current++;
     if (nothingTicked(payload)) {
-      setFeedback({
-        tone: "warn",
+      setNotice({
+        tone: "info",
         text: "Nothing ticked. Tick each box and basket being handed over, then Complete.",
       });
       return;
@@ -334,15 +378,16 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       setI8Blocked("none");
       setI8Reason("");
       if (r.noop) {
-        setFeedback({ tone: "warn", text: r.message ?? "Nothing to release." });
+        setNotice({ tone: "info", text: r.message ?? "Nothing to release." });
         await refresh(false); // stay on the form (I7)
       } else {
-        setFeedback({
+        setNotice({
           tone: "ok",
           text: `Released: ${r.finalized.length} box(es), ${r.moved.length} tote(s).`,
         });
         setPaymentRef("");
         await refresh(true);
+        void loadQueue();
       }
     } catch (err) {
       const text = err instanceof Error ? err.message : "Complete failed";
@@ -360,7 +405,7 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       // refresh clears the panel, so set it afterwards.
       if (blocked === "tote_left") await refresh(false).catch(() => undefined);
       setI8Blocked(blocked);
-      setFeedback({ tone: "error", text });
+      setNotice({ tone: "error", text });
     } finally {
       setBusy(false);
     }
@@ -373,8 +418,8 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
     }
     if (action.kind === "tag") {
       const r = await releaseByTag(client, action.tag, action.lbsLeft, action.reason, token);
-      setFeedback({
-        tone: r.noop ? "warn" : "ok",
+      setNotice({
+        tone: r.noop ? "info" : "ok",
         text: [
           r.noop
             ? r.message
@@ -387,8 +432,8 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       setTagForm({ tag: "", lbsLeft: "", reason: "" });
     } else {
       const r = await restoreVessel(client, action.vessel.id, action.reason, token);
-      setFeedback({
-        tone: r.restored ? "ok" : "warn",
+      setNotice({
+        tone: r.restored ? "ok" : "info",
         text: [r.restored ? `Restored ${r.weight_lb} lb` : r.message, ...r.warnings]
           .filter(Boolean)
           .join(" · "),
@@ -403,330 +448,85 @@ function BoxingParty({ session, sessionId }: { session: StationSession; sessionI
       try {
         await runManager(action, null);
       } catch (err) {
-        setFeedback({ tone: "error", text: err instanceof Error ? err.message : "Failed" });
+        setNotice({ tone: "error", text: err instanceof Error ? err.message : "Failed" });
       }
     } else setPending(action);
   }
 
-  if (!wizard)
-    return (
-      <main className="station">
-        <h1>Boxing / will-call</h1>
-        <Status feedback={feedback} />
-      </main>
-    );
+  const releaseTag = () => {
+    const lbs = lbsValue(tagForm.lbsLeft);
+    if (lbs !== null && (Number.isNaN(lbs) || lbs < 0)) {
+      setNotice({ tone: "error", text: "Lbs left must be a number of 0 or more" });
+      return;
+    }
+    void manager({
+      kind: "tag",
+      tag: tagForm.tag.trim(),
+      lbsLeft: lbs,
+      reason: tagForm.reason.trim(),
+    });
+  };
 
-  const tickedBoxes = new Set(ticks.boxes);
-  const anglers = wizard.anglers.filter((a) =>
-    wizard.boxes.some((b) => b.settlement_id === a.settlement_id),
-  );
-  const toteTicked = Object.values(ticks.vessels).some((l) => l.ticked);
-  const nothingLeft = wizard.boxes.length === 0 && wizard.vessels.length === 0;
-  const next = nothingLeft
-    ? "All handed over. Tap Queue for the next order"
-    : ticks.boxes.length === 0 && !toteTicked
-      ? "Tick each box and basket"
-      : "Complete";
-  const issues = new Map(lineIssues(wizard, ticks).map((i) => [i.vesselId, i.message]));
+  const done = wizard !== null && nothingLeft(wizard);
+  const prompt = boxingPrompt(wizard, ticks, i8Blocked);
+  const why = wizard ? completeWhy({ wizard, ticks, validating, online }) : null;
+  const field = { onFocus: () => setEditing(true), onBlur: () => setEditing(false) };
 
   return (
     <StationShell
-      name={`Boxing · ${wizard.number}`}
+      name="Boxing / will-call"
       site={siteName}
       operator={op.operator}
       pending={validating + (busy ? 1 : 0)}
       paused={op.pinOpen || editing || pending !== null}
-      next={next}
+      next={prompt.next}
+      nextTone={prompt.tone}
       steps={BOXING_STEPS}
-      step={next === "Tick each box and basket" ? 1 : 2}
-      manualLabel="Basket number"
-      status={<Status feedback={feedback} />}
-      manual={{ ...manual, accept: ["TAG", "BOX"] }}
+      step={prompt.step}
+      manualLabel={done ? "Boxing code (on the receipt)" : "Basket number"}
+      status={<Status tile={tile} notice={notice} />}
+      manual={{ ...manual, accept: done ? ["BOX"] : ["TAG", "BOX"] }}
       onScan={(raw, _parsed, method) => void onScan(raw, method)}
     >
-      <p className="station-hint">
-        {wizard.party_name ?? "Party"} · state {wizard.state}
-        {wizard.finalized_count > 0 && ` · ${wizard.finalized_count} box(es) already handed over`}
-      </p>
-      {notices.map((n) => (
-        <p key={n} className="station-feedback station-rejected" role="status">
-          {n}
-        </p>
-      ))}
-      <div className="station-workspace boxing-workspace">
-        <section className="station-card" aria-label="Boxes">
-          <h2>Boxes</h2>
-          {wizard.boxes.length === 0 && <p>No planned boxes left.</p>}
-          {anglers.map((a) => (
-            <div key={a.settlement_id}>
-              <h3>{a.angler_name}</h3>
-              <ul className="station-queue">
-                {wizard.boxes
-                  .filter((b) => b.settlement_id === a.settlement_id)
-                  .map((b) => (
-                    <li key={b.box_id}>
-                      <label className="intake-toggle">
-                        <input
-                          type="checkbox"
-                          checked={tickedBoxes.has(b.box_id)}
-                          onChange={() => updateTicks((t) => toggleBox(t, b.box_id))}
-                        />
-                        {b.number} · {b.method === "willcall" ? "will-call" : b.method} ·{" "}
-                        {b.size ?? "box"} · {b.weight_lb} lb
-                        {b.method === "ship" && ` · ships ${b.ship_date ?? "(no date)"}`}
-                      </label>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          ))}
-          {ticks.boxes.length > 0 && !toteTicked && !wizard.moved_before && (
-            <p className="station-hint" role="status">
-              No fish has moved for this party yet: tick the baskets you are handing over.
-            </p>
-          )}
-        </section>
-
-        <section className="station-card boxing-picklist" aria-label="Pick list">
-          <h2>Pick list (walk order)</h2>
-          {wizard.vessels.length === 0 && <p>No baskets left in the freezer for this party.</p>}
-          <table>
-            <thead>
-              <tr>
-                <th>Tick</th>
-                <th>Basket</th>
-                <th>Location</th>
-                <th>Species</th>
-                <th>lb</th>
-                <th>Lbs left</th>
-              </tr>
-            </thead>
-            <tbody>
-              {wizard.vessels.map((v) => {
-                const l = ticks.vessels[v.vessel_id];
-                const label = vesselLabel(v);
-                return (
-                  <tr key={v.vessel_id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        aria-label={`Tick ${label}`}
-                        checked={l?.ticked ?? false}
-                        onChange={() => updateTicks((t) => toggleVessel(t, v))}
-                      />
-                    </td>
-                    <td>{label}</td>
-                    <td>{v.location_code ?? "unlocated"}</td>
-                    <td>{v.species_summary ?? ""}</td>
-                    <td>{v.weight_lb}</td>
-                    <td>
-                      <input
-                        inputMode="decimal"
-                        aria-label={`Lbs left ${label}`}
-                        aria-invalid={issues.has(v.vessel_id)}
-                        placeholder="0 = all"
-                        value={l?.lbsLeft ?? ""}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          updateTicks((t) => setLbsLeft(t, v, value));
-                        }}
-                        {...typing}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <button type="button" onClick={() => window.print()}>
-            Print pick list
-          </button>
-        </section>
-
-        <section className="station-card" aria-label="Notes">
-          <h2>Notes</h2>
-          {wizard.intakes.map((i) => (
-            <div key={i.intake_id}>
-              <h3>
-                {i.number} · {i.customer_name}
-              </h3>
-              <p>
-                {i.dirty_fish && <span className="station-badge">DIRTY</span>}{" "}
-                {i.ribbing && <span className="station-badge">RIBBING</span>}{" "}
-                {i.smoking && <span className="station-badge">SMOKING SPLIT</span>}{" "}
-                {i.other_sessions.length > 0 && (
-                  <span className="station-badge">also in {i.other_sessions.join(", ")}</span>
-                )}
-              </p>
-              {i.dirty_notes && <p>Dirty: {i.dirty_notes}</p>}
-              {i.cut_notes && <p>Cut: {i.cut_notes}</p>}
-              {i.processing_notes && <p>Processing: {i.processing_notes}</p>}
-              <ul>
-                {i.lines.map((ln, n) => (
-                  <li key={n}>
-                    {ln.species} · {ln.method} · {ln.lb} lb{ln.notes ? ` · ${ln.notes}` : ""}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </section>
-      </div>
-
-      <section className="station-card" aria-label="Complete">
-        <label>
-          Payment ref (receipt / register)
-          <input value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} {...typing} />
-        </label>
-        <div className="station-actions">
-          <button type="button" disabled={busy || validating > 0} onClick={() => void complete()}>
-            Complete
-          </button>
-          <Link href="/boxing">Queue</Link>
-        </div>
-        {i8Blocked === "tote_left" && (
-          <p className="station-hint" role="status">
-            Tick the baskets you are handing over: this party still has baskets in the freezer (see
-            the pick list).
-          </p>
-        )}
-        {/* DECISION-23: only when the server found no tote left (it re-checks on override). */}
-        {i8Blocked === "override" && (
-          <div aria-label="I8 override">
-            <p className="station-hint">
-              No basket is left to tick for this party: another party or a Release by tag took the
-              last one. A manager can finalise the ticked boxes with a reason.
-            </p>
-            <label>
-              Override reason
-              <input value={i8Reason} onChange={(e) => setI8Reason(e.target.value)} {...typing} />
-            </label>
-            <button
-              type="button"
-              disabled={busy || !i8Reason.trim()}
-              onClick={() => void manager({ kind: "i8", reason: i8Reason.trim() })}
-            >
-              Manager override
-            </button>
-            <DisabledReason reason={!i8Reason.trim() && "Enter a reason first"} />
-          </div>
-        )}
-        {reply && !reply.noop && (
-          <ul aria-label="Last Complete">
-            {reply.finalized.map((b) => (
-              <li key={b.box_id}>
-                {b.number} → {b.state.replace("_", " ")}
-              </li>
-            ))}
-            {reply.moved.map((m) => (
-              <li key={m.vessel_id}>
-                {m.label} → {m.action === "split" ? `split, ${m.weight_left} lb left` : "emptied"}
-              </li>
-            ))}
-            {reply.shipping.map((s) => (
-              <li key={s.box_number}>{s.notice}</li>
-            ))}
-            {reply.closed_intakes.length > 0 && <li>Closed: {reply.closed_intakes.join(", ")}</li>}
-          </ul>
-        )}
-        {reply && reply.stale.length > 0 && (
-          <p role="status">
-            Already handled elsewhere (dropped): {reply.stale.map((s) => s.label).join(", ")}
-          </p>
-        )}
-      </section>
-
-      <details className="station-card">
-        <summary>Manager tools</summary>
-        <h3>Release by tag</h3>
-        <p className="station-hint">For a basket that was not ticked at Complete. Baskets only.</p>
-        <div className="intake-fields">
-          <label>
-            Basket to release
-            <input
-              value={tagForm.tag}
-              onChange={(e) => setTagForm({ ...tagForm, tag: e.target.value })}
-              {...typing}
-            />
-          </label>
-          <label>
-            Lbs left
-            <input
-              inputMode="decimal"
-              placeholder="0 = all"
-              value={tagForm.lbsLeft}
-              onChange={(e) => setTagForm({ ...tagForm, lbsLeft: e.target.value })}
-              {...typing}
-            />
-          </label>
-          <label>
-            Reason
-            <input
-              value={tagForm.reason}
-              onChange={(e) => setTagForm({ ...tagForm, reason: e.target.value })}
-              {...typing}
-            />
-          </label>
-          <button
-            type="button"
-            disabled={!tagForm.tag.trim() || !tagForm.reason.trim()}
-            onClick={() => {
-              const lbs = lbsValue(tagForm.lbsLeft);
-              if (lbs !== null && (Number.isNaN(lbs) || lbs < 0)) {
-                setFeedback({ tone: "error", text: "Lbs left must be a number of 0 or more" });
-                return;
-              }
-              void manager({
-                kind: "tag",
-                tag: tagForm.tag.trim(),
-                lbsLeft: lbs,
-                reason: tagForm.reason.trim(),
-              });
-            }}
-          >
-            Release by tag
-          </button>
-          <DisabledReason
-            reason={
-              (!tagForm.tag.trim() || !tagForm.reason.trim()) &&
-              "Enter the basket and a reason first"
-            }
-          />
-        </div>
-        <h3>Restore a released basket</h3>
-        {emptied.length === 0 ? (
-          <p>No released baskets for this party.</p>
-        ) : (
-          <>
-            <label>
-              Reason
-              <input
-                value={restoreReason}
-                onChange={(e) => setRestoreReason(e.target.value)}
-                {...typing}
-              />
-            </label>
-            <ul className="station-queue">
-              {emptied.map((v) => (
-                <li key={v.id}>
-                  {v.tag_code ? `Basket ${v.tag_code}` : "Untagged basket"} ({v.intake_number}) ·{" "}
-                  {v.weight_lb ?? "?"} lb
-                  <button
-                    type="button"
-                    disabled={!restoreReason.trim()}
-                    onClick={() =>
-                      void manager({ kind: "restore", vessel: v, reason: restoreReason.trim() })
-                    }
-                  >
-                    Restore
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </details>
-
+      <BoxingPartyView
+        loading={!wizard && !failed}
+        failed={failed}
+        wizard={wizard}
+        ticks={ticks}
+        notices={notices}
+        blocked={i8Blocked}
+        why={why}
+        reply={reply}
+        paymentRef={paymentRef}
+        i8Reason={i8Reason}
+        busy={busy}
+        queue={queue}
+        field={field}
+        tools={{
+          emptied,
+          tagForm,
+          restoreReason,
+          on: {
+            tagForm: setTagForm,
+            restoreReason: setRestoreReason,
+            releaseByTag: releaseTag,
+            restore: (vessel) =>
+              void manager({ kind: "restore", vessel, reason: restoreReason.trim() }),
+          },
+        }}
+        on={{
+          toggleBox: (id) => updateTicks((t) => toggleBox(t, id)),
+          tickBoxes: (ids) => updateTicks((t) => tickBoxes(t, ids)),
+          toggleVessel: (v) => updateTicks((t) => toggleVessel(t, v)),
+          lbsLeft: (v, value) => updateTicks((t) => setLbsLeft(t, v, value)),
+          paymentRef: setPaymentRef,
+          i8Reason: setI8Reason,
+          complete: () => void complete(),
+          override: () => void manager({ kind: "i8", reason: i8Reason.trim() }),
+          print: () => window.print(),
+          open: (id) => router.push(`/boxing/${id}`),
+        }}
+      />
       {pending && (
         <ManagerPinOverlay
           onClose={() => setPending(null)}

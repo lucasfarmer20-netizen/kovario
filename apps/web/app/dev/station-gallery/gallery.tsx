@@ -16,6 +16,7 @@ import { GALLERY_STATES } from "./reconcile-states";
 import { BLAST_STATES, LOCATE_STATES } from "./freezer-states";
 import { StateFrames } from "./state-frames";
 import { WAVE_GALLERY_STATES } from "./wave-states";
+import { BOXING_GALLERY_STATES } from "./boxing-states";
 
 const STEPS = ["Add baskets", "Weigh", "Send to Blast"] as const;
 const noop = () => undefined;
@@ -106,6 +107,7 @@ export function StationGallery() {
           <a href="#blast">Blast</a>
           <a href="#locate">Locate</a>
           <a href="#wave">Wave</a>
+          <a href="#boxing">Boxing</a>
         </nav>
       </header>
 
@@ -552,6 +554,14 @@ export function StationGallery() {
         note="Tap orders into the wave, scan each tote, Complete wave. The forward action sits under the card, above the wave's orders."
       >
         <StateFrames states={WAVE_GALLERY_STATES} />
+      </Section>
+
+      <div id="boxing" />
+      <Section
+        title="Boxing / will-call, every state"
+        note="Open a party (scan the receipt's boxing QR or tap it in the queue), tick each box and basket, Complete. Boxes by angler, the pick list in walk order; notes and the queue in the rail."
+      >
+        <StateFrames states={BOXING_GALLERY_STATES} />
       </Section>
     </main>
   );

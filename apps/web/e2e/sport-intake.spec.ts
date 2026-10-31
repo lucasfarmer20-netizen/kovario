@@ -142,7 +142,8 @@ test("sport intake: intake → wave → rollstock → reconcile → blast → lo
 
   await test.step("boxing: open the party, tick the box, scan the basket tag, Complete", async () => {
     await page.goto("/boxing");
-    await page.getByRole("link", { name: new RegExp(`^${sessionNumber} · `) }).click();
+    // The queue lists parties as tiles (named by the party number); a tap opens one.
+    await page.getByRole("button", { name: sessionNumber, exact: true }).click();
     await page.waitForURL(/\/boxing\/[0-9a-f-]{36}$/);
     await page.getByRole("checkbox", { name: /will-call · 25 lb box · 17\.5 lb/ }).check();
     await scan(page, qr.tag(ORG_SLUG, tag));

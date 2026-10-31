@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   headers: [] as string[],
   /** When set, a boxing_scan reply waits for it (deferred-RPC tests). */
   scanGate: null as null | ((raw: string) => Promise<void>),
+  /** Rows of allocation_session_list (the boxing queue). */
+  queue: [] as Record<string, unknown>[],
 }));
 vi.mock("@/components/intake/use-station-session", () => ({
   useStationSession: () => ({ session: mocks.session, loaded: true }),
@@ -70,6 +72,7 @@ afterEach(() => {
   vi.clearAllMocks();
   mocks.headers.length = 0;
   mocks.scanGate = null;
+  mocks.queue = [];
 });
 
 const WIZARD: Wizard = {
@@ -217,7 +220,10 @@ function setup(
       maybeSingle: async () =>
         table === "settlement" ? settlementSession() : { data: null, error: null },
       then: (resolve: (r: unknown) => unknown) =>
-        Promise.resolve({ data: [], error: null }).then(resolve),
+        Promise.resolve({
+          data: table === "allocation_session_list" ? mocks.queue : [],
+          error: null,
+        }).then(resolve),
     };
     return q;
   };
@@ -232,9 +238,9 @@ function setup(
 
 it("WP15 boxing shows planned boxes, the walk-order pick list and the notes panel", async () => {
   setup();
-  expect(await screen.findByText(/BOX-0001 · will-call/)).toBeTruthy();
-  expect(screen.getByText("Basket 042 (INT-0001)")).toBeTruthy();
-  expect(screen.getByText("Exchange basket (INT-0001)")).toBeTruthy(); // P4: untagged, still listed
+  expect(await screen.findByLabelText(/BOX-0001 · will-call/)).toBeTruthy();
+  expect(screen.getByLabelText("Tick Basket 042 (INT-0001)")).toBeTruthy();
+  expect(screen.getByLabelText("Tick Exchange basket (INT-0001)")).toBeTruthy(); // P4: untagged, still listed
   expect(screen.getByText("DIRTY")).toBeTruthy();
   expect(screen.getByText("RIBBING")).toBeTruthy();
   expect(screen.getByText("Cut: skin on")).toBeTruthy();
@@ -492,7 +498,7 @@ it("WP15 a tote-left refusal re-projects so the stale pick list shows the tote",
   );
   fireEvent.click(await screen.findByLabelText(/BOX-0001/));
   fireEvent.click(screen.getByRole("button", { name: "Complete" }));
-  expect(await screen.findByText("Basket 042 (INT-0001)")).toBeTruthy(); // the tote now shows
+  expect(await screen.findByLabelText("Tick Basket 042 (INT-0001)")).toBeTruthy(); // the tote now shows
   expect(screen.getByText(/still has baskets in the freezer/)).toBeTruthy(); // pointer kept
   expect((screen.getByLabelText(/BOX-0001/) as HTMLInputElement).checked).toBe(true); // I15
 });
@@ -571,7 +577,7 @@ it("#84 a scan reply landing after Complete reset the form is dropped, not ticke
 
 it("#98 the next step walks boxing: tick each box and basket → Complete", async () => {
   setup();
-  await screen.findByText("Basket 042 (INT-0001)");
+  await screen.findByLabelText("Tick Basket 042 (INT-0001)");
   const next = () => screen.getByTestId("next-step").textContent;
   expect(next()).toBe("Tick each box and basket");
   fireEvent.click(screen.getByLabelText("Tick Basket 042 (INT-0001)"));
@@ -582,4 +588,82 @@ it("#98 the boxing queue asks for the boxing QR or an order", async () => {
   cleanup();
   render(<BoxingQueueStation />);
   expect(screen.getByTestId("next-step").textContent).toBe("Scan the boxing QR or tap an order");
+});
+
+const QUEUE_ROW = {
+  session_id: "s2",
+  number: "ALC-0002",
+  party_name: "Lee Party",
+  fulfillment_status: "pending",
+  planned_count: 2,
+  box_count: 2,
+};
+
+it("#130 Tick every box ticks each box in one tap; Complete sends them as box ticks only (I1)", async () => {
+  const twoBoxes: Wizard = {
+    ...WIZARD,
+    boxes: [...WIZARD.boxes, { ...WIZARD.boxes[0]!, box_id: "b2", number: "BOX-0002" }],
+  };
+  const { rpc } = setup(undefined, "staff", [], twoBoxes);
+  fireEvent.click(await screen.findByRole("button", { name: "Tick every box" }));
+  expect((screen.getByLabelText(/BOX-0001/) as HTMLInputElement).checked).toBe(true);
+  expect((screen.getByLabelText(/BOX-0002/) as HTMLInputElement).checked).toBe(true);
+  expect(screen.queryByRole("button", { name: "Tick every box" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+  await waitFor(() =>
+    expect(rpc).toHaveBeenCalledWith(
+      "release_party",
+      expect.objectContaining({ p_box_ticks: ["b1", "b2"], p_vessel_ticks: [] }),
+    ),
+  );
+});
+
+it("#130 Complete waits with the reason until something is ticked (I7)", async () => {
+  setup();
+  const complete = (await screen.findByRole("button", { name: "Complete" })) as HTMLButtonElement;
+  expect(complete.disabled).toBe(true);
+  expect(screen.getByText(/^Nothing ticked yet/)).toBeTruthy();
+  fireEvent.click(screen.getByLabelText(/BOX-0001/));
+  expect(complete.disabled).toBe(false);
+});
+
+it("#130 a party in the queue rail opens in one tap", async () => {
+  mocks.queue = [QUEUE_ROW];
+  setup();
+  fireEvent.click(await screen.findByRole("button", { name: "ALC-0002" }));
+  expect(mocks.push).toHaveBeenCalledWith("/boxing/s2");
+});
+
+it("#130 the queue lists parties as tiles; a tap opens one", async () => {
+  mocks.queue = [QUEUE_ROW];
+  setup();
+  cleanup();
+  render(<BoxingQueueStation />);
+  fireEvent.click(await screen.findByRole("button", { name: "ALC-0002" }));
+  expect(mocks.push).toHaveBeenCalledWith("/boxing/s2");
+  expect(screen.getByText("Lee Party · 2 of 2 boxes left")).toBeTruthy();
+});
+
+it("#130 once everything is handed over, the next receipt's boxing QR opens its party", async () => {
+  const { rpc } = setup();
+  fireEvent.click(await screen.findByLabelText(/BOX-0001/));
+  fireEvent.click(screen.getByLabelText("Tick Basket 042 (INT-0001)"));
+  // Complete empties the party: the re-projection has nothing left.
+  const respond = rpc.getMockImplementation()!;
+  rpc.mockImplementation((name: string, args?: Record<string, unknown>) =>
+    name === "boxing_wizard"
+      ? Promise.resolve({ data: { ...WIZARD, boxes: [], vessels: [] }, error: null })
+      : respond(name, args),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+  expect(await screen.findByText("All handed over")).toBeTruthy();
+  expect(screen.getByTestId("next-step").textContent).toBe("Scan the boxing QR or tap an order");
+  const scanner = screen.getByLabelText("Station scanner");
+  fireEvent.keyDown(scanner, { key: "Enter", target: { value: "FL:BOX:othertoken" } });
+  await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/boxing/other"));
+  // Read as the queue reads it: no party scope, so it is not refused as another party (I11).
+  expect(rpc).toHaveBeenCalledWith(
+    "boxing_scan",
+    expect.objectContaining({ p_raw: "FL:BOX:othertoken", p_session_id: undefined }),
+  );
 });
