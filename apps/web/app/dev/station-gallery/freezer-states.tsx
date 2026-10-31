@@ -23,8 +23,8 @@ const noop = () => undefined;
 const LIMIT = 15;
 const OFFLINE = "Offline. Scans are saved on this tablet and send when the connection is back.";
 
-/** What every Blast / Locate gallery state shares: the shell around the view. */
-type ShellState = {
+/** What every Blast / Locate (and Rollstock) gallery state shares: the shell around the view. */
+export type ShellState = {
   id: string;
   title: string;
   /** What the state demonstrates. */
@@ -290,7 +290,7 @@ export const LOCATE_STATES: LocateState[] = [
 ];
 
 /** The shell's status column: a scan result, or whether the scanner is listening. */
-function Status({ state, paused }: { state: ShellState; paused: boolean }) {
+export function Status({ state, paused }: { state: ShellState; paused: boolean }) {
   return (
     <>
       {state.feedback ? (
@@ -306,7 +306,7 @@ function Status({ state, paused }: { state: ShellState; paused: boolean }) {
   );
 }
 
-function Pin({ state }: { state: ShellState }) {
+export function Pin({ state }: { state: ShellState }) {
   return state.pin ? (
     <OperatorPinOverlay
       onClose={noop}

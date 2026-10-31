@@ -6,7 +6,8 @@ import { Check, Clock, Lock, Plus } from "lucide-react";
  * hold blocks it, a one-line summary and how long it has waited. Its accessible name is the
  * number (and HELD); the summary is its description. `current` marks the open order.
  * `pressed` makes it a toggle (Wave: tap orders into the wave), shown by a frame, the word
- * "Added" with a check, and `aria-pressed`; `flags` are badges such as FAST PASS.
+ * "Added" with a check, and `aria-pressed`; `flags` are badges such as FAST PASS. Without
+ * `onOpen` it is a static tile, for a queue the station only shows (Rollstock's NEXT UP).
  */
 export function OrderTile({
   number,
@@ -30,22 +31,13 @@ export function OrderTile({
   /** Badges after the summary: "FAST PASS", "DIRTY". */
   flags?: readonly string[];
   disabled?: boolean;
-  onOpen: () => void;
+  /** Opens (or toggles) the order; without it the tile is not a button. */
+  onOpen?: () => void;
 }) {
   const id = useId();
   const hasMeta = Boolean(detail || age || flags?.length);
-  return (
-    <button
-      type="button"
-      className="st-order"
-      data-held={held || undefined}
-      aria-current={current || undefined}
-      aria-pressed={pressed}
-      aria-label={held ? `${number} HELD` : number}
-      aria-describedby={hasMeta ? id : undefined}
-      disabled={disabled}
-      onClick={onOpen}
-    >
+  const body = (
+    <>
       <span className="st-order-top">
         <span className="st-code st-order-number">{number}</span>
         {held && (
@@ -69,9 +61,11 @@ export function OrderTile({
       </span>
       {hasMeta && (
         <span className="st-order-meta" id={id}>
+          <span className="st-sr"> · </span>
           {detail && <span className="st-order-detail">{detail}</span>}
           {age && (
             <span className="st-order-age">
+              <span className="st-sr"> · </span>
               <Clock size={16} aria-hidden />
               {age}
             </span>
@@ -87,6 +81,27 @@ export function OrderTile({
           )}
         </span>
       )}
+    </>
+  );
+  if (!onOpen)
+    return (
+      <div className="st-order" data-held={held || undefined}>
+        {body}
+      </div>
+    );
+  return (
+    <button
+      type="button"
+      className="st-order"
+      data-held={held || undefined}
+      aria-current={current || undefined}
+      aria-pressed={pressed}
+      aria-label={held ? `${number} HELD` : number}
+      aria-describedby={hasMeta ? id : undefined}
+      disabled={disabled}
+      onClick={onOpen}
+    >
+      {body}
     </button>
   );
 }

@@ -661,7 +661,7 @@ function HandedOver({
 function OverridePanel({ i8Reason, busy, field, on }: BoxingPartyViewProps) {
   const reason = i8Reason.trim();
   return (
-    <section className="station-card st-hold bx-hold" aria-label="I8 override">
+    <section className="station-card st-panel bx-hold" aria-label="I8 override">
       <h3 className="st-panel-title">
         <span className="st-panel-icon" aria-hidden>
           <ShieldAlert size={22} strokeWidth={2.6} />
